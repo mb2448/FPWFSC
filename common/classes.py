@@ -10,7 +10,7 @@
 #
 #Bos2021
 #Bos, Steven P., et al. "Fast and furious focal-plane wavefront sensing at WM Keck Observatory." Techniques and Instrumentation for Detection of Exoplanets X. Vol. 11823. SPIE, 2021.
-
+import ipdb
 import numpy as np
 import hcipy
 
@@ -73,6 +73,139 @@ class Aperture:
         return self.aperture
 
 
+class LyotCoronagraph:
+
+    def __init__(self, Npix_foc=None, IWA_mas=None, mas_pix=None, pupil_grid=None):
+        """
+        Parameters
+        ----------
+
+        Npix_foc : int
+            size of focal plane array along side dimension
+        IWA_mas : float
+            Lyot coronagraph radius in miliarcseconds
+        mas_pix : float
+            Pixelscale in miliarcseconds
+        pupil_grid : hcipy.PupilGrid
+            Pupil grid the wavefront is defined on
+        wavelengt : float
+            The wavelength in meters
+        """
+        self.Npix_foc = Npix_foc
+        self.IWA_mas = IWA_mas
+        self.IWA_rad = np.radians(self.IWA_mas/1000./3600.)
+        self.mas_pix = mas_pix
+        self.rad_pix    = np.radians(self.mas_pix / 1000. / 3600.)
+        self.pupil_grid = pupil_grid
+        # init field generator
+        aperture = hcipy.make_circular_aperture(diameter=self.IWA_rad*2)
+        spot_generator = hcipy.make_obstruction(aperture)
+
+        self.focal_grid = hcipy.make_uniform_grid(
+             [self.Npix_foc, self.Npix_foc],
+             [self.Npix_foc*self.rad_pix, self.Npix_foc*self.rad_pix])
+        #self.focal_grid.wavelength = self.wavelength
+        #self.pupil_grid.wavelength = self.wavelength
+        self.fpm = spot_generator(self.focal_grid)
+
+    def forward_tolyot(self, input_wavefront):
+
+        prop = hcipy.FraunhoferPropagator(self.pupil_grid, self.focal_grid)
+        focal = prop.forward(input_wavefront)
+        focal.electric_field *= self.fpm
+        lyot_efield = prop.backward(focal)
+        return lyot_efield
+
+    def display(self):
+        """plots the aperture"""
+        hcipy.imshow_field(self.fpm)
+        plt.show()
+        return self.fpm
+
+class CoronagraphSystemModel:
+    """The optical system model.
+    A class to generate the system model
+    Parameters
+    ---------
+    telescopeaperture : classes.aperture (above)
+        The telecope system aperture
+    coronagraph : XYZ to fill in
+    lyotaperture : XYZ to fill in
+
+    Npix_foc : int
+        Number of pixels to generate model of psf on (does not need to be the same as the camera image size)
+    mas_pix : float
+        The number of milliarcseconds per pixel in the model.  Needs to match camera plate scale
+    wavelength : float (physical units, in meters (not um/nm)
+        The effective central wavelength of the filter in your (real) optical system
+    flux : float
+        photons/second in psf.  mainly useful for generating fake images.  DOES NOT ADD PHOTON NOISE.
+    Returns:
+    ---------
+    """
+    def __init__(self, telescopeaperture=None,
+                       coronagraph=None,
+                       lyotaperture=None,
+                       Npix_foc=None,
+                       mas_pix=None,
+                       wavelength=None):
+        print("Initializing system model")
+
+        self.Pupil      = telescopeaperture
+        self.FocalSpot  = coronagraph
+        self.LyotStop   = lyotaperture
+        self.pupil_grid = self.Pupil.pupil_grid
+        self.Npix_foc   = Npix_foc
+        self.mas_pix    = mas_pix
+        self.rad_pix    = np.radians(self.mas_pix / 1000. / 3600.)
+        self.wavelength = wavelength #in meters
+        self.focal_grid = hcipy.make_uniform_grid(
+             [self.Npix_foc, self.Npix_foc],
+             [self.Npix_foc*self.rad_pix, self.Npix_foc*self.rad_pix])
+        #generate the propagator, inherits from the aperture
+        self.propagator = hcipy.FraunhoferPropagator(self.Pupil.pupil_grid,
+                                                     self.focal_grid)
+        #generate the fourier transform operator
+        #self.fourier_transform = hcipy.make_fourier_transform(self.focal_grid, q=1, fov=1)
+
+        #generate the reference aperture
+        self.ref_pupil_field = hcipy.Wavefront(self.Pupil.aperture*1,
+                                           wavelength=self.wavelength)
+        #compute the FT of the aperture
+        self.a= self.propagator(self.ref_pupil_field)
+        #compute the reference psf electric field and image
+        self.ref_psf_efield = self.a.electric_field
+        self.ref_psf   = self.a.power
+        #set the current pupil efield to the reference field
+        #copy by value!
+        self.pupil_efield = self.ref_pupil_field.copy()
+        self.focal_efield = self.ref_psf_efield.copy()
+        return
+
+    def update_pupil_wavefront(self, applied_phase):
+        self.pupil_efield = hcipy.Wavefront(self.Pupil.aperture * \
+                                                 np.exp(1j * applied_phase),
+                                            wavelength=self.wavelength)
+        #self.pupil_efield.total_power = 1
+        self.focal_efield = self.generate_psf_efield()
+        return
+
+    def generate_psf_efield(self):
+        """Generate a psf.
+        Parameters
+        ----------
+
+        Returns
+        ----------
+        focal_wf
+        """
+        #XYZ somehwere here put in the flip
+        print("Flip put in here somewhere")
+        lyot_wf = self.FocalSpot.forward_tolyot(self.pupil_efield)
+        lyot_wf.electric_field *= self.LyotStop.aperture
+        focal_wf = self.propagator(lyot_wf)
+        return focal_wf
+
 class SystemModel:
     """The optical system model.
     A class to generate the system model
@@ -105,7 +238,6 @@ class SystemModel:
         self.focal_grid = hcipy.make_uniform_grid(
              [self.Npix_foc, self.Npix_foc],
              [self.Npix_foc*self.rad_pix, self.Npix_foc*self.rad_pix])
-        # self.focal_grid.rotate(np.radians(298.4)) #################################################################################
         #generate the propagator, inherits from the aperture
         self.propagator = hcipy.FraunhoferPropagator(self.Pupil.pupil_grid,
                                                      self.focal_grid)
