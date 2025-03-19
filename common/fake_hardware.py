@@ -167,3 +167,73 @@ class FakeAOSystem:
 
     def close_dm_stream(self):
         return
+
+
+class FakeAODMSystem:
+    """A class that has the same API as the normal AO system class.
+    Accepts an optical system and modifies the pupil efield by reference
+
+    Really just `FakeAOSystem,` but with an hcipy deformable mirror model
+    """
+    def __init__(self, OpticalModel,
+                       modebasis=None,
+                       initial_rms_wfe=0,
+                       rotation_angle_dm = 0,
+                       num_actuators_across=22,
+                       actuator_spacing=None
+                       seed=None):
+
+        if seed is not None:
+            np.random.seed(seed)
+        
+        print("Warning: rotation angle dm is not implemented yet in the simulator")
+        self.OpticalModel = OpticalModel
+        self.initial_phase_error = sf.generate_random_phase(rms_wfe=initial_rms_wfe,
+                                                            mode_basis=modebasis,
+                                                            pupil_grid=self.OpticalModel.Pupil.pupil_grid,
+                                                            aperture=self.OpticalModel.Pupil.aperture)
+        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
+
+        # Build deformable mirror
+        if actuator_spacing is None:
+
+            # compute based on num actuators across and pupil diameter
+            actuator_spacing = self.OpticalModel.Pupil.diameter / num_actuators_across
+        
+        self.influence_functions = hcipy.make_gaussian_influence_functions(self.OpticalModel.Pupil.pupil_grid,
+                                                                           num_actuators_across,
+                                                                           actuator_spacing)
+        self.deformable_mirror = hcipy.DeformableMirror(influence_functions)
+
+    def set_dm_data(self, dm_microns, modify_existing=False):
+        """
+        NOTE: Not actually sure that this is the right shape
+        Parameters
+        ----------
+        dm_microns : ndarray
+            modification to DM actuator heights in an array of shape
+            Nactuators x Nactuators units of microns.
+        """
+
+        #in the sim, just undoes the microns command from subaru
+        phase_DM_acts = dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
+
+        # Modify existing DM surface
+        if modify_existing:
+            self.deformable_mirror.actuators += phase_DM_acts
+        else:
+            self.deformable_mirror.actuators = phase_DM_acts
+
+        phase_DM = self.deformable_mirror.opd
+
+
+        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error-phase_DM)
+        self.OpticalModel.generate_psf_efield()
+
+        return
+
+    def make_dm_command(self, microns):
+        return microns
+
+    def close_dm_stream(self):
+        return
