@@ -31,7 +31,7 @@ if __name__ == "__main__":
                        mas_pix=10,
                        wavelength=2.2e-6)
     Camera = fhw.FakeDetector(opticalsystem=CSM,
-                                  flux = 1e3,
+                                  flux = 1e5,
                                   exptime=1,
                                   dark_current_rate=0,
                                   read_noise=10,
