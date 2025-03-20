@@ -187,6 +187,7 @@ class FakeAODMSystem:
             np.random.seed(seed)
         
         print("Warning: rotation angle dm is not implemented yet in the simulator")
+        self.num_actuators_across = num_actuators_across
         self.OpticalModel = OpticalModel
         self.initial_phase_error = sf.generate_random_phase(rms_wfe=initial_rms_wfe,
                                                             mode_basis=modebasis,
@@ -214,6 +215,9 @@ class FakeAODMSystem:
             modification to DM actuator heights in an array of shape
             Nactuators x Nactuators units of microns.
         """
+
+        assert dm_microns.shape[0] == self.num_actuators_across
+        assert dm_microns.shape[1] == self.num_actuators_across
 
         #in the sim, just undoes the microns command from subaru
         phase_DM_acts = dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
