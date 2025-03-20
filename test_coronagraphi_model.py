@@ -24,6 +24,7 @@ if __name__ == "__main__":
     TelescopeAperture.display()
     Lyotcoronagraph.display()
     LyotStop.display()
+
     CSM = ff_c.CoronagraphSystemModel(telescopeaperture=TelescopeAperture,
                        coronagraph=Lyotcoronagraph,
                        lyotaperture=LyotStop,
@@ -41,5 +42,21 @@ if __name__ == "__main__":
                                   ysize=1024,
                                   field_center_x=333,
                                   field_center_y=433)
+
+    AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM,
+                       modebasis=None,
+                       initial_rms_wfe=0,
+                       rotation_angle_dm = 0,
+                       num_actuators_across=22,
+                       actuator_spacing=None,
+                       seed=None)
+
+    # set DM surface to a sinusoid
+    x = np.linspace(-1, 1, 22)
+    x, y = np.meshgrid(x, x)
+
+    sin_err_acts = np.sin(x * 4) / 10
+    AOSystem.set_dm_data(sin_err_acts.ravel())
+
     image = Camera.take_image(focal_wf = CSM.generate_psf_efield())
     plt.imshow(image);plt.show()
