@@ -180,7 +180,7 @@ class FakeAODMSystem:
                        initial_rms_wfe=0,
                        rotation_angle_dm = 0,
                        num_actuators_across=22,
-                       actuator_spacing=None
+                       actuator_spacing=None,
                        seed=None):
 
         if seed is not None:
@@ -203,7 +203,7 @@ class FakeAODMSystem:
         self.influence_functions = hcipy.make_gaussian_influence_functions(self.OpticalModel.Pupil.pupil_grid,
                                                                            num_actuators_across,
                                                                            actuator_spacing)
-        self.deformable_mirror = hcipy.DeformableMirror(influence_functions)
+        self.deformable_mirror = hcipy.DeformableMirror(self.influence_functions)
 
     def set_dm_data(self, dm_microns, modify_existing=False):
         """
