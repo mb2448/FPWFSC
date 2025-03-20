@@ -172,14 +172,14 @@ class CoronagraphSystemModel:
         self.ref_pupil_field = hcipy.Wavefront(self.Pupil.aperture*1,
                                            wavelength=self.wavelength)
         #compute the FT of the aperture
-        self.a= self.propagator(self.ref_pupil_field)
+        #self.a= self.propagator(self.ref_pupil_field)
         #compute the reference psf electric field and image
-        self.ref_psf_efield = self.a.electric_field
-        self.ref_psf   = self.a.power
-        #set the current pupil efield to the reference field
-        #copy by value!
+        #self.ref_psf_efield = self.a.electric_field
+        #self.ref_psf   = self.a.power
+        ##set the current pupil efield to the reference field
+        ##copy by value!
         self.pupil_efield = self.ref_pupil_field.copy()
-        self.focal_efield = self.ref_psf_efield.copy()
+        self.focal_efield = self.generate_psf_efield().copy()
         return
 
     def update_pupil_wavefront(self, applied_phase):

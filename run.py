@@ -108,8 +108,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                   include_photon_noise=True,
                                   xsize=1024,
                                   ysize=1024,
-                                  field_center_x=333,
-                                  field_center_y=433)
+                                  field_center_x=330,
+                                  field_center_y=430)
 
         AOsystem = fhw.FakeAOSystem(OpticalModel, modebasis=FnF.mode_basis,
                                     initial_rms_wfe=rms_wfe, seed=seed)

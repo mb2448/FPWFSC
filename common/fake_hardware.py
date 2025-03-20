@@ -68,6 +68,7 @@ class FakeDetector:
                  read_noise=0,
                  dark_current_rate=0,
                  flat_field=0,
+                 bias_offset=0,
                  include_photon_noise=True,
                  exptime=None,
                  xsize = None,
@@ -76,7 +77,7 @@ class FakeDetector:
                  field_center_y = None,
                  flip_x = None,
                  flip_y = None,
-                 rotation_angle_deg = None,
+                 rotation_angle_deg = None, #not yet implemented
                  opticalsystem=None):
         self.flux = flux
         self.input_grid = opticalsystem.focal_grid
@@ -84,6 +85,7 @@ class FakeDetector:
         self.dark_current_rate = dark_current_rate
         self.include_photon_noise = include_photon_noise
         self.flat_field = flat_field
+        self.bias_offset = bias_offset
         self.xsize = xsize
         self.ysize = ysize
         self.field_center_x = field_center_x
@@ -98,8 +100,8 @@ class FakeDetector:
 
         self.detector = hcipy.optics.NoisyDetector(
                               self.input_grid,
-                              dark_current_rate=0,
-                              read_noise=0,
+                              dark_current_rate=self.dark_current_rate,
+                              read_noise=self.read_noise,
                               flat_field=0,
                               include_photon_noise=self.include_photon_noise)
 
@@ -135,6 +137,7 @@ class FakeDetector:
                                     (self.field_center_x, self.field_center_y))
         output_image += np.random.poisson(self.dark_current_rate*self.exptime, size=output_image.shape)
         output_image += np.random.normal(0, self.read_noise, size=output_image.shape)
+        output_image += self.bias_offset
         return output_image
 
 class FakeAOSystem:

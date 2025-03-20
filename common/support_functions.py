@@ -78,10 +78,12 @@ def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None,
                               masterflat=flat_crop,
                               badpix=badpix_crop)
     #align to ref psf
-    offset = phase_cross_correlation(refpsf, eq_image,
-                                     upsample_factor=10, normalization=None)[0]
-    shifted = shift(eq_image, offset, order=3, mode='wrap')
-
+    if refpsf is not None:
+        offset = phase_cross_correlation(refpsf, eq_image,
+                                         upsample_factor=10, normalization=None)[0]
+        shifted = shift(eq_image, offset, order=3, mode='wrap')
+    else:
+        shifted = eq_image
     #coadd
     final_image = shifted
 
