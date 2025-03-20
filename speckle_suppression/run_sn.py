@@ -7,6 +7,8 @@ import hcipy
 from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
+import dm
+import ipdb
 
 sys.path.insert(0, '../')
 from common import plotting_funcs as pf
@@ -68,7 +70,15 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                        Npix_foc=Npix_foc,
                        mas_pix=pixscale,
                        wavelength=wavelength)
-
+    
+    AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM,
+                       modebasis=None,
+                       initial_rms_wfe=0,
+                       rotation_angle_dm = 0,
+                       num_actuators_across=22,
+                       actuator_spacing=None,
+                       seed=seed)
+    
     Camera = fhw.FakeDetector(opticalsystem=CSM,
                                   flux = flux,
                                   exptime=exptime,
@@ -88,7 +98,30 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                           rotation_angle_deg=rotation_angle_deg)
     plt.imshow(data_proc, origin='lower')
     plt.show() 
-
+    imax=[] 
+    ks = []
+    for k in np.arange(3,11, 0.25):
+        speck = dm.make_speckle_kxy(k, 0, 50e-9, 0, N=22, flipy = False, flipx = False)
+        AOSystem.set_dm_data(speck)
+        data_speck = Camera.take_image()
+        data_proc = sf.reduce_images(data_speck, xcen=xcen, ycen=ycen,
+                                              npix=Npix_foc,
+                                              flipx = flip_x, flipy=flip_y,
+                                              rotation_angle_deg=rotation_angle_deg)
+        #plt.imshow(data_proc, origin='lower')
+        #plt.show()
+        #plt.clf()
+        #plt.close()
+        ks.append(k)
+        imax.append(np.max(data_proc[130,:]))
+        #plt.plot(data_proc[130, :], label = str(k))
+        #plt.clf()
+        #plt.close()
+    plt.plot(ks, imax)
+    plt.show()
+    #plt.imshow(data_proc, origin='lower')
+    #plt.show() 
+    ipdb.set_trace()
 if __name__ == "__main__":
     #plotter = pf.LivePlotter()
     

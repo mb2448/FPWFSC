@@ -223,13 +223,13 @@ class FakeAODMSystem:
         assert dm_microns.shape[1] == self.num_actuators_across
 
         #in the sim, just undoes the microns command from subaru
-        phase_DM_acts = dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
+        phase_DM_acts = dm_microns / self.OpticalModel.wavelength * (2 * np.pi) 
 
         # Modify existing DM surface
         if modify_existing:
-            self.deformable_mirror.actuators += phase_DM_acts
+            self.deformable_mirror.actuators += phase_DM_acts.ravel()
         else:
-            self.deformable_mirror.actuators = phase_DM_acts
+            self.deformable_mirror.actuators = phase_DM_acts.ravel()
 
         phase_DM = self.deformable_mirror.opd
 
