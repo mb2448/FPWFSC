@@ -27,15 +27,32 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         my_event = threading.Event()
     
     #XYZ this doesn't raise an error, fix it. 
+    ipdb.set_trace()
     settings = sf.validate_config(config, configspec)
     
     #----------------------------------------------------------------------
     # Simulation parameters
     #----------------------------------------------------------------------
-    flux                = settings['SIMULATION']['flux']
-    exptime             = settings['SIMULATION']['exptime']
-    rms_wfe             = settings['SIMULATION']['rms_wfe']
-    seed                = settings['SIMULATION']['seed']
+    #CAMERA SETTINGS
+    flux                 = settings['SIMULATION']['CAMERA_PARAMS']['flux']
+    exptime              = settings['SIMULATION']['CAMERA_PARAMS']['exptime']
+    read_noise           = settings['SIMULATION']['CAMERA_PARAMS']['read_noise']
+    dark_current_rate    = settings['SIMULATION']['CAMERA_PARAMS']['dark_current_rate']
+    flat_field           = settings['SIMULATION']['CAMERA_PARAMS']['flat_field']
+    include_photon_noise = settings['SIMULATION']['CAMERA_PARAMS']['include_photon_noise']
+    xsize                = settings['SIMULATION']['CAMERA_PARAMS']['xsize']
+    ysize                = settings['SIMULATION']['CAMERA_PARAMS']['ysize']
+    field_center_x       = settings['SIMULATION']['CAMERA_PARAMS']['field_center_x']
+    field_center_y       = settings['SIMULATION']['CAMERA_PARAMS']['field_center_y']
+
+    #AO PARAMETERS 
+    modebasis               = settings['SIMULATION']['AO_PARAMS']['modebasis']
+    initial_rms_wfe         = settings['SIMULATION']['AO_PARAMS']['initial_rms_wfe']
+    seed                    = settings['SIMULATION']['AO_PARAMS']['seed']
+    rotation_angle_dm       = settings['SIMULATION']['AO_PARAMS']['rotation_angle_dm']
+    num_actuators_across    = settings['SIMULATION']['AO_PARAMS']['num_actuators_across']
+    actuator_spacing        = settings['SIMULATION']['AO_PARAMS']['actuator_spacing']
+    
     print(settings)
     
     aperturename            = settings['SIMULATION']['aperture']
@@ -66,33 +83,25 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         LyotStop          = ff_c.Aperture(Npix_pup=Npix_pup,
                                           rotation_angle_aperture=0,
                                           aperturename=lyotstopmask)
-    CSM = ff_c.CoronagraphSystemModel(telescopeaperture=TelescopeAperture,
-                       coronagraph=Lyotcoronagraph,
-                       lyotaperture=LyotStop,
-                       Npix_foc=Npix_foc,
-                       mas_pix=pixscale,
-                       wavelength=wavelength)
+        CSM = ff_c.CoronagraphSystemModel(telescopeaperture=TelescopeAperture,
+                           coronagraph=Lyotcoronagraph,
+                           lyotaperture=LyotStop,
+                           Npix_foc=Npix_foc,
+                           mas_pix=pixscale,
+                           wavelength=wavelength)
     
-    AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM,
-                       modebasis=None,
-                       initial_rms_wfe=0,
-                       rotation_angle_dm = 0,
-                       num_actuators_across=22,
-                       actuator_spacing=None,
-                       seed=seed)
+        AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
+                           #modebasis=None,
+                           #initial_rms_wfe=0,
+                           #rotation_angle_dm = 0,
+                           #num_actuators_across=22,
+                           #actuator_spacing=None,
+                           #seed=seed)
     
-    Camera = fhw.FakeDetector(opticalsystem=CSM,
-                                  flux = flux,
-                                  exptime=exptime,
-                                  dark_current_rate=0,
-                                  read_noise=10,
-                                  flat_field=0,
-                                  include_photon_noise=True,
-                                  xsize=1024,
-                                  ysize=1024,
-                                  field_center_x=333,
-                                  field_center_y=433)
+        Camera = fhw.FakeDetector(opticalsystem=CSM,**settings['SIMULATION']['CAMERA_PARAMS'])
     
+    else:
+        raise ValueError("Sim only now")
     SAN = SpeckleAreaNulling(Camera, AOSystem, 
                                initial_probe_amplitude=1,
                                initial_regularization=1,

@@ -7,7 +7,7 @@ from scipy.ndimage import shift
 import json
 import io
 from configobj import flatten_errors, ConfigObj
-from validate import Validator
+from validate import Validator, ValidateError
 import warnings
 import hcipy
 import ipdb
@@ -238,6 +238,73 @@ def square_crop(image, npix, xcen, ycen):
     endy   = ycen + hw
     return image[(starty-bonus):endy, (startx-bonus):endx]
 
+class MyValidator(Validator):
+    def __init__(self):
+        super().__init__()
+        self.functions['float_or_none'] = self._float_or_none
+        self.functions['integer_or_none'] = self._integer_or_none
+        self.functions['option_or_none'] = self._option_or_none
+
+
+    def _float_or_none(self, value, *args):
+    # Remove the debugging breakpoint
+    # ipdb.set_trace()
+    
+        # Handle the case when value is a list (which appears to be happening)
+        if isinstance(value, list):
+            # If it's a list containing option specifications, return None
+            # This is likely a parsing issue in the config system
+            if any('None' in str(item) for item in value):
+                return None
+            # Try to convert the first element if it's a simple list
+            try:
+                return float(value[0])
+            except (ValueError, IndexError):
+                raise ValidateError("Expected float or 'None', got list: {}".format(value))
+    
+        # Original logic for string values
+        if value in ('None', ''):
+            return None
+        try:
+            return float(value)
+        except ValueError:
+            raise ValidateError("Expected float or 'None'")
+
+    
+    def _integer_or_none(self, value, *args):
+        # Handle the case when value is a list
+        if isinstance(value, list):
+            # If it's a list containing option specifications, return None
+            if any('None' in str(item) for item in value):
+                return None
+            # Try to convert the first element if it's a simple list
+            try:
+                return int(value[0])
+            except (ValueError, IndexError):
+                raise ValidateError("Expected int or 'None', got list: {}".format(value))
+
+        # Original logic for string values
+        if value in ('None', ''):
+            return None
+        try:
+            return int(value)
+        except ValueError:
+            raise ValidateError("Expected int or 'None'")
+    
+    def _option_or_none(self, value, *args):
+        """Validates that a value is either None or one of the specified options"""
+        if value in ('None', '', None):
+            return None
+            
+        # Convert the args to strings for comparison
+        args = [str(arg) for arg in args]
+        
+        if str(value) in args:
+            return value
+        else:
+            raise ValidateError("Value must be one of: None, {0}".format(', '.join(args)))
+
+
 def validate_config(config_input, configspec=None):
     """A helper function that checks a config input for errors against
     the configspec file. Accepts both filenames and dictionaries.
@@ -254,7 +321,7 @@ def validate_config(config_input, configspec=None):
         If failed, prints the errors
     """
     config = ConfigObj(config_input, configspec=configspec)
-    val = Validator()
+    val = MyValidator()
     res = config.validate(val, preserve_errors=True)
     
     input_type = "Config file" if isinstance(config_input, str) else "Config dictionary"
