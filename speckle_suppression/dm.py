@@ -24,10 +24,28 @@ def amplitudemodel(counts, k_rad, a=0, b=0, c=0):
 def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False):
     """given an kx and ky wavevector, 
     generates a NxN flatmap that has 
-    a speckle at that position"""
+    a speckle at that position
+    
+    Parameters
+    ----------
+    kx : float or ndarray
+        x-component of the wavevector. If ndarray, must be same shape as ky 
+        and output appends a dimension of size kx.shape[0]
+    ky : float or ndarray
+        y-component of the wavevector. If ndarray, must be same shape as kx
+    
+    """
+
+    
     dmx, dmy   = np.meshgrid( 
                     np.linspace(-0.5, 0.5, N),
                     np.linspace(-0.5, 0.5, N))
+    
+    if hasattr(kx, "shape") > 0:
+        amp = np.asarray(amp)[..., None]
+        dmx = dmx[..., None]
+        dmy = dmy[..., None]
+
     xm=dmx*kx*2.0*np.pi
     ym=dmy*ky*2.0*np.pi
     

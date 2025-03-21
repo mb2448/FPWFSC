@@ -16,6 +16,8 @@ from common import classes as ff_c
 from common import fake_hardware as fhw
 from common import support_functions as sf
 
+from sn_classes import SpeckleAreaNulling
+
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None):
     if my_deque is None:
@@ -90,14 +92,27 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                   ysize=1024,
                                   field_center_x=333,
                                   field_center_y=433)
+    
+    SAN = SpeckleAreaNulling(Camera, AOSystem, 
+                               initial_probe_amplitude=1,
+                               initial_regularization=1,
+                               controlregion_iwa = 3,
+                               controlregion_owa = 8,
+                               xcenter=xcen,
+                               ycenter=ycen,
+                               Npix_foc=Npix_foc,
+                               lambdaoverD=4,
+                               flipx=False,
+                               flipy=False,
+                               rotation_angle_deg=0)
 
-    data_raw = Camera.take_image()
-    data_proc = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
-                                          npix=Npix_foc,
-                                          flipx = flip_x, flipy=flip_y,
-                                          rotation_angle_deg=rotation_angle_deg)
-    plt.imshow(data_proc, origin='lower')
-    plt.show() 
+    #data_raw = Camera.take_image()
+    #data_proc = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
+    #                                      npix=Npix_foc,
+    #                                      flipx = flip_x, flipy=flip_y,
+    #                                      rotation_angle_deg=rotation_angle_deg)
+    #plt.imshow(data_proc, origin='lower')
+    #plt.show() 
     imax=[] 
     ks = []
     for k in np.arange(3,11, 0.25):
