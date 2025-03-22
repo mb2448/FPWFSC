@@ -96,8 +96,6 @@ def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None,
     if flipy:
         final_image = np.flip(final_image, axis=1)
 
-    
-
     return final_image
 '''
 def take_images(detector=None, n_images=1, npix=None,

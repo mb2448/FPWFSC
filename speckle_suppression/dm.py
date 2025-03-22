@@ -33,7 +33,10 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False):
         and output appends a dimension of size kx.shape[0]
     ky : float or ndarray
         y-component of the wavevector. If ndarray, must be same shape as kx
-    
+    amp: float 
+        amplitude in physical units of meters
+    phase: float
+        phase in radians
     """
 
     

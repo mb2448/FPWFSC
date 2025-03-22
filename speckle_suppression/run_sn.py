@@ -57,18 +57,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                Npix_foc=cropsize,
                                lambdaoverD=4)
 
-    #data_raw = Camera.take_image()
-    #data_proc = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
-    #                                      npix=Npix_foc,
-    #                                      flipx = flip_x, flipy=flip_y,
-    #                                      rotation_angle_deg=rotation_angle_deg)
-    #plt.imshow(data_proc, origin='lower')
-    #plt.show() 
     imax=[] 
     ks = []
     plt.ion()
     for k in np.arange(3,11, 0.25):
-        speck = dm.make_speckle_kxy(k, 0, 50e-9, 0, N=22, flipy = False, flipx = False)
+        speck = dm.make_speckle_kxy(k, 0, 20e-9, 0, N=22, flipy = False, flipx = False)
         AOSystem.set_dm_data(speck)
         data_speck = Camera.take_image()
         data_proc = sf.reduce_images(data_speck, xcen=xcen, ycen=ycen,

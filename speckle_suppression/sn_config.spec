@@ -2,8 +2,8 @@
     #x and y setpoints
     xcen = integer
     ycen = integer
-    cropsize = integer
-    
+    cropsize = integer_or_none
+
 [DM_REGISTRATION]
     calspot_kx = float
     calspot_ky = float
