@@ -1,27 +1,34 @@
+[SN_SETTINGS]
+    #x and y setpoints
+    xcen = integer
+    ycen = integer
+    cropsize = integer
+    
 [DM_REGISTRATION]
     calspot_kx = float
     calspot_ky = float
     calspot_amp = float(min=0)
 
-[SN_SETTINGS]
-    #x and y setpoints
-    xcen = integer
-    ycen = integer
 
 [SIMULATION]
-    wavelength (m)                = float(min=0, max=10e-6)
-    pixel scale (mas/pix)         = float(min=0)
-    N pix pupil                   = integer
-    N pix focal                   = integer
-    aperture                      = option('open', 'subaru', 'keck')
-    lyot stop                     = option('open','NIRC2_large_hexagonal_mask', 'NIRC2_incircle_mask','NIRC2_Lyot_Stop', 'keck+NIRC2_Lyot_Stop')
-    coronagraph IWA (mas)         = float(min=0)
-    rotation angle aperture (deg) = float
-    rotation angle dm (deg)       = float
-    rotation angle im (deg)       = float
-    flip_x                        = boolean
-    flip_y                        = boolean
-    ref PSF oversampling factor   = integer(min=1)
+    [[OPTICAL_PARAMS]]
+        wavelength (m)                        = float(min=0, max=10e-6)
+        N pix pupil                       = integer
+        N pix focal                       = integer
+        pixel scale (mas/pix)             = float(min=0)
+        rotation angle im (deg)           = float(min=0)
+        #flips are applied last, not first
+        flip_x                             = boolean
+        flip_y                             = boolean
+        [[[APERTURE]]]
+            aperture                      = option('keck', 'subaru')
+            rotation angle aperture (deg) = float
+        [[[CORONAGRAPH_MASK]]]
+            IWA_mas                       = float(min=0)
+        [[[LYOT_STOP]]]
+            lyot stop                     = option('NIRC2_incircle_mask', 'NIRC2_large_hexagonal_mask', 'NIRC2_Lyot_Stop')
+            rotation angle lyot (deg)     = float
+    
     
     [[CAMERA_PARAMS]]
         flux                 = float(min=0)

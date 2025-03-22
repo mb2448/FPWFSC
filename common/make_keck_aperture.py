@@ -23,7 +23,6 @@ def get_aperture(aperturename=None, pupil_grid=None,
     -------
     aperture, pupil_diameter : Field, float [units of meter]
     """
-
     if aperturename == 'open':
         aperture = evaluate_supersampled(circular_aperture(11.732), pupil_grid, 8)#2 * 5.573
 

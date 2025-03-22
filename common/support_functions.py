@@ -465,6 +465,29 @@ def fourier_resample(input_data, new_shape):
 
     return  reshaped.real
 
+def rotate_and_flip_wavefront(hcipy_wavefront, angle=None, flipx=False, flipy=False):
+    """Rotate and flip a hcipy field
+    angle in degrees
+    flip_x and flip_y are booleans
+    """
+    wf = hcipy_wavefront.copy()
+    wf_efield = wf.electric_field
+    #First rotate about center
+    if np.abs(angle)>1e-6:
+        center = np.array(wf_efield.shaped.shape)/2
+        rotated_field = cen_rot(wf_efield.shaped, angle, center)
+        final_field = rotated_field
+    else:
+        final_field = wf_efield.shaped
+    if flipx:
+        final_field = np.flip(final_field, axis=0)
+
+    if flipy:
+        final_field = np.flip(final_field, axis=1)
+
+    wf.electric_field = hcipy.Field(final_field.ravel(), grid=wf.grid)
+    return wf
+
 def cen_rot(im, rot, rotation_center):
     '''
     cen_rot - takes a cube of images im, and a set of rotation angles in rot,

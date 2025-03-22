@@ -148,7 +148,10 @@ class CoronagraphSystemModel:
                        lyotaperture=None,
                        Npix_foc=None,
                        mas_pix=None,
-                       wavelength=None):
+                       wavelength=None,
+                       flipx=None,
+                       flipy=None,
+                       rotation_angle_deg=None):
         print("Initializing system model")
 
         self.Pupil      = telescopeaperture
@@ -159,6 +162,9 @@ class CoronagraphSystemModel:
         self.mas_pix    = mas_pix
         self.rad_pix    = np.radians(self.mas_pix / 1000. / 3600.)
         self.wavelength = wavelength #in meters
+        self.flipx = flipx
+        self.flipy = flipy
+        self.rotation_angle_deg = rotation_angle_deg
         self.focal_grid = hcipy.make_uniform_grid(
              [self.Npix_foc, self.Npix_foc],
              [self.Npix_foc*self.rad_pix, self.Npix_foc*self.rad_pix])
@@ -204,6 +210,10 @@ class CoronagraphSystemModel:
         lyot_wf = self.FocalSpot.forward_tolyot(self.pupil_efield)
         lyot_wf.electric_field *= self.LyotStop.aperture
         focal_wf = self.propagator(lyot_wf)
+        focal_wf = sf.rotate_and_flip_wavefront(focal_wf, 
+                                                angle=self.rotation_angle_deg,
+                                                flipx=self.flipx, 
+                                                flipy=self.flipy)
         return focal_wf
 
 class SystemModel:

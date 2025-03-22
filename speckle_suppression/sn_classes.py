@@ -5,8 +5,7 @@ import ipdb
 class SpeckleAreaNulling:
     def __init__(self, camera=None, aosystem=None, initial_probe_amplitude=None, initial_regularization=None,
                  controlregion_iwa=None, controlregion_owa=None, 
-                 xcenter=None, ycenter=None, Npix_foc=None, lambdaoverD=None,
-                 flipx=None, flipy=None, rotation_angle_deg=None):
+                 xcenter=None, ycenter=None, Npix_foc=None, lambdaoverD=None):
         
         self.camera = camera
         self.aosystem = aosystem
@@ -31,9 +30,6 @@ class SpeckleAreaNulling:
                 'npix': Npix_foc,
                 'xcen': self.xcenter,
                 'ycen': self.ycenter,
-                'flipx': flipx,
-                'flipy': flipy,
-                'rotation_angle_deg': rotation_angle_deg,
         }
 
         # Take reference image

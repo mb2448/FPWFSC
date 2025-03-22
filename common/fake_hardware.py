@@ -1,7 +1,8 @@
 import hcipy
 import numpy as np
 from common import support_functions as sf
-
+from common import classes as ff_c
+import ipdb
 comment = """
 [SIMULATION]
     run_sim         = boolean(default=False)
@@ -42,6 +43,50 @@ def center_image(small_image, large_size, center_position):
     return large_image
 
 
+class FakeCoronagraphOpticalSystem:
+    """A helper class to build a coronagraph from a configuration file"""
+    def __new__(self, **optical_params):
+        
+        self.Npix_pup = optical_params['N pix pupil']
+        self.Npix_foc = optical_params['N pix focal']
+        self.pixscale = optical_params['pixel scale (mas/pix)']
+        self.wavelength = optical_params['wavelength (m)']
+        #rots and flips applied last
+        self.flipx = optical_params['flip_x']
+        self.flipy = optical_params['flip_y']
+        
+        self.rotation_angle_deg = optical_params['rotation angle im (deg)']
+        self.aperturename = optical_params['APERTURE']['aperture']
+        self.rotation_angle_aperture = optical_params['APERTURE']['rotation angle aperture (deg)']
+        
+        self.coronagraph_IWA_mas = optical_params['CORONAGRAPH_MASK']['IWA_mas']
+        
+        self.lyotstopmask = optical_params['LYOT_STOP']['lyot stop']
+        self.rotation_angle_lyot = optical_params['LYOT_STOP']['rotation angle lyot (deg)']
+
+        self.TelescopeAperture = ff_c.Aperture(Npix_pup=self.Npix_pup,
+                                               aperturename=self.aperturename,
+                                               rotation_angle_aperture=self.rotation_angle_aperture)
+        self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc, 
+                                                      IWA_mas=self.coronagraph_IWA_mas, 
+                                                      mas_pix=self.pixscale, 
+                                                      pupil_grid=self.TelescopeAperture.pupil_grid)
+        self.LyotStop          = ff_c.Aperture(Npix_pup=self.Npix_pup,
+                                               aperturename=self.lyotstopmask,
+                                              rotation_angle_aperture = self.rotation_angle_lyot)
+        
+        self.CSM = ff_c.CoronagraphSystemModel(telescopeaperture=self.TelescopeAperture,
+                           coronagraph=self.Lyotcoronagraph,
+                           lyotaperture=self.LyotStop,
+                           Npix_foc=self.Npix_foc,
+                           mas_pix=self.pixscale,
+                           wavelength=self.wavelength, 
+                           flipx=self.flipx,
+                           flipy=self.flipy,
+                           rotation_angle_deg=self.rotation_angle_deg)
+        return self.CSM
+    def __init__(self):
+        pass
 
 class FakeDetector:
     """A class to simulate a fake camera.  Accepts and optical system
