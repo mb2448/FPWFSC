@@ -45,37 +45,23 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     
     else:
         raise ValueError("Sim only now")
-    SAN = SpeckleAreaNulling(Camera, AOSystem, 
-                               initial_probe_amplitude=1,
-                               initial_regularization=1,
-                               controlregion_iwa = 3,
-                               controlregion_owa = 8,
-                               xcenter=xcen,
-                               ycenter=ycen,
-                               Npix_foc=cropsize,
-                               lambdaoverD=4)
 
-    imax=[] 
-    ks = []
-    plt.ion()
-    for k in np.arange(3,11, 0.25):
-        speck = dm.make_speckle_kxy(k, 0, 20e-9, 0, N=22, flipy = False, flipx = False)
-        AOSystem.set_dm_data(speck)
-        data_speck = Camera.take_image()
-        data_proc = sf.equalize_image(data_speck)
-        plt.imshow(data_proc, origin='lower')
-        plt.draw()
-        plt.pause(0.1)
-        plt.clf()
-        ks.append(k)
-        imax.append(np.max(data_proc[130,:]))
-        #plt.plot(data_proc[130, :], label = str(k))
-        #plt.clf()
-        #plt.close()
-    plt.close()
+    return CSM, AOSystem, Camera
+
 if __name__ == "__main__":
-    #plotter = pf.LivePlotter()
-    
     camera = "Sim"
     aosystem = "Sim"
-    run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')#, plotter=plotter)
+    CSM, AOSystem, Camera = run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')
+    print("Validating no mystery rotations in the Camera")
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    axes[0].imshow(Camera.take_image(), origin='lower')
+    axes[0].set_title('Camera Image')
+    axes[1].imshow(np.array(CSM.focal_efield.power.shaped), origin='lower')
+    axes[1].set_title('Focal Plane Electric Field Power')
+    plt.tight_layout()
+    plt.show()
+
+    print("Showing Poisson noise, note array indexing in the x and y are flipped")
+    for i in range(10):
+        a = Camera.take_image()
+        print(a[423, 283])

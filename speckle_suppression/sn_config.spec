@@ -45,7 +45,7 @@
     [[AO_PARAMS]]
         modebasis               = option_or_none('zernike', 'pixel', 'disk_harmonics', 'fourier')
         initial_rms_wfe         = float(min=0)
-        seed                    = integer
+        seed                    = integer_or_none
         rotation_angle_dm       = float
         num_actuators_across    = integer_or_none
         actuator_spacing        = float_or_none

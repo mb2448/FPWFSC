@@ -241,6 +241,7 @@ def generate_sample_data(size=500):
     
     return z
 
+
 def run_viewer(data=None, user_points=None):
     """
     Run the NumPy array viewer and return the selected points when closed.

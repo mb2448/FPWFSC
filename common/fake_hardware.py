@@ -135,7 +135,7 @@ class FakeDetector:
         self.ysize = ysize
         self.field_center_x = field_center_x
         self.field_center_y = field_center_y
-        self.flip_x = flip_x
+        self.flip_x = flip_x #THESE SHOULD BE REMOVED--NOT IMPLEMENTED.  SHOULD BE IN OPTICAL SYSTEM.
         self.flip_y = flip_y
         self.rotation_angle_deg = rotation_angle_deg
 

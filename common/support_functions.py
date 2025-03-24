@@ -16,7 +16,7 @@ import ipdb
 # NOTE: These flips are used for the simulation
 #def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None, flipx=False, flipy=False):
 # NOTE: These flips are used when running with NIRC2
-def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None, flipx=True, flipy=False, rotation_angle_deg=0):
+def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None, flipx=False, flipy=False, rotation_angle_deg=0):
     """This function is modified from take_images() to only reduce
     a given output with the following steps:
 
