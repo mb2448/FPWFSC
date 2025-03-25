@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import dm
 import ipdb
 from matplotlib.colors import LogNorm
+from matplotlib.patches import Wedge
 
 sys.path.insert(0, '../')
 from common import plotting_funcs as pf
@@ -48,8 +49,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         raise ValueError("Sim only now")
 
     SAN = SpeckleAreaNulling(Camera, AOSystem, 
-                               initial_probe_amplitude=1e15,
-                               initial_regularization=0,
+                               initial_probe_amplitude=2.2e-6 / 10,
+                               initial_regularization=5e3,
                                controlregion_iwa = 3,
                                controlregion_owa = 8,
                                xcenter=xcen,
@@ -59,26 +60,36 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     imax=[] 
     ks = []
-    MAX_ITERS = 5
+    MAX_ITERS = 10
     plt.ion()
+    plt.figure(figsize=[12, 3])
     for k in np.arange(MAX_ITERS):
 
 
-        I_intermediate = SAN.iterate()
+        I_intermediate = SAN.iterate(regularization=5e2)
         
         plt.subplot(131)
-        plt.imshow(I_intermediate, origin="lower")
-        plt.xlim([300, 400])
+        plt.title(f"Probe Amplitude = {SAN.probe_amplitude}")
+        plt.imshow(I_intermediate, origin="lower", norm=LogNorm(vmin=1e-2, vmax=1e3), cmap="inferno")
+        plt.xlim([275, 375])
         plt.ylim([375, 475])
         plt.colorbar()
+
+        # set up dark hole patch
+        ax = plt.gca()
+        dh_region = Wedge([xcen, ycen], r=SAN.controlregion_owa_pix, width=SAN.controlregion_owa_pix - SAN.controlregion_iwa_pix,
+                          theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+        ax.add_patch(dh_region)
         plt.subplot(132)
-        plt.imshow(SAN.pindh / SAN.controlregion, origin="lower", cmap='RdBu_r')
+        plt.imshow(SAN.sin_coeffs_init,  origin="lower", cmap='RdBu_r')
         plt.colorbar()
-        plt.xlim([300, 400])
+        plt.xlim([275, 375])
         plt.ylim([375, 475])
         plt.subplot(133)
-        plt.imshow(AOSystem.phase_DM.shaped, cmap="RdBu_r")
+        plt.imshow(SAN.control_surface, origin="lower", cmap="RdBu_r")
         plt.colorbar()
+        # plt.xlim([300, 400])
+        # plt.ylim([375, 475])
         plt.draw()
         plt.pause(0.5)
         plt.clf()
