@@ -60,7 +60,8 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False):
 def make_speckle_xy(xs, ys, amps, phases, 
                     centerx=None, centery=None, 
                     angle = None,
-                    lambdaoverd= None):
+                    lambdaoverd= None,
+                    N=22):
     """given an x and y pixel position, 
     generates a NxN flatmap that has 
     a speckle at that position"""
@@ -70,7 +71,7 @@ def make_speckle_xy(xs, ys, amps, phases,
                   centery = centery,
                   angle = angle,
                   lambdaoverd = lambdaoverd)
-    returnmap = make_speckle_kxy(kxs,kys,amps,phases)
+    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N)
     return returnmap
 
 def convert_pixels_kvecs(pixelsx, pixelsy, 

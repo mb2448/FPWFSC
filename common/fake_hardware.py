@@ -263,7 +263,8 @@ class FakeAODMSystem:
             modification to DM actuator heights in an array of shape
             Nactuators x Nactuators units of microns.
         """
-
+        print(self.num_actuators_across)
+        print(dm_microns.shape)
         assert dm_microns.shape[0] == self.num_actuators_across
         assert dm_microns.shape[1] == self.num_actuators_across
 
@@ -277,7 +278,7 @@ class FakeAODMSystem:
             self.deformable_mirror.actuators = phase_DM_acts.ravel()
 
         phase_DM = self.deformable_mirror.opd
-
+        self.phase_DM = phase_DM
 
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error-phase_DM)
         self.OpticalModel.generate_psf_efield()

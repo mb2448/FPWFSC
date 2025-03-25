@@ -9,7 +9,6 @@ import time
 import matplotlib.pyplot as plt
 import dm
 import ipdb
-from matplotlib.colors import LogNorm
 
 sys.path.insert(0, '../')
 from common import plotting_funcs as pf
@@ -48,7 +47,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         raise ValueError("Sim only now")
 
     SAN = SpeckleAreaNulling(Camera, AOSystem, 
-                               initial_probe_amplitude=1e15,
+                               initial_probe_amplitude=1e-6,
                                initial_regularization=0,
                                controlregion_iwa = 3,
                                controlregion_owa = 8,
@@ -59,42 +58,18 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     imax=[] 
     ks = []
-    MAX_ITERS = 5
+    MAX_ITERS = 10
     plt.ion()
     for k in np.arange(MAX_ITERS):
 
-
+        # iterate SAN
         I_intermediate = SAN.iterate()
-        
-        plt.subplot(131)
-        plt.imshow(I_intermediate, origin="lower")
-        plt.xlim([300, 400])
-        plt.ylim([375, 475])
-        plt.colorbar()
-        plt.subplot(132)
-        plt.imshow(SAN.pindh / SAN.controlregion, origin="lower", cmap='RdBu_r')
-        plt.colorbar()
-        plt.xlim([300, 400])
-        plt.ylim([375, 475])
-        plt.subplot(133)
-        plt.imshow(AOSystem.phase_DM.shaped, cmap="RdBu_r")
-        plt.colorbar()
+        plt.imshow(I_intermediate, origin="lower", vmin=0, vmax=1e3)
         plt.draw()
-        plt.pause(0.5)
+        plt.pause(0.1)
         plt.clf()
-
-
-        # plt.subplot(121)
-        # plt.imshow(I_intermediate, origin="lower", vmin=vmin, vmax=vmax)
-        # plt.xlim([200, 500])
-        # plt.ylim([200, 500])
-        # plt.colorbar()
-        # plt.subplot(122)
-        # plt.imshow(AOSystem.phase_DM.shaped, cmap="RdBu_r")
-        # plt.colorbar()
-        # # plt.draw()
-        # plt.pause(0.1)
-        # plt.clf()
+        plt.xlim([200, 600])
+        plt.ylim([200, 600])
     plt.close()
     # for k in np.arange(3, 11, 0.25):
     #     speck = dm.make_speckle_kxy(k, 0, 20e-9, 0, N=22, flipy = False, flipx = False)
