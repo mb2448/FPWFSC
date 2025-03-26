@@ -64,11 +64,18 @@ class FakeCoronagraphOpticalSystem:
         self.lyotstopmask = optical_params['LYOT_STOP']['lyot stop']
         self.rotation_angle_lyot = optical_params['LYOT_STOP']['rotation angle lyot (deg)']
 
+        # NOTE: This effectively turns off the FPM, useful for NI calculations
+        if hasattr(optical_params, 'INCLUDE_FPM'):
+            if not optical_params['INCLUDE_FPM']:
+                iwa_scale = 0
+        else:
+            iwa_scale = 1
+
         self.TelescopeAperture = ff_c.Aperture(Npix_pup=self.Npix_pup,
                                                aperturename=self.aperturename,
                                                rotation_angle_aperture=self.rotation_angle_aperture)
         self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc, 
-                                                      IWA_mas=self.coronagraph_IWA_mas, 
+                                                      IWA_mas=self.coronagraph_IWA_mas * iwa_scale, 
                                                       mas_pix=self.pixscale, 
                                                       pupil_grid=self.TelescopeAperture.pupil_grid)
         self.LyotStop          = ff_c.Aperture(Npix_pup=self.Npix_pup,
@@ -229,7 +236,9 @@ class FakeAODMSystem:
                        rotation_angle_dm = 0,
                        num_actuators_across=22,
                        actuator_spacing=None,
-                       seed=None):
+                       seed=None,
+                       flip_x_dm=None,
+                       flip_y_dm=None):
 
         if seed is not None:
             np.random.seed(seed)
@@ -243,7 +252,11 @@ class FakeAODMSystem:
                                                             aperture=self.OpticalModel.Pupil.aperture)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
         self.modebasis = modebasis
+        
+        # This is the 'Clocking' of the DM with respect to the image
         self.rotation_angle_dm = rotation_angle_dm
+        self.flip_x_dm = flip_x_dm
+        self.flip_y_dm = flip_y_dm
 
         # Build deformable mirror
         if actuator_spacing is None:
@@ -256,7 +269,7 @@ class FakeAODMSystem:
                                                                            actuator_spacing)
         self.deformable_mirror = hcipy.DeformableMirror(self.influence_functions)
 
-    def set_dm_data(self, dm_commands, modify_existing=False):
+    def set_dm_data(self, dm_commands, modify_existing=True):
         """
         NOTE: Not actually sure that this is the right shape
         Parameters
@@ -279,10 +292,17 @@ class FakeAODMSystem:
 
         phase_DM = self.deformable_mirror.opd
         self.phase_DM = phase_DM
-        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error-phase_DM)
+        ipdb.set_trace()
+        phase_DM = sf.rotate_and_flip_field(phase_DM,
+                                                angle=self.rotation_angle_dm,
+                                                flipx=self.flip_x_dm,
+                                                flipy=self.flip_y_dm)
+        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error - phase_DM)
         self.OpticalModel.generate_psf_efield()
 
         return
+
+
 
     def make_dm_command(self, microns):
         return microns

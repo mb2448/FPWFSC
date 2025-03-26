@@ -469,7 +469,9 @@ def rotate_and_flip_wavefront(hcipy_wavefront, angle=None, flipx=False, flipy=Fa
     flip_x and flip_y are booleans
     """
     wf = hcipy_wavefront.copy()
+
     wf_efield = wf.electric_field
+
     #First rotate about center
     if np.abs(angle)>1e-6:
         center = np.array(wf_efield.shaped.shape)/2
@@ -485,6 +487,30 @@ def rotate_and_flip_wavefront(hcipy_wavefront, angle=None, flipx=False, flipy=Fa
 
     wf.electric_field = hcipy.Field(final_field.ravel(), grid=wf.grid)
     return wf
+
+def rotate_and_flip_field(hcipy_field, angle=None, flipx=False, flipy=False):
+    """Rotate and flip a hcipy field
+    angle in degrees
+    flip_x and flip_y are booleans
+    """
+    wf_efield = hcipy_field.copy()
+
+    #First rotate about center
+    if np.abs(angle)>1e-6:
+        center = np.array(wf_efield.shaped.shape)/2
+        rotated_field = cen_rot(wf_efield.shaped, angle, center)
+        final_field = rotated_field
+    else:
+        final_field = wf_efield.shaped
+    if flipx:
+        final_field = np.flip(final_field, axis=0)
+
+    if flipy:
+        final_field = np.flip(final_field, axis=1)
+
+    final_field = hcipy.Field(final_field.ravel(), grid=wf_efield.grid)
+
+    return final_field
 
 def cen_rot(im, rot, rotation_center):
     '''
