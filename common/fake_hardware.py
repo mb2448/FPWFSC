@@ -242,6 +242,8 @@ class FakeAODMSystem:
                                                             pupil_grid=self.OpticalModel.Pupil.pupil_grid,
                                                             aperture=self.OpticalModel.Pupil.aperture)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
+        self.modebasis = modebasis
+        self.rotation_angle_dm = rotation_angle_dm
 
         # Build deformable mirror
         if actuator_spacing is None:
@@ -254,23 +256,21 @@ class FakeAODMSystem:
                                                                            actuator_spacing)
         self.deformable_mirror = hcipy.DeformableMirror(self.influence_functions)
 
-    def set_dm_data(self, dm_microns, modify_existing=False):
+    def set_dm_data(self, dm_commands, modify_existing=False):
         """
         NOTE: Not actually sure that this is the right shape
         Parameters
         ----------
-        dm_microns : ndarray
+        dm_commands : ndarray
             modification to DM actuator heights in an array of shape
-            Nactuators x Nactuators units of microns.
+            Nactuators x Nactuators units of meters.
         """
-        print(self.num_actuators_across)
-        print(dm_microns.shape)
-        assert dm_microns.shape[0] == self.num_actuators_across
-        assert dm_microns.shape[1] == self.num_actuators_across
+        assert dm_commands.shape[0] == self.num_actuators_across
+        assert dm_commands.shape[1] == self.num_actuators_across
 
         #in the sim, just undoes the microns command from subaru
-        phase_DM_acts = dm_microns / self.OpticalModel.wavelength * (2 * np.pi) 
-
+        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi) 
+        print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:
             self.deformable_mirror.actuators += phase_DM_acts.ravel()
@@ -279,7 +279,6 @@ class FakeAODMSystem:
 
         phase_DM = self.deformable_mirror.opd
         self.phase_DM = phase_DM
-
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error-phase_DM)
         self.OpticalModel.generate_psf_efield()
 
