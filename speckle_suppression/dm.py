@@ -21,7 +21,7 @@ def amplitudemodel(counts, k_rad, a=0, b=0, c=0):
     else:
         return retval
 
-def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False):
+def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_rotation=0):
     """given an kx and ky wavevector, 
     generates a NxN flatmap that has 
     a speckle at that position
@@ -37,6 +37,8 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False):
         amplitude in physical units of meters
     phase: float
         phase in radians
+    dm_rotation : float
+        rotation of the DM about the propagation axis, degrees
     """
 
     
@@ -51,6 +53,8 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False):
 
     xm=dmx*kx*2.0*np.pi
     ym=dmy*ky*2.0*np.pi
+
+    xm, ym = rotateXY(xm, ym, thetadeg=dm_rotation)
     
     fx = -1 if flipx else 1
     fy = -1 if flipy else 1
