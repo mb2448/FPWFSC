@@ -28,8 +28,8 @@
         [[[LYOT_STOP]]]
             lyot stop                     = option('NIRC2_incircle_mask', 'NIRC2_large_hexagonal_mask', 'NIRC2_Lyot_Stop')
             rotation angle lyot (deg)     = float
-    
-    
+
+
     [[CAMERA_PARAMS]]
         flux                 = float(min=0)
         exptime              = float(min=0)
@@ -41,11 +41,13 @@
         ysize                = integer(min=0)
         field_center_x       = integer(min=0)
         field_center_y       = integer(min=0)
-    
+
     [[AO_PARAMS]]
         modebasis               = option_or_none('zernike', 'pixel', 'disk_harmonics', 'fourier')
         initial_rms_wfe         = float(min=0)
         seed                    = integer_or_none
         rotation_angle_dm       = float
+        flip_x_dm               = boolean
+        flip_y_dm               = boolean
         num_actuators_across    = integer_or_none
         actuator_spacing        = float_or_none
