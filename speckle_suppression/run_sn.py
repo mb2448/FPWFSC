@@ -93,7 +93,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     imax=[] 
     ks = []
     MAX_ITERS = 100
-    plt.ion()
+    # plt.ion()
     plt.figure(figsize=[15, 3])
     mean_ni = []
     iterations = []
