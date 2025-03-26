@@ -10,7 +10,8 @@ import matplotlib.pyplot as plt
 class SpeckleAreaNulling:
     def __init__(self, camera=None, aosystem=None, initial_probe_amplitude=None, initial_regularization=None,
                  controlregion_iwa=None, controlregion_owa=None, 
-                 xcenter=None, ycenter=None, Npix_foc=None, lambdaoverD=None):
+                 xcenter=None, ycenter=None, Npix_foc=None, lambdaoverD=None,
+                 contrast_norm=1):
         
         self.camera = camera
         self.aosystem = aosystem
@@ -36,9 +37,10 @@ class SpeckleAreaNulling:
                 'xcen': self.xcenter,
                 'ycen': self.ycenter,
         }
+        self.CN = contrast_norm
 
         # Take reference image
-        self.rawI0 = sf.equalize_image(self.camera.take_image())
+        self.rawI0 = sf.equalize_image(self.camera.take_image()) / self.CN
         
         # reduce the image first
         self.controlregion = snf.create_annular_wedge(self.rawI0, 
@@ -56,7 +58,7 @@ class SpeckleAreaNulling:
         self.cosines = dm.make_speckle_xy(xs=self.pix_x[self.controlregion==1],
                                       ys=self.pix_y[self.controlregion==1],
                                       amps=1,
-                                      phases=2 * np.pi,
+                                      phases=0,
                                       centerx=self.imparams['xcen'],
                                       centery=self.imparams['ycen'],
                                       angle=0,
@@ -107,7 +109,7 @@ class SpeckleAreaNulling:
             self.probe_amplitude = probe_amplitude
         
         # Take a reference image
-        I0 = sf.equalize_image(self.camera.take_image())
+        I0 = sf.equalize_image(self.camera.take_image()) / self.CN
         
         # Take the cosine probe images
         # NOTE: Make sure that the I1p / I1m don't look exactly the same
@@ -115,9 +117,9 @@ class SpeckleAreaNulling:
         self.images = []
         for probe in [-self.sin_probe, self.sin_probe, -self.cos_probe, self.cos_probe]:
             probe_scaled = probe * self.probe_amplitude
-            self.aosystem.set_dm_data(probe_scaled, modify_existing="True")
-            self.images.append(sf.equalize_image(self.camera.take_image()))
-            self.aosystem.set_dm_data(-probe_scaled, modify_existing="True")
+            self.aosystem.set_dm_data(probe_scaled)
+            self.images.append(sf.equalize_image(self.camera.take_image()) / self.CN)
+            self.aosystem.set_dm_data(-probe_scaled)
 
         # unpack the images 
         Im1 = self.images[-4]  # minus sin probe
@@ -132,9 +134,17 @@ class SpeckleAreaNulling:
 
         # filter by control region
         I0 = I0[self.controlregion==1]
+        
+        # +sin probe
         Ip1 = Ip1[self.controlregion==1]
+        
+        # -sin probe
         Im1 = Im1[self.controlregion==1]
+        
+        # +cos probe
         Ip2 = Ip2[self.controlregion==1]
+        
+        # -cos probe
         Im2 = Im2[self.controlregion==1]
 
         # Compute the relevant quantities
@@ -144,18 +154,23 @@ class SpeckleAreaNulling:
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
 
         # Filter the quantities dE1 and dE2 below the regularization threshold
-        # self.sin_selection = (dE1sq < self.regularization)
-        # self.cos_selection = (dE2sq < self.regularization)
+        # self.sin_selection = (np.abs(dE1sq) < self.regularization)
+        # self.cos_selection = (np.abs(dE2sq) < self.regularization)
 
         # dE1sq[self.sin_selection] = 1e20 # effectively turns them off
         # dE2sq[self.cos_selection] = 1e20
 
-        # Regularized sin / cosine coefficients
+        # # Regularized sin / cosine coefficients
+        # sin_coeffs = dE1 / (dE1sq + self.regularization)
+        # cos_coeffs = dE2 / (dE2sq + self.regularization)
         sin_coeffs = dE1 / (dE1sq + self.regularization)
         cos_coeffs = dE2 / (dE2sq + self.regularization)
+        # sin_coeffs[np.abs(sin_coeffs) > self.regularization] = 0
+        # cos_coeffs[np.abs(cos_coeffs) > self.regularization] = 0
 
         self.sin_coeffs_init = self.controlregion.copy().astype(np.float64)
         self.cos_coeffs_init = self.controlregion.copy().astype(np.float64)
+
         self.sin_coeffs_init[self.controlregion==1] = sin_coeffs
         self.cos_coeffs_init[self.controlregion==1] = cos_coeffs
 
@@ -195,7 +210,7 @@ class SpeckleAreaNulling:
         # self.cos_coeffs_init = np.sum(control_cosines, axis=-1)
         
         # NOTE: This is positive 1 because the DM surface update is negative
-        control_surface = 1 * (np.sum(control_sines, axis=-1) + \
+        control_surface = -1 * (np.sum(control_sines, axis=-1) + \
                                 np.sum(control_cosines, axis=-1))
 
         # control_surface *= self.aosystem.OpticalModel.wavelength / (2 * np.pi)
@@ -204,6 +219,6 @@ class SpeckleAreaNulling:
         self.aosystem.set_dm_data(control_surface, modify_existing=True)
 
         # take image after correction
-        I = self.camera.take_image()
+        I = sf.equalize_image(self.camera.take_image()) / self.CN
         
         return I
