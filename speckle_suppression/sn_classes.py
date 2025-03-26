@@ -63,8 +63,7 @@ class SpeckleAreaNulling:
                                       centery=self.imparams['ycen'],
                                       angle=0,
                                       lambdaoverd=self.lambdaoverD,
-                                      N=self.aosystem.num_actuators_across,
-                                      dm_rotation=self.aosystem.rotation_angle_dm)
+                                      N=self.aosystem.num_actuators_across)
 
         self.sines = dm.make_speckle_xy(xs=self.pix_x[self.controlregion==1],
                                       ys=self.pix_y[self.controlregion==1],
@@ -74,8 +73,7 @@ class SpeckleAreaNulling:
                                       centery=self.imparams['ycen'],
                                       angle=0,
                                       lambdaoverd=self.lambdaoverD,
-                                      N=self.aosystem.num_actuators_across,
-                                      dm_rotation=self.aosystem.rotation_angle_dm)
+                                      N=self.aosystem.num_actuators_across)
         
         self.cos_probe = np.sum(self.cosines, axis=-1)
         self.sin_probe = np.sum(self.sines, axis=-1)
