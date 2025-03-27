@@ -80,14 +80,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         raise ValueError("Sim only now")
 
     SAN = SpeckleAreaNulling(Camera, AOSystem, 
-                               initial_probe_amplitude=2.2e-6 / 20,
-                               initial_regularization=5e-1,
-                               controlregion_iwa = 3,
+                               initial_probe_amplitude= 2.2e-6 / 10,
+                               initial_regularization=50,
+                               controlregion_iwa = 4,
                                controlregion_owa = 8,
                                xcenter=xcen,
                                ycenter=ycen,
                                Npix_foc=cropsize,
-                               lambdaoverD=4,
+                               lambdaoverD=3.9,
                                contrast_norm=contrast_norm)
 
     imax=[] 
@@ -105,19 +105,19 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
             # plot the +sin probed image
             if i == 0:
-                I_intermediate = SAN.I1p - SAN.I1m
+                I_intermediate = (SAN.I1p - SAN.rawI0) / SAN.rawI0 # - SAN.I1m
                 coeffs = SAN.sin_coeffs_init
                 title = "Sin probe"
                 norm = None
-                vlim = np.abs(I_intermediate).max()
+                vlim = 2 # np.abs(I_intermediate[~np.isnan(I_intermediate) & SAN.controlregion]).max()
 
             # plot the +cos probed image
             elif i == 1:
-                I_intermediate = SAN.I2p - SAN.I2m
+                I_intermediate = (SAN.I2p - SAN.rawI0) / SAN.rawI0# - SAN.I2m
                 coeffs = SAN.cos_coeffs_init
                 title = "Cos probe"
                 norm = None
-                vlim = np.abs(I_intermediate).max()
+                vlim = 2 # np.abs(I_intermediate[~np.isnan(I_intermediate) & SAN.controlregion]).max()
 
             else:
                 I_intermediate = I_after
@@ -168,9 +168,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             plt.xticks([],[])
             plt.yticks([],[])
             plt.draw()
-            plt.pause(0.5)
+            plt.pause(0.1)
             plt.clf()
-            ipdb.set_trace()
 
         # plt.subplot(121)
         # plt.imshow(I_intermediate, origin="lower", vmin=vmin, vmax=vmax)
