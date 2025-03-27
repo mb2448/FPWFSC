@@ -48,6 +48,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if my_event is None:
         my_event = threading.Event()
     
+    # Store the config filename for later use
+    config_file = config
+    
     settings = sf.validate_config(config, configspec)
     #----------------------------------------------------------------------
     # Simulation parameters
@@ -96,17 +99,22 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     c2 = np.array(sn.get_spot_centroid(cleaned, guess_spot=points[1]))
     print("Centers: ", c1, c2)
     centered_points = qt_clickpoints.run_viewer(data = np.log10(np.abs(cleaned+1)), user_points = [c1, c2])
-    angle = compute_angle(*(c2-c1))
-    center = 0.5*(c1 + c2)
-    print("measured angle: ", angle)
-    print("measured center:", center)
+    measured_angle = compute_angle(*(c2-c1))
+    measured_center = 0.5*(c1 + c2)
+    print("measured angle: ", measured_angle)
+    print("measured center:", measured_center)
     #the /2 is because it is really -kx to kx, and -ky to ky
-    print("Measured lambda/D: ", np.linalg.norm(c2-c1)/np.linalg.norm(np.array([calspot_kx, calspot_ky]))/2, "pixels")
+    measured_lambdaoverD = np.linalg.norm(c2-c1)/np.linalg.norm(np.array([calspot_kx, calspot_ky]))/2
+    print("Measured lambda/D: ", measured_lambdaoverD, "pixels")
+    settings['DM_REGISTRATION']['MEASURED_PARAMS']['lambdaoverd'] = measured_lambdaoverD
+    settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_x'] = measured_center[0]
+    settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_y'] = measured_center[1]
+    settings['DM_REGISTRATION']['MEASURED_PARAMS']['angle'] = measured_angle
+    print("Saving settings to: ", config_file)
+    with open(config_file, 'wb') as configfile:
+        settings.write(configfile)
 
 if __name__ == "__main__":
     camera = "Sim"
     aosystem = "Sim"
     run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')
-
-    print("Generating a speckle at (0, 0)") 
-    angle = compute_angle(0, 0)

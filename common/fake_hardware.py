@@ -269,6 +269,12 @@ class FakeAODMSystem:
                                                                            actuator_spacing)
         self.deformable_mirror = hcipy.DeformableMirror(self.influence_functions)
 
+    def reset_dm_data(self, modify_existing=True):
+        dm_commands = np.zeros([self.num_actuators_across, self.num_actuators_across])
+        self.set_dm_data(dm_commands, modify_existing=modify_existing)
+        return
+
+
     def set_dm_data(self, dm_commands, modify_existing=True):
         """
         NOTE: Not actually sure that this is the right shape
@@ -281,18 +287,20 @@ class FakeAODMSystem:
         assert dm_commands.shape[0] == self.num_actuators_across
         assert dm_commands.shape[1] == self.num_actuators_across
 
+        
         #in the sim, just undoes the microns command from subaru
         phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi) 
         print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:
+            self.current_dm_shape += dm_commands
             self.deformable_mirror.actuators += phase_DM_acts.ravel()
         else:
+            self.current_dm_shape = dm_commands
             self.deformable_mirror.actuators = phase_DM_acts.ravel()
 
         phase_DM = self.deformable_mirror.opd
         self.phase_DM = phase_DM
-        ipdb.set_trace()
         phase_DM = sf.rotate_and_flip_field(phase_DM,
                                                 angle=self.rotation_angle_dm,
                                                 flipx=self.flip_x_dm,
@@ -302,7 +310,8 @@ class FakeAODMSystem:
 
         return
 
-
+    def get_dm_shape(self):
+        return self.current_dm_shape
 
     def make_dm_command(self, microns):
         return microns

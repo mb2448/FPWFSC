@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                              QHBoxLayout, QSlider, QLabel, QPushButton, QFileDialog)
-from PyQt5.QtCore import Qt, QRectF
+from PyQt5.QtCore import Qt, QRectF, QTimer
 from PyQt5.QtGui import QKeySequence
 import pyqtgraph as pg
 
@@ -24,6 +24,14 @@ class NumpyArrayViewer(QMainWindow):
         # Store user-supplied points
         self.user_points = user_points if user_points is not None else []
         
+        # Create QApplication instance if it doesn't exist
+        self.app = QApplication.instance()
+        if self.app is None:
+            self.app = QApplication(sys.argv)
+            self.owns_app = True
+        else:
+            self.owns_app = False
+            
         self.initUI()
         
     def initUI(self):
@@ -104,6 +112,11 @@ class NumpyArrayViewer(QMainWindow):
         main_layout.addWidget(self.plot_widget)
         main_layout.addLayout(controls_layout)
         
+        # Setup timer for processing events in non-blocking mode
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.process_events)
+        self.timer.start(50)  # Process events every 50ms
+        
         # Display the initial data
         self.update_display()
         
@@ -115,6 +128,17 @@ class NumpyArrayViewer(QMainWindow):
         # Update the scatter plots
         self.update_scatter_plot()
         self.update_user_scatter_plot()
+    
+    def update_data(self, new_data):
+        """Update the displayed data without blocking execution"""
+        self.data = new_data
+        self.img_item.setImage(self.data.T)  # Transpose the data for correct display
+        # Process events to update the display
+        self.app.processEvents()
+        
+    def process_events(self):
+        """Process Qt events to keep the UI responsive"""
+        self.app.processEvents()
         
     def mouse_clicked(self, event):
         # Check if shift key is pressed
@@ -169,6 +193,8 @@ class NumpyArrayViewer(QMainWindow):
         # Method to update user points from outside
         self.user_points = points
         self.update_user_scatter_plot()
+        # Process events to update the display
+        self.app.processEvents()
     
     def clear_selected_points(self):
         # Clear all selected points
@@ -224,6 +250,9 @@ class NumpyArrayViewer(QMainWindow):
             for i, (x, y, value) in enumerate(self.selected_points):
                 print(f"Point {i+1}: Coordinates ({x}, {y})")
         
+        # Stop the timer
+        self.timer.stop()
+        
         # Call the parent class closeEvent
         super().closeEvent(event)
 
@@ -253,7 +282,12 @@ def run_viewer(data=None, user_points=None):
         list: List of tuples containing (x, y) coordinates of selected points
     """
     # Start the application
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+        owns_app = True
+    else:
+        owns_app = False
     
     # Create viewer with data and user points
     if data is not None:
@@ -265,10 +299,36 @@ def run_viewer(data=None, user_points=None):
     viewer.show()
     
     # Run the application
-    app.exec_()
+    if owns_app:
+        app.exec_()
     
     # Return only the coordinates (x, y) of the selected points
     return [(x, y) for x, y, _ in viewer.selected_points]
+
+def create_non_blocking_viewer(data=None, user_points=None):
+    """
+    Create a non-blocking NumPy array viewer that can be updated from outside.
+    
+    Args:
+        data (numpy.ndarray, optional): NumPy array to display initially
+        user_points (list or numpy.ndarray, optional): List of (x,y) tuples or Nx2 array to display as green crosses
+        
+    Returns:
+        NumpyArrayViewer: The viewer instance that can be updated
+    """
+    # Create viewer with data and user points
+    if data is not None:
+        viewer = NumpyArrayViewer(data, user_points)
+    else:
+        sample_data = generate_sample_data()
+        viewer = NumpyArrayViewer(sample_data, user_points)
+        
+    viewer.show()
+    
+    # Process events to make the window appear
+    QApplication.instance().processEvents()
+    
+    return viewer
 
 if __name__ == '__main__':
     # Create a sample data array and save it
@@ -280,7 +340,7 @@ if __name__ == '__main__':
     sample_user_points = [(100, 100), (200, 200), (300, 300), (400, 400)]
     
     # Run the viewer and get the selected coordinates
-    selected_coordinates = run_viewer(sample_data, sample_user_points)
+    selected_coordinates = run_viewer(data=sample_data, user_points=sample_user_points)
     
     # Use the selected coordinates
     print("\nReturned selected coordinates:", selected_coordinates)

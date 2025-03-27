@@ -9,6 +9,18 @@
     calspot_ky = float
     calspot_amp = float(min=0)
 
+    [[MEASURED_PARAMS]]    
+        center_x = float
+        center_y = float
+        angle = float
+        lambdaoverd = float
+
+    [[INTENSITY_CAL]]
+        stepsize = float(min=0)
+        min = float(min=0)
+        max = float
+        ical_dm_amplitude = float(min=0)
+        aperture_radius = float(min=0)
 
 [SIMULATION]
     [[OPTICAL_PARAMS]]
