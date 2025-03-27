@@ -4,6 +4,9 @@
     ycen = integer
     cropsize = integer_or_none
 
+[CAMERA_CALIBRATION]
+    bgddir = string_or_none 
+
 [DM_REGISTRATION]
     calspot_kx = float
     calspot_ky = float

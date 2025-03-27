@@ -4,12 +4,14 @@ import numpy as np
 from scipy.ndimage import affine_transform, median_filter
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import shift
+from scipy.optimize import curve_fit  
 import json
 import io
 from configobj import flatten_errors, ConfigObj
 from validate import Validator, ValidateError
 import warnings
 import hcipy
+import matplotlib.pyplot as plt
 import ipdb
 
 
@@ -170,6 +172,54 @@ def take_images(detector=None, n_images=1, npix=None,
     final_image = np.sum(data_cube, axis=0)
     return final_image
 '''
+def locate_badpix(data, sigmaclip = 5): 
+    ''' -----------------------------------------------------------------------
+    Locates bad pixels by fitting a gaussian distribution to the image
+    intensity and then cutting outliers at the level of 'sigmaclip'
+    
+    XYZ -- this function needs to be rewritten to be cleaner
+    ----------------------------------------------------------------------- '''
+    # Create a vector of values borned by the min and max of the provided data
+    xvals = np.arange(data.min(), data.max())
+    # Short the value of the provided data to create an histogram
+    yvals = np.histogram(data.ravel(), bins=xvals, density=True)[0]
+    # Find the position associated to the faintest and brightest points.
+    m1 = np.abs(np.cumsum(yvals)-0.0005).argmin()
+    m2 = np.abs(np.cumsum(yvals)-0.9995).argmin()
+    # Compute the mean of the selected points
+    midx = 0.5*(xvals[m1]+xvals[m2])
+    # Reduce the list of points by removing the faintest and brightest points.
+    tmpx = xvals[m1:m2]
+    tmpy = yvals[m1:m2]
+    # Fit a Gaussian on the selected points
+    popt, pcov = curve_fit(gaussfunc, tmpx, tmpy, p0 = (midx,25))
+    # Extract the mean and standard deviation
+    mean   = popt[0]
+    stddev = popt[1]
+    # Compute the brighntness limits of the point to keep
+    cliphigh  = mean + sigmaclip*np.abs(stddev)
+    cliplow   = mean - sigmaclip*np.abs(stddev)
+    # Generate the bad pixel map 
+    bpmask = np.round(data > cliphigh) + np.round(data < cliplow)
+    # Plot the histogram
+    plt.plot(xvals[:-1], yvals)
+    # Overplot gaussian fit on the data
+    plt.plot(xvals[:-1], gaussfunc(xvals[:-1], *popt))
+    # Add labels
+    plt.xlabel('Number of pixels')
+    plt.ylabel('Pixel intensities')
+    # Prapare the title of the figure
+    title  = 'Fit to bad pixels' 
+    title += '\nOutside shaded area pixels are considered bad'
+    title += '\n Close this window to continue'
+    # Add the title
+    plt.title(title)
+    # Highlight pixels considered as good pixels
+    plt.axvspan(cliplow, cliphigh, alpha=0.2, color='grey')
+    # Show the figure
+    plt.show()
+    # Return the bad pixel mask as a numpy array.
+    return np.array(bpmask, dtype=np.float32)
 
 def removebadpix(data, mask, kern = 5):
     """Removes bad pixels by replacing them with a median-filtered
@@ -242,6 +292,7 @@ class MyValidator(Validator):
         self.functions['float_or_none'] = self._float_or_none
         self.functions['integer_or_none'] = self._integer_or_none
         self.functions['option_or_none'] = self._option_or_none
+        self.functions['string_or_none'] = self._integer_or_none
 
 
     def _float_or_none(self, value, *args):
@@ -288,6 +339,27 @@ class MyValidator(Validator):
             return int(value)
         except ValueError:
             raise ValidateError("Expected int or 'None'")
+    
+    def _integer_or_none(self, value, *args):
+        # Handle the case when value is a list
+        if isinstance(value, list):
+            # If it's a list containing option specifications, return None
+            if any('None' in str(item) for item in value):
+                return None
+            # Try to convert the first element if it's a simple list
+            try:
+                return string(value[0])
+            except (ValueError, IndexError):
+                raise ValidateError("Expected string or 'None', got list: {}".format(value))
+
+        # Original logic for string values
+        if value in ('None', ''):
+            return None
+        try:
+            return str(value)
+        
+        except ValueError:
+            raise ValidateError("Expected string or 'None'")
     
     def _option_or_none(self, value, *args):
         """Validates that a value is either None or one of the specified options"""
