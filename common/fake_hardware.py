@@ -289,10 +289,12 @@ class FakeAODMSystem:
             self.deformable_mirror.actuators += phase_DM_acts.ravel()
         else:
             self.deformable_mirror.actuators = phase_DM_acts.ravel()
+        
 
+        # NOTE: Deformable_mirror.opd doesn't add the negative OPD you get from hitting a mirror, so the minus
+        # passed to phase_DM in update_pupil_wavefront takes care of it
         phase_DM = self.deformable_mirror.opd
         self.phase_DM = phase_DM
-        ipdb.set_trace()
         phase_DM = sf.rotate_and_flip_field(phase_DM,
                                                 angle=self.rotation_angle_dm,
                                                 flipx=self.flip_x_dm,

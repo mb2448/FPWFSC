@@ -21,7 +21,7 @@ def amplitudemodel(counts, k_rad, a=0, b=0, c=0):
     else:
         return retval
 
-def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_rotation=0):
+def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_rotation=0, which="cos"):
     """given an kx and ky wavevector, 
     generates a NxN flatmap that has 
     a speckle at that position
@@ -39,7 +39,16 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
         phase in radians
     dm_rotation : float
         rotation of the DM about the propagation axis, degrees
+    which : str
+        "sin" or "cos", determines whether the speckle is a sine or a cosine
     """
+
+    if which == "cos":
+        sinusoid = np.cos
+    elif which == "sin":
+        sinusoid = np.sin
+    else:
+        raise ValueError(f"kwarg 'which'={which} invalid, use 'sin' or 'cos'")
 
     
     dmx, dmy   = np.meshgrid( 
@@ -56,9 +65,10 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
 
     xm, ym = rotateXY(xm, ym, thetadeg=dm_rotation)
     
-    fx = -1 if flipx else 1
-    fy = -1 if flipy else 1
-    ret = amp*np.cos(fx*xm + fy*ym +  phase)
+    # NOTE: Changed the sign on lines 69 and 70
+    fx = 1 if flipx else -1
+    fy = 1 if flipy else -1
+    ret = amp*sinusoid(fx*xm + fy*ym +  phase)
     return ret
 
 def make_speckle_xy(xs, ys, amps, phases, 
@@ -66,7 +76,8 @@ def make_speckle_xy(xs, ys, amps, phases,
                     angle = None,
                     lambdaoverd= None,
                     N=22,
-                    dm_rotation=0):
+                    dm_rotation=0,
+                    which="cos"):
     """given an x and y pixel position, 
     generates a NxN flatmap that has 
     a speckle at that position"""
@@ -76,7 +87,7 @@ def make_speckle_xy(xs, ys, amps, phases,
                   centery = centery,
                   angle = angle,
                   lambdaoverd = lambdaoverd)
-    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N, dm_rotation=dm_rotation)
+    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N, dm_rotation=dm_rotation, which=which)
     return returnmap
 
 def convert_pixels_kvecs(pixelsx, pixelsy, 

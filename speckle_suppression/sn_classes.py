@@ -48,7 +48,7 @@ class SpeckleAreaNulling:
                                               self.imparams['ycen'], 
                                               self.controlregion_iwa_pix, 
                                               self.controlregion_owa_pix, 
-                                              -90, 90)
+                                              -45, 45)
         pix_x = np.arange(self.rawI0.shape[0])
         self.pix_x, self.pix_y = np.meshgrid(pix_x, pix_x)
 
@@ -63,29 +63,31 @@ class SpeckleAreaNulling:
                                       centery=self.imparams['ycen'],
                                       angle=0,
                                       lambdaoverd=self.lambdaoverD,
-                                      N=self.aosystem.num_actuators_across)
+                                      N=self.aosystem.num_actuators_across,
+                                      which="cos")
 
         self.sines = dm.make_speckle_xy(xs=self.pix_x[self.controlregion==1],
                                       ys=self.pix_y[self.controlregion==1],
                                       amps=1,
-                                      phases=np.pi / 2,
+                                      phases=0,
                                       centerx=self.imparams['xcen'],
                                       centery=self.imparams['ycen'],
                                       angle=0,
                                       lambdaoverd=self.lambdaoverD,
-                                      N=self.aosystem.num_actuators_across)
+                                      N=self.aosystem.num_actuators_across,
+                                      which="sin")
         
         self.cos_probe = np.sum(self.cosines, axis=-1)
         self.sin_probe = np.sum(self.sines, axis=-1)
 
         # scale to unity, call probe amplitude in measure
-        self.sin_probe /= self.cos_probe.max()
+        self.sin_probe /= self.sin_probe.max()
         self.cos_probe /= self.cos_probe.max()
         
         self.cos_probe_init = self.cos_probe.copy()
         self.sin_probe_init = self.sin_probe.copy()
 
-        self.sines /=  self.cos_probe.max()
+        self.sines /=  self.sin_probe.max()
         self.cosines /=  self.cos_probe.max()
 
     def _measure(self, probe_amplitude=None):
@@ -152,17 +154,12 @@ class SpeckleAreaNulling:
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
 
         # Filter the quantities dE1 and dE2 below the regularization threshold
-        # self.sin_selection = (np.abs(dE1sq) < self.regularization)
-        # self.cos_selection = (np.abs(dE2sq) < self.regularization)
-
-        # dE1sq[self.sin_selection] = 1e20 # effectively turns them off
-        # dE2sq[self.cos_selection] = 1e20
 
         # # Regularized sin / cosine coefficients
-        # sin_coeffs = dE1 / (dE1sq + self.regularization)
-        # cos_coeffs = dE2 / (dE2sq + self.regularization)
         sin_coeffs = dE1 / (dE1sq + self.regularization)
         cos_coeffs = dE2 / (dE2sq + self.regularization)
+        # # sin_coeffs = dE1 / (dE1sq)
+        # # cos_coeffs = dE2 / (dE2sq)
         # sin_coeffs[np.abs(sin_coeffs) > self.regularization] = 0
         # cos_coeffs[np.abs(cos_coeffs) > self.regularization] = 0
 
@@ -201,20 +198,18 @@ class SpeckleAreaNulling:
         q = q[None, None]
 
         # bypass and try to plot p/q
-        control_sines = p * self.sines * self.probe_amplitude
-        control_cosines = q * self.cosines * self.probe_amplitude
+        control = self.probe_amplitude * (p * self.sines + q * self.cosines)
 
         # self.sin_coeffs_init = np.sum(control_sines, axis=-1)
         # self.cos_coeffs_init = np.sum(control_cosines, axis=-1)
         
         # NOTE: This is positive 1 because the DM surface update is negative
-        control_surface = -1 * (np.sum(control_sines, axis=-1) + \
-                                np.sum(control_cosines, axis=-1))
+        control_surface = np.sum(control, axis=-1)
 
         # control_surface *= self.aosystem.OpticalModel.wavelength / (2 * np.pi)
         # apply to the deformable mirror
         self.control_surface = control_surface
-        self.aosystem.set_dm_data(control_surface, modify_existing=True)
+        self.aosystem.set_dm_data(control_surface)
 
         # take image after correction
         I = sf.equalize_image(self.camera.take_image()) / self.CN
