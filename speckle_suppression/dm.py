@@ -1,4 +1,5 @@
 import numpy as np
+import ipdb
 
 def rotateXY(xvals, yvals, thetadeg = 0):
     theta = np.pi/180.0*thetadeg
@@ -54,7 +55,6 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
     dmx, dmy   = np.meshgrid( 
                     np.linspace(-0.5, 0.5, N),
                     np.linspace(-0.5, 0.5, N))
-    
     #if hasattr(kx, "shape") > 0:
     #    amp = np.asarray(amp)[..., None]
     #    dmx = dmx[..., None]
@@ -65,9 +65,8 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
 
     xm, ym = rotateXY(xm, ym, thetadeg=dm_rotation)
     
-    # NOTE: Changed the sign on lines 69 and 70
-    fx = 1 if flipx else -1
-    fy = 1 if flipy else -1
+    fx = -1 if flipx else 1
+    fy = -1 if flipy else 1
     ret = amp*sinusoid(fx*xm + fy*ym +  phase)
     return ret
 
@@ -77,17 +76,21 @@ def make_speckle_xy(xs, ys, amps, phases,
                     lambdaoverd= None,
                     N=22,
                     dm_rotation=0,
-                    which="cos"):
+                    which="cos",
+                    flipx=False,
+                    flipy=True):
     """given an x and y pixel position, 
     generates a NxN flatmap that has 
     a speckle at that position"""
+
     #convert first to wavevector space
     kxs, kys = convert_pixels_kvecs(xs, ys, 
                   centerx = centerx,
                   centery = centery,
                   angle = angle,
                   lambdaoverd = lambdaoverd)
-    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N, dm_rotation=dm_rotation, which=which)
+    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N, dm_rotation=dm_rotation, which=which,
+                                 flipy=flipy, flipx=flipx)
     return returnmap
 
 def convert_pixels_kvecs(pixelsx, pixelsy, 
