@@ -284,7 +284,8 @@ class FakeAODMSystem:
 
         
         #in the sim, just undoes the microns command from subaru
-        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi) 
+        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi)
+        ipdb.set_trace() 
         print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:

@@ -84,10 +84,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         raise ValueError("Sim only now")
 
     SAN = SpeckleAreaNulling(Camera, AOSystem, 
-                               initial_probe_amplitude= 6e-7,
-                               initial_regularization=5e-1,
-                               controlregion_iwa = 4,
-                               controlregion_owa = 8,
+                               initial_probe_amplitude= 10e-7 * (0.3/8),
+                               initial_regularization=1,
+                               controlregion_iwa = 5,
+                               controlregion_owa = 7,
                                xcenter=xcen,
                                ycenter=ycen,
                                Npix_foc=cropsize,
@@ -98,23 +98,23 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     imax=[] 
     ks = []
-    MAX_ITERS = 4
+    MAX_ITERS = 20
 
-    speckle_iwa = dm.make_speckle_kxy(4, 4, 1, 0, N=22, flipy=False, which="sin")
-    # speckle_owa = dm.make_speckle_kxy(8, 0, 1, 0, N=22, flipy=False)
-    speckles = speckle_iwa # + speckle_owa
-    img0 = Camera.take_image()
-    AOSystem.set_dm_data(speckles * 5e-8)
-    img1 = Camera.take_image()
+    # speckle_iwa = dm.make_speckle_kxy(4, 4, 1, 0, N=22, flipy=False, which="sin")
+    # # speckle_owa = dm.make_speckle_kxy(8, 0, 1, 0, N=22, flipy=False)
+    # speckles = speckle_iwa # + speckle_owa
+    # img0 = Camera.take_image()
+    # AOSystem.set_dm_data(speckles * 5e-8)
+    # img1 = Camera.take_image()
 
-    plt.figure()
-    plt.imshow(img1 - img0)
+    # plt.figure()
+    # plt.imshow(img1 - img0)
 
-    ax = plt.gca()
-    dh_region = Wedge([xcen, ycen], r=SAN.controlregion_owa_pix, width=SAN.controlregion_owa_pix - SAN.controlregion_iwa_pix,
-                            theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    ax.add_patch(dh_region)
-    plt.show()
+    # ax = plt.gca()
+    # dh_region = Wedge([xcen, ycen], r=SAN.controlregion_owa_pix, width=SAN.controlregion_owa_pix - SAN.controlregion_iwa_pix,
+    #                         theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+    # ax.add_patch(dh_region)
+    # plt.show()
 
 
     # plt.ion()
@@ -146,9 +146,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             else:
                 I_intermediate = I_after
                 title = "After Correction "
-                mean_ni.append(np.median(I_intermediate[SAN.controlregion]))
+                mean_ni.append(np.mean(I_intermediate[SAN.controlregion==1]))
                 iterations.append(k)
-                norm = LogNorm(vmin=1e-4, vmax=1)
+                norm = LogNorm(vmin=1e-4, vmax=1e-2)
 
             plt.subplot(141)
             plt.title(title+"image")
@@ -194,6 +194,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             plt.draw()
             plt.pause(0.1)
             plt.clf()
+
+        ipdb.set_trace()
 
         # plt.subplot(121)
         # plt.imshow(I_intermediate, origin="lower", vmin=vmin, vmax=vmax)

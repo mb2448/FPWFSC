@@ -101,8 +101,8 @@ class SpeckleAreaNulling:
         self.cos_probe_init = self.cos_probe.copy()
         self.sin_probe_init = self.sin_probe.copy()
 
-        self.sines /=  self.sin_probe.max() * 10
-        self.cosines /=  self.cos_probe.max() * 10
+        self.sines /=  self.sin_probe.max()
+        self.cosines /=  self.cos_probe.max()
 
     def _measure(self, probe_amplitude=None):
         """hidden method to take the series of probe measurements
@@ -222,8 +222,7 @@ class SpeckleAreaNulling:
         # self.sin_coeffs_init = np.sum(control_sines, axis=-1)
         # self.cos_coeffs_init = np.sum(control_cosines, axis=-1)
         
-        # NOTE: This is positive 1 because the DM surface update is negative
-        control_surface = np.sum(control, axis=0)
+        control_surface = -1* np.sum(control, axis=0)
 
         # control_surface *= self.aosystem.OpticalModel.wavelength / (2 * np.pi)
         # apply to the deformable mirror
