@@ -9,7 +9,11 @@ import os
 ## .fits file library
 import astropy.io.fits as fits
 import support_functions as sf
+from collections import deque
+import threading
 
+import hardware as hw
+import ipdb
 ############################## Local Definitions ##############################
 
 # =============================================================================
@@ -62,65 +66,54 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #----------------------------------------------------------------------
         CSM      = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
-        Camera   = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
-
-    # =============================================================================
-    ''' -----------------------------------------------------------------------
-    This script is meant to acquire with the selected detector backgrounds, 
-    darks and flats, then assele them into the correctly formatted region that  
-    we care about, and place them into:
-        - today '/Speckle_Nulling/Calibrations_Data/' directory.
-    ----------------------------------------------------------------------- '''
-
+        Camera   = fhw.FakeCamera(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
+    else:
+        Camera = camera
+        AOSystem = aosystem
+    
     # Get Path where calibration data will be saved 
-    outputdir = settings['CAMERA_CALIBRATION']['bgd_dir']
+    outputdir = settings['CAMERA_CALIBRATION']['bgddir']
+    os.makedirs(outputdir, exist_ok=True)
+
     # Extract from the software init file the directory where data must be 
     # saved and the number of image required to built the dark
     nb_images = 3
 
-    print('')    
-    print('############################################################')
-    print('#################### Hardware Connection ###################')
-    print('############################################################')
-    print('')    
-
-    # Instancie the selected detector
-    Detector = snh.NIRC2('NIRC2', hard_ini, hard_spec) 
-    
     print("Taking default image")
-    default_image = Detector.take_image()
+    default_image = Camera.take_image()
     sizex, sizey = default_image.shape
-    # Display the relevant Detector parameters
-    Detector.print_parameters()
+    ## Display the relevant Camera parameters
+    #Camera.print_parameters()
 
-    # Beginning of the setup verification
+    ## Beginning of the setup verification
     print('')    
     print('############################################################')
     print('############### System Settings Verification ###############')
     print('############################################################')
     
-    # Prepare message for user
+    ## Prepare message for user
     msg  = '''\nAre the system settings valid?                        ''' 
     msg += '''\nTo read and display relevant parameters:              '''
     msg += '''\n    - press 'I' then 'enter'.                         '''
     msg += '''\nTo go to the next step:                               '''
     msg += '''\n    - press 'enter'.                                  '''
 
-    # Flag for the following while loop status
+    ## Flag for the following while loop status
     Flag = True
-    # Enter in a while loop
+    ## Enter in a while loop
     while Flag:
         # Check with user if detector settings are correct
         answer= input(msg)
         if answer.lower() == 'i':
             # Read relevant detector parameters
-            Detector.update_parameters()
-            # Display the current detector parameters
-            Detector.print_parameters()
+            print("TODO: XYZ FIX THIS THESE DONT EXIST")
+            #Camera.update_parameters()
+            #Display the current detector parameters
+            #Camera.print_parameters()
         else:
             # Exit the while loop by changing Flag value
             Flag = False
-    # Define the number of image to average for the calibration data
+    ## Define the number of image to average for the calibration data
     print('')    
     print('############################################################')
     print('###### Number of images acquired for calibration data ######')
@@ -138,7 +131,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # compute the background
     answer= input(msg)
 
-    # Check if the user enter a new value
+    ## Check if the user enter a new value
     if answer != '':
         # if a new value has been enter check if it is a number
         try:
@@ -165,12 +158,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     print('################### Bacground Acquisition ##################')
     print('############################################################')
     print('') 
-    # Prepare message for user
+    ## Prepare message for user
     msg  = '''\nWould you like to use a default bkgd (Array of 0)?    '''
     msg += '''\n    - if yes, type 'D' then press 'enter'.            '''
     msg += '''\n    - if not, press 'enter'                           '''
 
-    # Check if user want to use a default background
+    ## Check if user want to use a default background
     answer= input(msg)
 
     if answer.lower() == 'd':
@@ -201,33 +194,28 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             # Check with user if detector settings are correct
             answer= input(msg)
             if answer.lower() == 'i':
+                print("XYZ FIX THIS THESE DONT EXIST")
                 # Read all detector parameters
-                Detector.update_parameters()
+                #Camera.update_parameters()
                 # Display the current Nirc2 parameters
-                Detector.print_parameters()
+                #Camera.print_parameters()
             else:
                 # Exit the while loop by changing Flag value
                 Flag = False
-        
-        # Initialize bkgd cube of images
+    #    # Initialize bkgd cube of images
         bkgd = np.zeros([nb_images,sizex,sizey])
         # Background acquisition with the selected detector
-        for i in np.arange(nb_images): bkgd[i,:,:] = Detector.take_image()
+        for i in np.arange(nb_images): bkgd[i,:,:] = Camera.take_image()
         # Compute the median of the images acquired
         bkgd = np.median(bkgd,0)
 
-    # Save the background (Mike style)
+    ## Save the background (Mike style)
     hdu = fits.PrimaryHDU(bkgd)
     hdu.writeto(os.path.join(outputdir,'medbackground.fits'),overwrite = True)
 
-    # Save the background (FIU style)
-    hdu = fits.PrimaryHDU(bkgd)
-    hdu.writeto(Path + 'medbackground.fits',overwrite = True)
-
-    # Print message for user
-    print('The bad pixel map has been saved to this/these location(s):')
+    ## Print message for user
+    print('The background has been saved to this/these location(s):')
     print('    - ' + os.path.join(outputdir,'medbackground.fits'))
-    print('    - ' + Path + 'medbackground.fits')        
 
     print('')    
     print('############################################################')
@@ -269,10 +257,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             # Check with user if the detector settings are correct
             answer= input(msg)
             if answer.lower() == 'i':
+                print("TODO: XYZ FIX THIS THESE DONT EXIST")
                 # Read all the detector parameters
-                Detector.update_parameters()
-                # Display the current the detector parameters
-                Detector.print_parameters()
+                #Camera.update_parameters()
+                ## Display the current the detector parameters
+                #Camera.print_parameters()
             else:
                 # Exit the while loop by changing Flag value
                 Flag = False
@@ -280,7 +269,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # Initialize flat cube of images
         flat = np.zeros([nb_images,sizex,sizey])
         # Flat acquisition with the selected detector
-        for i in np.arange(nb_images): flat[i,:,:] = Detector.take_image()
+        for i in np.arange(nb_images): flat[i,:,:] = Camera.take_image()
         # Compute the median of the images acquired
         flat = np.median(flat,0)
 
@@ -288,14 +277,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     hdu = fits.PrimaryHDU(flat)
     hdu.writeto(os.path.join(outputdir,'medflat.fits'),overwrite = True)
 
-    # Save the flat (FIU style)
-    hdu = fits.PrimaryHDU(flat)
-    hdu.writeto(Path + 'medflat.fits',overwrite = True)
-
     # Print message for user
     print('The flat has been saved to this/these location(s):')
     print('    - ' + os.path.join(outputdir,'medflat.fits'))
-    print('    - ' + Path + 'medflat.fits')        
     
     print('')    
     print('############################################################')
@@ -337,10 +321,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             # Check with user if the camera settings are correct
             answer= input(msg)
             if answer.lower() == 'i':
+                print("TODO: XYZ FIX THIS THESE DONT EXIST")
                 # Read all detector parameters
-                Detector.update_parameters()
-                # Display the current detector parameters
-                Detector.print_parameters()
+                #Camera.update_parameters()
+                ## Display the current detector parameters
+                #Camera.print_parameters()
             else:
                 # Exit the while loop by changing Flag value
                 Flag = False
@@ -348,7 +333,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # Initialize flatdark cube of images
         flatdark = np.zeros([nb_images,sizex,sizey])
         # Flatdark acquisition with the selected detector
-        for i in np.arange(nb_images): flatdark[i,:,:] = Detector.take_image()
+        for i in np.arange(nb_images): flatdark[i,:,:] = Camera.take_image()
         # Compute the median of the images acquired
         flatdark = np.median(flatdark,0)
 
@@ -356,15 +341,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     hdu = fits.PrimaryHDU(flatdark)
     hdu.writeto(os.path.join(outputdir,'medflatdark.fits'),overwrite = True)
 
-    # Save the flatdark (FIU style)
-    hdu = fits.PrimaryHDU(flatdark)
-    hdu.writeto(Path + 'medflatdark.fits',overwrite = True)
-
-    ## Print message for user
-    #print('The flat dark has been saved to this/these location(s):')
-    #print('    - ' + os.path.join(outputdir,'medflatdark.fits'))
-    #print('    - ' + Path + 'medflatdark.fits')
-
+    # Print message for user
+    print('The flat dark has been saved to this/these location(s):')
+    print('    - ' + os.path.join(outputdir,'medflatdark.fits'))
  
     print('')    
     print('############################################################')
@@ -379,7 +358,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         print('A default flatdark has been generated (array of 0)')
     else:
         # Generate a  Badpixel map from the darks acquired
-        badpix = pre.locate_badpix(flatdark, sigmaclip = 3)
+        badpix = sf.locate_badpix(flatdark, sigmaclip = 3)
         # Print message for user
         print('A master flat has been generated from the dark.')
 
@@ -387,14 +366,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     hdu = fits.PrimaryHDU(badpix)
     hdu.writeto(os.path.join(outputdir,'badpix.fits'),overwrite = True)
     
-    # Save the flatdark (FIU style)
-    hdu = fits.PrimaryHDU(badpix)
-    hdu.writeto(Path + 'badpix.fits',overwrite = True)
-    
-    ## Print message for user
-    #print('The bad pixel map has been saved to this/these location(s):')
-    #print('    - ' + os.path.join(outputdir,'badpix.fits'))
-    #print('    - ' + Path + 'badpix.fits')        
+    # Print message for user
+    print('The bad pixel map has been saved to this/these location(s):')
+    print('    - ' + os.path.join(outputdir,'badpix.fits'))
 
     print('')    
     print('############################################################')
@@ -417,14 +391,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     hdu = fits.PrimaryHDU(masterflat)
     hdu.writeto(os.path.join(outputdir,'masterflat.fits'),overwrite = True)
     
-    # Save the masterflat (FIU style)
-    hdu = fits.PrimaryHDU(masterflat)
-    hdu.writeto(Path + 'masterflat.fits',overwrite = True)
-
-    ## Print message for user
-    #print('The master flat has been saved to this/these location(s):')
-    #print('    - ' + os.path.join(outputdir,'masterflat.fits'))
-    #print('    - ' + Path + 'masterflat.fits')
+    # Print message for user
+    print('The master flat has been saved to this/these location(s):')
+    print('    - ' + os.path.join(outputdir,'masterflat.fits'))
 
     print('')    
     print('############################################################')
@@ -433,3 +402,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     print('') 
     # Print message for user
     print('Do not forget to set up the system properly.')
+    return
+
+
+
+if __name__ == "__main__":
+    Camera = hw.NIRC2Alias()
+    AOSystem = hw.AOSystemAlias()
+    run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

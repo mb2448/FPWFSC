@@ -1,3 +1,4 @@
+import sys
 import hcipy
 import numpy as np
 #from pyMilk.interfacing.isio_shmlib import SHM as shm
@@ -6,90 +7,109 @@ import numpy as np
 import time
 import astropy.io.fits as pf
 import matplotlib.pyplot as plt
-from common import support_functions as sf
+import support_functions as sf
 
-# from aotools.epics.k2 import *
-# from aosys.nirc2.nirc2_cmds import Nirc2LibraryCommands
-# from aosys.shwfs.shwfs_cmds import ShwfsCommands
-# from aosys.xinetics_deformable_mirror.xinetics_deformable_mirror_cmds import XineticsDeformableMirrorCommands
+sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
+from guis.fast_and_furious.hardware import NIRC2
+
+import aosys.xinetics_deformable_mirror as xd
 
 
-
-class NIRC2:
-    """
-    wrapper for nirc2 commands that already exist
-    """
-
+class NIRC2Alias:
     def __init__(self):
-
-        self.nirc2 = Nirc2LibraryCommands()
-
-        self.filter_name = self.nirc2.get_filters_names()
-        self.wavelength = self.nirc2.get_effective_wavelength()
-        self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name())
-        self.pixel_scale = self.nirc2.get_pixel_scale()
-        self.camera_mode = self.nirc2.get_camera_mode()
-        self.xsize = self.nirc2.get_roi_width()
-        self.ysize = self.nirc2.get_roi_height()
-
-        pass
-
-    def get_parameters(self, test_time):
-        """
-        Reads in the current NIRC2 values and sets them to appropriate variables
-        """
-
-        self.filter_name = self.nirc2.get_filters_names()
-        self.wavelength = self.nirc2.get_effective_wavelength()
-        self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name(), test_time)
-        self.pixel_scale = self.nirc2.get_pixel_scale()
-        self.camera_mode = self.nirc2.get_camera_mode()
-        self.xsize = self.nirc2.get_roi_width()
-        self.ysize = self.nirc2.get_roi_height()
-
-    def choose_mask(self, pmsmask, test_time="Daytime"):
-        """
-        Reads in the given NIRC2 mask name and converts it to a format readable by F&F code
-        """
-        mask_name = 'placeholder'
-
-        if test_time == "Daytime":
-            if pmsmask == 'open':
-                mask_name = 'open'
-            elif pmsmask == 'largehex':
-                mask_name = 'NIRC2_large_hexagonal_mask'
-            elif pmsmask == 'incircle  ':
-                mask_name = 'NIRC2_incircle_mask'
-            elif pmsmask == 'fixedhex':
-                mask_name = 'NIRC2_Lyot_Stop'
-            else:
-                print('mask name not in known keys')
-
-        elif test_time == "Nighttime":
-            if pmsmask == 'open  ':
-                mask_name = 'keck'
-            elif pmsmask == 'largehex  ':
-                mask_name = 'keck+NIRC2_large_hexagonal_mask'
-            elif pmsmask == 'incircle  ':
-                mask_name = 'keck+NIRC2_incircle_mask'
-            elif pmsmask == 'fixedhex  ':
-                mask_name = 'keck+NIRC2_Lyot_Stop'
-            else:
-                print('mask name not in known keys')
-
-        else:
-            print('mask name not in known keys')
-
-        return mask_name
+        self.NIRC2 = NIRC2()
+        self._take_image = self.NIRC2.take_image
 
     def take_image(self):
-        """
-        Initiate a NIRC2 image with the currently set parameters
-        """
+        img_hdu = self._take_image()
+        return img_hdu[0].data
 
-        image = self.nirc2.take_image()
+class AOSystemAlias:
+    def __init__(self):
+        self.AO = xd.xinetics_deformable_mirror.XineticsDeformableMirror(prefix='k2')
+    
+    def set_dm_data(self, shape):
+        return self.AO.set_voltages(shape)
+    
+    def get_dm_data(self):
+        return self.AO.get_voltages()
 
-        return image
+
+#class NIRC2:
+#    """
+#    wrapper for nirc2 commands that already exist
+#    """
+#
+#    def __init__(self):
+#
+#        self.nirc2 = Nirc2LibraryCommands()
+#
+#        self.filter_name = self.nirc2.get_filters_names()
+#        self.wavelength = self.nirc2.get_effective_wavelength()
+#        self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name())
+#        self.pixel_scale = self.nirc2.get_pixel_scale()
+#        self.camera_mode = self.nirc2.get_camera_mode()
+#        self.xsize = self.nirc2.get_roi_width()
+#        self.ysize = self.nirc2.get_roi_height()
+#
+#        pass
+#
+#    def get_parameters(self, test_time):
+#        """
+#        Reads in the current NIRC2 values and sets them to appropriate variables
+#        """
+#
+#        self.filter_name = self.nirc2.get_filters_names()
+#        self.wavelength = self.nirc2.get_effective_wavelength()
+#        self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name(), test_time)
+#        self.pixel_scale = self.nirc2.get_pixel_scale()
+#        self.camera_mode = self.nirc2.get_camera_mode()
+#        self.xsize = self.nirc2.get_roi_width()
+#        self.ysize = self.nirc2.get_roi_height()
+#
+#    def choose_mask(self, pmsmask, test_time="Daytime"):
+#        """
+#        Reads in the given NIRC2 mask name and converts it to a format readable by F&F code
+#        """
+#        mask_name = 'placeholder'
+#
+#        if test_time == "Daytime":
+#            if pmsmask == 'open':
+#                mask_name = 'open'
+#            elif pmsmask == 'largehex':
+#                mask_name = 'NIRC2_large_hexagonal_mask'
+#            elif pmsmask == 'incircle  ':
+#                mask_name = 'NIRC2_incircle_mask'
+#            elif pmsmask == 'fixedhex':
+#                mask_name = 'NIRC2_Lyot_Stop'
+#            else:
+#                print('mask name not in known keys')
+#
+#        elif test_time == "Nighttime":
+#            if pmsmask == 'open  ':
+#                mask_name = 'keck'
+#            elif pmsmask == 'largehex  ':
+#                mask_name = 'keck+NIRC2_large_hexagonal_mask'
+#            elif pmsmask == 'incircle  ':
+#                mask_name = 'keck+NIRC2_incircle_mask'
+#            elif pmsmask == 'fixedhex  ':
+#                mask_name = 'keck+NIRC2_Lyot_Stop'
+#            else:
+#                print('mask name not in known keys')
+#
+#        else:
+#            print('mask name not in known keys')
+#
+#        return mask_name
+#
+#    def take_image(self):
+#        """
+#        Initiate a NIRC2 image with the currently set parameters
+#        """
+#
+#        image = self.nirc2.take_image()
+#
+#        return image
 
 
 class KeckAO:

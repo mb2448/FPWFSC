@@ -12,6 +12,7 @@ from validate import Validator, ValidateError
 import warnings
 import hcipy
 import matplotlib.pyplot as plt
+import astropy.io.fits as fits
 import ipdb
 
 
@@ -99,7 +100,7 @@ def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None,
         final_image = np.flip(final_image, axis=1)
 
     return final_image
-'''
+
 def take_images(detector=None, n_images=1, npix=None,
                 refpsf=None, xcen=None, ycen=None, bgds=None):
     """This is a `super` function that induces the detector class
@@ -171,7 +172,7 @@ def take_images(detector=None, n_images=1, npix=None,
     #coadd
     final_image = np.sum(data_cube, axis=0)
     return final_image
-'''
+
 def locate_badpix(data, sigmaclip = 5): 
     ''' -----------------------------------------------------------------------
     Locates bad pixels by fitting a gaussian distribution to the image
@@ -340,7 +341,7 @@ class MyValidator(Validator):
         except ValueError:
             raise ValidateError("Expected int or 'None'")
     
-    def _integer_or_none(self, value, *args):
+    def _string_or_none(self, value, *args):
         # Handle the case when value is a list
         if isinstance(value, list):
             # If it's a list containing option specifications, return None
@@ -629,7 +630,7 @@ def load_dict(load_name):
     return dict_loaded
 
 def calculate_VAR(image, reference_PSF, mas_pix, wavelength, diameter):
-    ''' Calculates the Variance of the normalized first Airy Ring (VAR) of the image.
+    """Calculates the Variance of the normalized first Airy Ring (VAR) of the image.
 
     For the exact definition, see equation 13 in Bos et al. (2020).
 
@@ -645,7 +646,7 @@ def calculate_VAR(image, reference_PSF, mas_pix, wavelength, diameter):
         The central wavelength of the filter operated in, provided in meter.
     diameter : float
         The projected diameter of the exit pupil in meter.
-    '''
+    """
     # Calculating what lambda/D is in milliarcsec.
     lambda_D_rad = wavelength / diameter
     lambda_D_mas = np.degrees(lambda_D_rad) * 3600 * 1000
@@ -695,7 +696,7 @@ def quick_strehl_est(inputdata, reference_psf):
     return np.float(ret)
 
 def calculate_SRA(image, reference_PSF, mas_pix, wavelength, diameter, bg_subtraction=True):
-    ''' Calculates the Strehl Ratio Approximation (SRA) of the image.
+    """Calculates the Strehl Ratio Approximation (SRA) of the image.
 
 
     For the exact definition, see equation 12 in Bos et al. (2020).
@@ -714,7 +715,7 @@ def calculate_SRA(image, reference_PSF, mas_pix, wavelength, diameter, bg_subtra
         The projected diameter of the exit pupil in meter.
     bg_subtraction : Boolean
         Used for additional background suppresion to improve the SRA measurement.
-    '''
+    """
     # Calculating what lambda/D is in milliarcsec.
     lambda_D_rad = wavelength / diameter
     lambda_D_mas = np.degrees(lambda_D_rad) * 3600 * 1000
@@ -942,3 +943,57 @@ def robust_sigma(in_y, zero=0):
         out_val = 0.0
 
     return out_val
+
+def gaussfunc(x, mu, sig):
+    """1-d Gaussian  x, mu, sigma"""
+    return (1.0/(sig*np.sqrt(2*np.pi))*
+            np.exp(-(x-mu)**2/(2*sig**2)))
+
+def setup_bgd_dict(directory_path):
+    """
+    Load specific FITS files from a directory and return their data in a dictionary.
+    
+    Parameters:
+    -----------
+    directory_path : str
+        Path to the directory containing the FITS files
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing the data from the FITS files with keys:
+        'bkgd', 'masterflat', and 'badpix'
+    
+    Raises:
+    -------
+    FileNotFoundError
+        If any of the required files are not found in the directory
+    """
+    # List of files to look for
+    required_files = {
+        'bkgd': 'medbackground.fits',
+        'masterflat': 'masterflat.fits',
+        'badpix': 'badpix.fits'
+    }
+    
+    # Dictionary to store the data
+    data_dict = {}
+    
+    # Check if directory exists
+    if not os.path.isdir(directory_path):
+        raise NotADirectoryError(f"The directory {directory_path} does not exist")
+    
+    # Process each file
+    for key, filename in required_files.items():
+        file_path = os.path.join(directory_path, filename)
+        
+        # Check if file exists
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"Required file {filename} not found in {directory_path}")
+        
+        # Open the FITS file and extract data
+        with fits.open(file_path) as hdul:
+            # Assuming the data is in the primary HDU (index 0)
+            data_dict[key] = hdul[0].data
+    
+    return data_dict

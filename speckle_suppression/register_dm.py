@@ -12,6 +12,7 @@ sys.path.insert(0, '../')
 from common import support_functions as sf
 from common import fake_hardware as fhw
 
+import hardware as hw
 import ipdb
 
 def compute_angle(x, y):
@@ -77,28 +78,38 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         CSM      = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
         Camera   = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
+         
+    else:
+        Camera = camera
+        AOSystem = aosystem
+        bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
+    
+    initial_shape = AOSystem.get_dm_data()
 
+    ipdb.set_trace()
     data_nospeck_raw = Camera.take_image()
-    data_nospeck = sf.equalize_image(data_nospeck_raw)
-    
-    speck = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=22, flipy = False, flipx = False)
-    AOSystem.set_dm_data(speck)
+    data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
+    speck1 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=21, flipy = False, flipx = False)
+    AOSystem.set_dm_data(initial_shape + speck1)
     data_ph1_raw    = Camera.take_image()
-    data_ph1        = sf.equalize_image(data_ph1_raw)
+    data_ph1        = sf.equalize_image(data_ph1_raw, **bgds)
     
-    speck = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, np.pi/2, N=22, flipy = False, flipx = False)
-    AOSystem.set_dm_data(speck)
+    speck2 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, np.pi/2, N=21, flipy = False, flipx = False)
+    AOSystem.set_dm_data(initial_shape + speck2)
     data_ph2_raw    = Camera.take_image()
-    data_ph2        = sf.equalize_image(data_ph2_raw)
+    data_ph2        = sf.equalize_image(data_ph2_raw, **bgds)
+
+    print("Resetting AO system to initial state")
+    AOSystem.set_dm_data(initial_shape)
 
     cleaned = 0.5*(data_ph1+data_ph2)-data_nospeck
     #plt.imshow(cleaned, origin='lower' );plt.show()
-    points = qt_clickpoints.run_viewer(data = np.log10(np.abs(cleaned+1)))
+    points = qt_clickpoints.run_viewer(data = cleaned)
     assert len(points) == 2, "You must click two points"
     c1 = np.array(sn.get_spot_centroid(cleaned, guess_spot=points[0]))
     c2 = np.array(sn.get_spot_centroid(cleaned, guess_spot=points[1]))
     print("Centers: ", c1, c2)
-    centered_points = qt_clickpoints.run_viewer(data = np.log10(np.abs(cleaned+1)), user_points = [c1, c2])
+    centered_points = qt_clickpoints.run_viewer(data = cleaned, user_points = [c1, c2])
     measured_angle = compute_angle(*(c2-c1))
     measured_center = 0.5*(c1 + c2)
     print("measured angle: ", measured_angle)
@@ -115,6 +126,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         settings.write(configfile)
 
 if __name__ == "__main__":
-    camera = "Sim"
-    aosystem = "Sim"
-    run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')
+    Camera = hw.NIRC2Alias()
+    AOSystem = hw.AOSystemAlias()
+    
+    run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

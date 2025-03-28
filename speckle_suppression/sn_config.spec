@@ -5,7 +5,7 @@
     cropsize = integer_or_none
 
 [CAMERA_CALIBRATION]
-    bgddir = string_or_none 
+    bgddir = string
 
 [DM_REGISTRATION]
     calspot_kx = float
