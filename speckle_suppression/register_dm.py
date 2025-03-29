@@ -12,7 +12,7 @@ sys.path.insert(0, '../')
 from common import support_functions as sf
 from common import fake_hardware as fhw
 
-import hardware as hw
+from common import bench_hardware as hw
 import ipdb
 
 def compute_angle(x, y):
@@ -86,7 +86,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     
     initial_shape = AOSystem.get_dm_data()
 
-    ipdb.set_trace()
     data_nospeck_raw = Camera.take_image()
     data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
     speck1 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=21, flipy = False, flipx = False)

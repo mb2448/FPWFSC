@@ -48,11 +48,11 @@ class SpeckleAreaNulling:
                                               self.imparams['ycen'], 
                                               self.controlregion_iwa_pix, 
                                               self.controlregion_owa_pix, 
-                                              -45, 45)
+                                              -90, 90)
         pix_x = np.arange(self.rawI0.shape[0])
         self.pix_x, self.pix_y = np.meshgrid(pix_x, pix_x)
 
-        self.I0 = sf.reduce_images(self.rawI0, **self.imparams)
+        self.I0 = sf.equalize_image(self.rawI0)
 
         # Construct the probes from the wedge
         self.cosines = dm.make_speckle_xy(xs=self.pix_x[self.controlregion==1],

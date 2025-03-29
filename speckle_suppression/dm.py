@@ -65,9 +65,8 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
 
     xm, ym = rotateXY(xm, ym, thetadeg=dm_rotation)
     
-    # NOTE: Changed the sign on lines 69 and 70
-    fx = 1 if flipx else -1
-    fy = 1 if flipy else -1
+    fx = -1 if flipx else 1
+    fy = -1 if flipy else 1
     ret = amp*sinusoid(fx*xm + fy*ym +  phase)
     return ret
 

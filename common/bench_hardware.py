@@ -1,17 +1,6 @@
 import sys
-import hcipy
-import numpy as np
-#from pyMilk.interfacing.isio_shmlib import SHM as shm
-#import vampires_control as vctrl
-#from vampires_control import filters
-import time
-import astropy.io.fits as pf
-import matplotlib.pyplot as plt
-import support_functions as sf
-
 sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
 from guis.fast_and_furious.hardware import NIRC2
-
 import aosys.xinetics_deformable_mirror as xd
 
 

@@ -4,7 +4,7 @@ import astropy.io.fits as fits
 import support_functions as sf
 from collections import deque
 import threading
-import hardware as hw
+import bench_hardware as hw
 
 def build_master_flat(data, badpix=None, kern=9, removezeros=True):
     '''Removes bad pixels from a background subtracted master flat'''
