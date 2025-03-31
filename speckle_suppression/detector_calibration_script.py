@@ -1,10 +1,11 @@
 import numpy as np
 import os
+import sys
 import astropy.io.fits as fits
+sys.path.insert(0, '../common')
 import support_functions as sf
 from collections import deque
 import threading
-import bench_hardware as hw
 
 def build_master_flat(data, badpix=None, kern=9, removezeros=True):
     '''Removes bad pixels from a background subtracted master flat'''
@@ -34,10 +35,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     
     # Setup instruments
     if camera == 'Sim' and aosystem == 'Sim':
+        import fake_hardware as fhw
         CSM = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
-        Camera = fhw.FakeCamera(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
+        Camera = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
     else:
+        import bench_hardware as hw
         Camera = camera
         AOSystem = aosystem
     
@@ -101,12 +104,15 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         name = cal_type["name"]
         print(f'\n{"#"*60}\n################### {name} Acquisition ###################\n{"#"*60}\n')
         
-        use_default = get_user_input(
-            f'\nUse default {name.lower()} ({cal_type["default_desc"]})? (d/enter): ', 
-            ['d', '']
-        ) == 'd'
+        user_choice = get_user_input(
+            f'\nUse default {name.lower()} ({cal_type["default_desc"]}), skip this step, or acquire new data? (d/s/enter): ', 
+            ['d', 's', '']
+        )
         
-        if use_default:
+        if user_choice == 's':
+            print(f'Skipping {name.lower()} acquisition')
+            continue  # Skip to the next calibration type
+        elif user_choice == 'd':
             print(f'Using default {name.lower()} ({cal_type["default_desc"]})')
             data = cal_type["default_value"]
         else:
@@ -127,6 +133,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # Save the data
         output_path = os.path.join(outputdir, cal_type["filename"])
         fits.PrimaryHDU(data).writeto(output_path, overwrite=True)
+        os.chmod(output_path, 0o644)
         print(f'The {name.lower()} has been saved to: {output_path}')
         
         # Store for later processing
@@ -167,6 +174,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     return
 
 if __name__ == "__main__":
-    Camera = hw.NIRC2Alias()
-    AOSystem = hw.AOSystemAlias()
+    Camera = 'Sim'
+    AOSystem = 'Sim'
     run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

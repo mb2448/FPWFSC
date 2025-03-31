@@ -1,3 +1,7 @@
+# FITS files
+*.fits
+*.fit
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -1,5 +1,7 @@
-import numpy as np
+import os
 import sys
+
+import numpy as np
 import threading
 from collections import deque
 import matplotlib.pyplot as plt
@@ -8,11 +10,10 @@ import dm
 import qt_clickpoints
 import sn_functions as sn
 
-sys.path.insert(0, '../')
-from common import support_functions as sf
-from common import fake_hardware as fhw
+sys.path.insert(0, '../common')
+import support_functions as sf
+import fake_hardware as fhw
 
-from common import bench_hardware as hw
 import ipdb
 
 def compute_angle(x, y):
@@ -78,16 +79,18 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         CSM      = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
         Camera   = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
-         
+    
     else:
-        Camera = camera
-        AOSystem = aosystem
-        bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
+        from common import bench_hardware as hw
+        Camera = hw.Camera.instance()
+        AOSystem = hw.AOSystem.instance()
+    
+    bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     
     initial_shape = AOSystem.get_dm_data()
-
     data_nospeck_raw = Camera.take_image()
     data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
+    
     speck1 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=21, flipy = False, flipx = False)
     AOSystem.set_dm_data(initial_shape + speck1)
     data_ph1_raw    = Camera.take_image()
@@ -117,15 +120,16 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     measured_lambdaoverD = np.linalg.norm(c2-c1)/np.linalg.norm(np.array([calspot_kx, calspot_ky]))/2
     print("Measured lambda/D: ", measured_lambdaoverD, "pixels")
     settings['DM_REGISTRATION']['MEASURED_PARAMS']['lambdaoverd'] = measured_lambdaoverD
-    settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_x'] = measured_center[0]
-    settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_y'] = measured_center[1]
+    settings['DM_REGISTRATION']['MEASURED_PARAMS']['centerx'] = measured_center[0]
+    settings['DM_REGISTRATION']['MEASURED_PARAMS']['centery'] = measured_center[1]
     settings['DM_REGISTRATION']['MEASURED_PARAMS']['angle'] = measured_angle
     print("Saving settings to: ", config_file)
     with open(config_file, 'wb') as configfile:
         settings.write(configfile)
 
 if __name__ == "__main__":
-    Camera = hw.NIRC2Alias()
-    AOSystem = hw.AOSystemAlias()
-    
+    #Camera = hw.NIRC2Alias()
+    #AOSystem = hw.AOSystemAlias()
+    Camera = 'Sim'
+    AOSystem = 'Sim'
     run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

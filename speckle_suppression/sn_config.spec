@@ -13,8 +13,8 @@
     calspot_amp = float(min=0)
 
     [[MEASURED_PARAMS]]    
-        center_x = float
-        center_y = float
+        centerx = float
+        centery = float
         angle = float
         lambdaoverd = float
 
@@ -56,6 +56,7 @@
         ysize                = integer(min=0)
         field_center_x       = integer(min=0)
         field_center_y       = integer(min=0)
+        bad_pixel_mask       = string_or_none
 
     [[AO_PARAMS]]
         modebasis               = option_or_none('zernike', 'pixel', 'disk_harmonics', 'fourier')

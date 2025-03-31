@@ -11,9 +11,9 @@ import dm
 import qt_clickpoints
 import sn_functions as sn
 
-sys.path.insert(0, '../')
-from common import support_functions as sf
-from common import fake_hardware as fhw
+sys.path.insert(0, '../common')
+import support_functions as sf
+import fake_hardware as fhw
 
 
 import ipdb
@@ -49,14 +49,19 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         CSM      = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
         Camera   = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
+    
+    else:
+        from common import bench_hardware as hw
+        Camera = hw.Camera.instance()
+        AOSystem = hw.AOSystem.instance()
 
+    bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     # Now proceed with the intensity calibration
     intconf = settings['DM_REGISTRATION']['INTENSITY_CAL']
-    
+    imageparams = settings['DM_REGISTRATION']['MEASURED_PARAMS']
     #take bgd image with no speckles
     data_nospeck_raw = Camera.take_image()
-    data_nospeck = sf.equalize_image(data_nospeck_raw)
-    
+    data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
     xypixels = []
     ximcoords, yimcoords = np.meshgrid(np.arange(data_nospeck.shape[0]),
                                       np.arange(data_nospeck.shape[1]))
@@ -78,8 +83,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     DMamp = float(intconf['ical_dm_amplitude'])
     print("Spatial frequency range for calibration:", kr)
 
-    AOSystem.reset_dm_data(modify_existing=False)
-    initial_dm_shape = AOSystem.get_dm_shape()
+    initial_dm_shape = AOSystem.get_dm_data()
     
     # Example of how to use the DM to create calibration spots
     # and visualize them in the non-blocking viewer
@@ -90,12 +94,22 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         additionmapx = dm.make_speckle_kxy(k, 0, DMamp, 0)
         additionmapy = dm.make_speckle_kxy(0, k, DMamp, 0)
         additionmap = additionmapx + additionmapy
-        AOSystem.set_dm_data(additionmap, modify_existing=True)
+        
+        AOSystem.set_dm_data(initial_dm_shape + additionmap)
         data_speck_raw = Camera.take_image()
-        data_speck = sf.equalize_image(data_speck_raw)
-        AOSystem.reset_dm_data(modify_existing=False)
-
+        data_speck = sf.equalize_image(data_speck_raw, **bgds)
+        
         cleaned = data_speck - data_nospeck
+        #get the spot locations
+        guesses = []
+        centroids = []
+        for (kx, ky) in [(k, 0), (-k, 0), (0, k), (0, -k)]:
+            print(kx, ky)
+            spotguess = dm.convert_kvecs_pixels(kx, ky, **imageparams)
+            guesses.append(spotguess)
+            centroids.append(sn.get_spot_centroid(cleaned, guess_spot=spotguess))
+        
+        viewer.set_user_points(centroids)
         viewer.update_data(np.log10(np.abs(cleaned+1)))
         # Process events to keep UI responsive
         app.processEvents()
@@ -103,9 +117,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # Add a small delay to make the updates visible
         time.sleep(0.1)
     
+    AOSystem.set_dm_data(initial_dm_shape)
     print("Calibration sequence complete.")
     print("Viewer remains open. Close the window when finished.")
-    
     # Return the viewer so we can access it later
     return viewer
 

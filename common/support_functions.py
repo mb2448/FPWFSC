@@ -173,7 +173,7 @@ def take_images(detector=None, n_images=1, npix=None,
     final_image = np.sum(data_cube, axis=0)
     return final_image
 
-def locate_badpix(data, sigmaclip = 5): 
+def locate_badpix(data, sigmaclip = 5, plot=True): 
     ''' -----------------------------------------------------------------------
     Locates bad pixels by fitting a gaussian distribution to the image
     intensity and then cutting outliers at the level of 'sigmaclip'
@@ -203,23 +203,57 @@ def locate_badpix(data, sigmaclip = 5):
     # Generate the bad pixel map 
     bpmask = np.round(data > cliphigh) + np.round(data < cliplow)
     # Plot the histogram
-    plt.plot(xvals[:-1], yvals)
-    # Overplot gaussian fit on the data
-    plt.plot(xvals[:-1], gaussfunc(xvals[:-1], *popt))
-    # Add labels
-    plt.xlabel('Number of pixels')
-    plt.ylabel('Pixel intensities')
-    # Prapare the title of the figure
-    title  = 'Fit to bad pixels' 
-    title += '\nOutside shaded area pixels are considered bad'
-    title += '\n Close this window to continue'
-    # Add the title
-    plt.title(title)
-    # Highlight pixels considered as good pixels
-    plt.axvspan(cliplow, cliphigh, alpha=0.2, color='grey')
-    # Show the figure
-    plt.show()
-    # Return the bad pixel mask as a numpy array.
+    if plot:
+        # Create figure
+        plt.figure(figsize=(5, 3))
+        
+        # Add a small offset to avoid log(0) issues
+        epsilon = 1e-10
+        y_plot = yvals + epsilon
+        y_fit = gaussfunc(xvals[:-1], *popt) + epsilon
+        
+        # Plot the histogram with log scale
+        plt.semilogy(xvals[:-1], y_plot, 'k.', label='Pixel intensity histogram', alpha=0.5)
+        
+        # Overplot Gaussian fit on the data
+        plt.semilogy(xvals[:-1], y_fit, 'r-', 
+                   label=f'Gaussian fit (μ={mean:.2f}, σ={stddev:.2f})', alpha=0.5)
+        
+        # Add labels
+        plt.xlabel('Pixel intensity')
+        plt.ylabel('Normalized frequency (log scale)')
+        plt.legend()
+        
+        # Set y-axis limits to focus on relevant range
+        # Find the maximum value in the histogram (excluding outliers)
+        y_max = max(np.max(y_plot), 0.1)
+        plt.ylim(epsilon, y_max * 1.5)
+        
+        # Prepare the title of the figure
+        title = f'Bad Pixel Detection (σ-clip = {sigmaclip})'
+        title += '\nPixels outside shaded area are considered bad'
+        
+        # Add the title
+        plt.title(title)
+        
+        # Highlight pixels considered as good pixels
+        plt.axvspan(cliplow, cliphigh, alpha=0.2, color='grey', 
+                  label=f'Good pixel range: [{cliplow:.2f}, {cliphigh:.2f}]')
+        
+        # Add vertical lines at clip boundaries
+        plt.axvline(x=cliplow, color='red', linestyle='--', alpha=0.7)
+        plt.axvline(x=cliphigh, color='red', linestyle='--', alpha=0.7)
+        
+        # Add text showing percentage of bad pixels
+        bad_pixel_percentage = 100 * np.sum(bpmask) / bpmask.size
+        plt.figtext(0.5, 0.01, f'Bad pixels: {bad_pixel_percentage:.2f}% of image', 
+                  ha='center', fontsize=10)
+        
+        # Show the figure
+        plt.grid(True, which="both", ls="-", alpha=0.2)
+        plt.tight_layout()
+        plt.show() 
+    
     return np.array(bpmask, dtype=np.float32)
 
 def removebadpix(data, mask, kern = 5):
@@ -293,7 +327,7 @@ class MyValidator(Validator):
         self.functions['float_or_none'] = self._float_or_none
         self.functions['integer_or_none'] = self._integer_or_none
         self.functions['option_or_none'] = self._option_or_none
-        self.functions['string_or_none'] = self._integer_or_none
+        self.functions['string_or_none'] = self._string_or_none
 
 
     def _float_or_none(self, value, *args):

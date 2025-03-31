@@ -1,8 +1,14 @@
 import hcipy
 import numpy as np
-from common import support_functions as sf
-from common import classes as ff_c
+import sys
+import os
+
+import support_functions as sf
+import classes as ff_c
+import astropy.io.fits as pf
+
 import ipdb
+
 comment = """
 [SIMULATION]
     run_sim         = boolean(default=False)
@@ -11,6 +17,7 @@ comment = """
     rms_wfe         = float(min=0)
     seed            = integer
 """
+
 def center_image(small_image, large_size, center_position):
     """Centers a smaller image at a specific position in a larger empty image
 
@@ -42,6 +49,40 @@ def center_image(small_image, large_size, center_position):
 
     return large_image
 
+def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
+    """Creates a random bad pixel mask.
+    
+    Parameters
+    ----------
+    height : int
+        Height of the detector in pixels
+    width : int
+        Width of the detector in pixels
+    bad_pixel_fraction : float
+        Fraction of pixels that should be marked as bad (between 0.0 and 1.0)
+        
+    Returns
+    -------
+    ndarray
+        Boolean mask where True indicates a bad pixel
+    """
+    if bad_pixel_fraction <= 0:
+        return None
+        
+    bad_pixel_mask = np.zeros((height, width), dtype=bool)
+    num_bad_pixels = int(bad_pixel_fraction * height * width)
+    
+    # Randomly select pixels to mark as bad
+    bad_indices = np.random.choice(height * width, 
+                                  size=num_bad_pixels, 
+                                  replace=False)
+    bad_y, bad_x = np.unravel_index(bad_indices, (height, width))
+    bad_pixel_mask[bad_y, bad_x] = True
+    
+    if outputfile is not None:
+        pf.writeto(outputfile, 1*bad_pixel_mask, overwrite=True)
+    
+    return bad_pixel_mask
 
 class FakeCoronagraphOpticalSystem:
     """A helper class to build a coronagraph from a configuration file"""
@@ -120,6 +161,7 @@ class FakeDetector:
                  read_noise=0,
                  dark_current_rate=0,
                  flat_field=0,
+                 bad_pixel_mask=None,
                  bias_offset=0,
                  include_photon_noise=True,
                  exptime=None,
@@ -127,8 +169,6 @@ class FakeDetector:
                  ysize = None,
                  field_center_x = None,
                  field_center_y = None,
-                 flip_x = None,
-                 flip_y = None,
                  rotation_angle_deg = None, #not yet implemented
                  opticalsystem=None):
         self.flux = flux
@@ -137,23 +177,26 @@ class FakeDetector:
         self.dark_current_rate = dark_current_rate
         self.include_photon_noise = include_photon_noise
         self.flat_field = flat_field
+        self.bad_pixel_mask = bad_pixel_mask
         self.bias_offset = bias_offset
         self.xsize = xsize
         self.ysize = ysize
         self.field_center_x = field_center_x
         self.field_center_y = field_center_y
-        self.flip_x = flip_x #THESE SHOULD BE REMOVED--NOT IMPLEMENTED.  SHOULD BE IN OPTICAL SYSTEM.
-        self.flip_y = flip_y
         self.rotation_angle_deg = rotation_angle_deg
 
         # passed by reference...so the latest efields will update
         self.opticalsystem = opticalsystem
         self.exptime = exptime
+        if self.bad_pixel_mask is not None:
+            self.badpixelmask = np.array(pf.open(self.bad_pixel_mask)[0].data, dtype=bool)
+            self.nbadpix = np.sum(self.badpixelmask)
 
         self.detector = hcipy.optics.NoisyDetector(
                               self.input_grid,
                               dark_current_rate=self.dark_current_rate,
-                              read_noise=self.read_noise,
+                              read_noise=0, 
+                              #this is a hack to deal with not double counting read noise when making the image larger
                               flat_field=0,
                               include_photon_noise=self.include_photon_noise)
 
@@ -190,6 +233,9 @@ class FakeDetector:
         output_image += np.random.poisson(self.dark_current_rate*self.exptime, size=output_image.shape)
         output_image += np.random.normal(0, self.read_noise, size=output_image.shape)
         output_image += self.bias_offset
+        if self.bad_pixel_mask is not None:
+            output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
+
         return output_image
 
 class FakeAOSystem:
@@ -234,7 +280,7 @@ class FakeAODMSystem:
                        modebasis=None,
                        initial_rms_wfe=0,
                        rotation_angle_dm = 0,
-                       num_actuators_across=22,
+                       num_actuators_across=21,
                        actuator_spacing=None,
                        seed=None,
                        flip_x_dm=None,
@@ -269,13 +315,14 @@ class FakeAODMSystem:
                                                                            actuator_spacing)
         self.deformable_mirror = hcipy.DeformableMirror(self.influence_functions)
 
-    def reset_dm_data(self, modify_existing=True):
-        dm_commands = np.zeros([self.num_actuators_across, self.num_actuators_across])
-        self.set_dm_data(dm_commands, modify_existing=modify_existing)
-        return
+        self.current_dm_shape = np.zeros([self.num_actuators_across, 
+                                          self.num_actuators_across])
+
+    def get_dm_data(self):
+        return self.current_dm_shape
 
 
-    def set_dm_data(self, dm_commands, modify_existing=True):
+    def set_dm_data(self, dm_commands, modify_existing=False):
         """
         NOTE: Not actually sure that this is the right shape
         Parameters
@@ -313,11 +360,12 @@ class FakeAODMSystem:
 
         return
 
-    def get_dm_shape(self):
-        return self.current_dm_shape
-
     def make_dm_command(self, microns):
         return microns
 
     def close_dm_stream(self):
         return
+
+
+if __name__ == "__main__":
+    pass

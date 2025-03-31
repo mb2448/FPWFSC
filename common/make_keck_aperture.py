@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from hcipy import *
-from common import support_functions as sf
+import support_functions as sf
 
 def get_aperture(aperturename=None, pupil_grid=None,
                  rotation_angle_aperture=0, oversampling_factor=8):
