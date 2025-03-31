@@ -1,5 +1,7 @@
 import numpy as np
-from common import support_functions as sf
+import sys
+sys.path.insert(0,"../common")
+import support_functions as sf
 import sn_functions as snf
 import ipdb
 import dm

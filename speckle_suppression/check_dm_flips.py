@@ -13,9 +13,10 @@ import astropy.io.fits as fits
 import matplotlib.pyplot as plt 
 from matplotlib.patches import Wedge
 from matplotlib.colors import LogNorm
-sys.path.insert(0,"../")
-from common import support_functions as sf
-from common import bench_hardware as hw
+
+sys.path.insert(0,"../common")
+import support_functions as sf
+import bench_hardware as hw
 import sn_functions as sn_f
 import sn_classes as sn_c
 import dm
@@ -41,8 +42,8 @@ if __name__ == "__main__":
     cropsize            = settings['SN_SETTINGS']['cropsize']
     
     #DM Registration
-    xcen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_x']
-    ycen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_y']
+    xcen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['centerx']
+    ycen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['centery']
     dm_angle            = settings['DM_REGISTRATION']['MEASURED_PARAMS']['angle']
     lambdaoverd         = settings['DM_REGISTRATION']['MEASURED_PARAMS']['lambdaoverd']
 
@@ -74,8 +75,8 @@ if __name__ == "__main__":
     # plt.show()
 
     ## Build the probes
-    xi = 250
-    yi = 180
+    xi = 243
+    yi = 135
     
     cos = dm.make_speckle_xy(
             xs=xi,

@@ -16,6 +16,12 @@ import fake_hardware as fhw
 
 import ipdb
 
+try:
+    import bench_hardware as hw
+except:
+    raise ImportError
+
+
 def compute_angle(x, y):
     """
     Compute the angle of a point (x, y) with respect to the positive x-axis.
@@ -81,9 +87,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         Camera   = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
     
     else:
-        from common import bench_hardware as hw
-        Camera = hw.Camera.instance()
-        AOSystem = hw.AOSystem.instance()
+        Camera = camera#hw.Camera.instance()
+        AOSystem = aosystem#hw.AOSystem.instance()
     
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     
@@ -128,8 +133,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         settings.write(configfile)
 
 if __name__ == "__main__":
-    #Camera = hw.NIRC2Alias()
-    #AOSystem = hw.AOSystemAlias()
-    Camera = 'Sim'
-    AOSystem = 'Sim'
+    Camera = hw.NIRC2Alias()
+    AOSystem = hw.AOSystemAlias()
+    #Camera = 'Sim'
+    #AOSystem = 'Sim'
     run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

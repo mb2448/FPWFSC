@@ -7,6 +7,11 @@ import support_functions as sf
 from collections import deque
 import threading
 
+try:
+    import bench_hardware as hw
+except:
+    ImportError
+
 def build_master_flat(data, badpix=None, kern=9, removezeros=True):
     '''Removes bad pixels from a background subtracted master flat'''
     MF = sf.removebadpix(data, badpix, kern=kern)
@@ -40,7 +45,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
         Camera = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
     else:
-        import bench_hardware as hw
         Camera = camera
         AOSystem = aosystem
     
@@ -174,6 +178,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     return
 
 if __name__ == "__main__":
-    Camera = 'Sim'
-    AOSystem = 'Sim'
+    Camera = hw.NIRC2Alias()
+    AOSystem = hw.AOSystemAlias()
     run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

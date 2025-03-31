@@ -12,9 +12,9 @@ import astropy.io.fits as fits
 import matplotlib.pyplot as plt 
 from matplotlib.patches import Wedge
 from matplotlib.colors import LogNorm
-sys.path.insert(0,"../")
-from common import support_functions as sf
-from common import bench_hardware as hw
+sys.path.insert(0,"../common")
+import support_functions as sf
+import bench_hardware as hw
 import sn_functions as sn_f
 import sn_classes as sn_c
 import dm
