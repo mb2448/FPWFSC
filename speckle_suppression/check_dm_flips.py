@@ -77,6 +77,9 @@ if __name__ == "__main__":
     ## Build the probes
     xi = 243
     yi = 135
+
+    xi = 237
+    yi = 173
     
     cos = dm.make_speckle_xy(
             xs=xi,

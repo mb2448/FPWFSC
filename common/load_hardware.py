@@ -11,7 +11,7 @@ import os
 import astropy.io.fits as fits
 import support_functions as sf
 
-import hardware as hw
+import bench_hardware as hw
 
 if __name__ == "__main__":
     Camera = hw.NIRC2Alias()

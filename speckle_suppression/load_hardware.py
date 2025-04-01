@@ -19,8 +19,37 @@ import sn_functions as sn_f
 import sn_classes as sn_c
 import dm
 from time import sleep
+import ipdb
+from datetime import datetime
+
+def clamp(ref_psf, control_region, clamp=0):
+
+    weight_in_control = ref_psf[control_region]
+    weight_in_control[weight_in_control < clamp] = 0
+    weight_in_control[weight_in_control >= clamp] = 1
+    return weight_in_control
+
+
+def amplitude_weight(ref_psf, control_region):
+    """
+    """
+    # weight by electric field magnitude
+    weight_in_control = ref_psf[control_region]
+    weight_in_control = np.sqrt(np.abs(weight_in_control))
+    max_in_control = weight_in_control.max()
+    weight_in_control /= max_in_control
+    
+    return weight_in_control
+
 
 if __name__ == "__main__":
+    
+    # make timestamped directory
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    dir_name = f"output_{timestamp}"
+    os.makedirs(dir_name, exist_ok=False)
+
+    
     IWA = 4
     OWA = 7
     config = 'sn_config.ini'
@@ -40,8 +69,8 @@ if __name__ == "__main__":
     cropsize            = settings['SN_SETTINGS']['cropsize']
     
     #DM Registration
-    xcen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_x']
-    ycen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['center_y']
+    xcen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['centerx']
+    ycen                = settings['DM_REGISTRATION']['MEASURED_PARAMS']['centery']
     dm_angle            = settings['DM_REGISTRATION']['MEASURED_PARAMS']['angle']
     lambdaoverd         = settings['DM_REGISTRATION']['MEASURED_PARAMS']['lambdaoverd']
 
@@ -62,7 +91,8 @@ if __name__ == "__main__":
     )
 
     plt.figure()
-    plt.imshow(ref_img, cmap="inferno", origin="lower", norm=LogNorm())
+    plt.title(f"Median Counts in Control Region = {np.median(ref_img[control_region==1])}")
+    plt.imshow(ref_img * control_region, cmap="inferno", origin="lower", norm=LogNorm())
     plt.colorbar()
     ax = plt.gca()
 
@@ -138,12 +168,24 @@ if __name__ == "__main__":
 
     # apply DM shape
     current_dm_shape = AOSystem.get_dm_data()
-    MAX_ITERS = 5
-
+    MAX_ITERS = 15
+    
+    hdu = fits.PrimaryHDU(ref_img)
+    hdu.writeto(os.path.join(dir_name,"ref_img_Halfdark_ND1_5ms.fits"), overwrite=True)
+    
+    clamp_val = sf.robust_sigma(ref_img[:50, :50].ravel())
+    
     for i in range(MAX_ITERS):
         
         if i == 0:
             updated_dm_shape = current_dm_shape
+        
+        if i != 0:
+            ref_img = sf.equalize_image(Camera.take_image(), **bgds)
+        
+        clamp_mask = clamp(ref_img, control_region, clamp=clamp_val)
+        print(f"Pixels Clamped = {np.sum(1-clamp_mask)}")
+        amp_mask = amplitude_weight(ref_img, control_region)
 
         # cosine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
@@ -168,8 +210,8 @@ if __name__ == "__main__":
         Ip2 = cos_plus_img
         Im2 = cos_minus_img
         I0 = ref_img
-        regularization = 100
-
+        regularization = 0
+        
         dE1 = (Ip1 - Im1) / 4
         dE2 = (Ip2 - Im2) / 4
         dE1sq = (Ip1 + Im1 - 2*I0) / 2
@@ -182,9 +224,10 @@ if __name__ == "__main__":
         # plot the coefficients
         sin_coeffs_init = sin_coeffs
         cos_coeffs_init = cos_coeffs
-
-        sin_coeffs_control = sin_coeffs[control_region]
-        cos_coeffs_control = cos_coeffs[control_region]
+        
+        print(amp_mask)
+        sin_coeffs_control = sin_coeffs[control_region] * clamp_mask * amp_mask
+        cos_coeffs_control = cos_coeffs[control_region] * clamp_mask * amp_mask
         sin_coeffs_control = sin_coeffs_control[..., None, None]
         cos_coeffs_control = cos_coeffs_control[..., None, None]
 
@@ -204,10 +247,17 @@ if __name__ == "__main__":
         updated_dm_shape = updated_dm_shape + control_surface
         set_shape = AOSystem.set_dm_data(updated_dm_shape)
         corrected_img = sf.equalize_image(Camera.take_image(), **bgds)
+        
         print(20*"-")
-        print(f"ITERATION {i+1} DONE WOO")
+        print(f"Original Sum in Region = {np.sum(ref_img[control_region])}")
+        print(f"Iteration {i} Sum in Region = {np.sum(corrected_img[control_region])}")
         print(20*"-")
-    #FINAL: Return to flat
+        
+        # write the images
+        hdu = fits.PrimaryHDU(corrected_img)
+        hdu.writeto(os.path.join(dir_name,f"SAN_iter{i}_Halfdark_ND1_5ms.fits"))
+
+    # FINAL: Return to flat
     set_shape = AOSystem.set_dm_data(current_dm_shape) 
     
     #FINAL: Plot all figures

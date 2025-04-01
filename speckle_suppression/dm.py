@@ -55,11 +55,6 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
                     np.linspace(-0.5, 0.5, N),
                     np.linspace(-0.5, 0.5, N))
     
-    #if hasattr(kx, "shape") > 0:
-    #    amp = np.asarray(amp)[..., None]
-    #    dmx = dmx[..., None]
-    #    dmy = dmy[..., None]
-
     xm=dmx*kx*2.0*np.pi
     ym=dmy*ky*2.0*np.pi
 
@@ -67,6 +62,7 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
     
     fx = -1 if flipx else 1
     fy = -1 if flipy else 1
+    
     ret = amp*sinusoid(fx*xm + fy*ym +  phase)
     return ret
 
