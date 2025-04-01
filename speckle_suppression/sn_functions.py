@@ -2,6 +2,147 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
 
+
+def annulus(image, cx, cy, r1, r2):
+    outer = circle(image, cx, cy, r2)
+    inner = circle(image, cx, cy, r1)
+    return ( outer-inner)
+
+def circle(image, cx, cy, rad):
+    zeroim = np.zeros(image.shape, dtype = np.int)
+    for x in range(int(cx-rad), int(cx+rad+1)):
+        for y in range(int(cy-rad), int(cy+rad+1) ):
+            #print xs, ys
+            dx = cx-x
+            dy = cy -y
+            if(dx*dx+dy*dy <= rad*rad):
+                zeroim[y,x] = 1
+    return zeroim
+
+def robust_sigma(in_y, zero=0):
+   """
+   Calculate a resistant estimate of the dispersion of
+   a distribution. For an uncontaminated distribution,
+   this is identical to the standard deviation.
+
+   Use the median absolute deviation as the initial
+   estimate, then weight points using Tukey Biweight.
+   See, for example, Understanding Robust and
+   Exploratory Data Analysis, by Hoaglin, Mosteller
+   and Tukey, John Wiley and Sons, 1983.
+
+   .. note:: ROBUST_SIGMA routine from IDL ASTROLIB.
+
+   :History:
+       * H Freudenreich, STX, 8/90
+       * Replace MED call with MEDIAN(/EVEN), W. Landsman, December 2001
+       * Converted to Python by P. L. Lim, 11/2009
+
+   Examples
+   --------
+   >>> result = robust_sigma(in_y, zero=1)
+
+   Parameters
+   ----------
+   in_y: array_like
+       Vector of quantity for which the dispersion is
+       to be calculated
+
+   zero: int
+       If set, the dispersion is calculated w.r.t. 0.0
+       rather than the central value of the vector. If
+       Y is a vector of residuals, this should be set.
+
+   Returns
+   -------
+   out_val: float
+       Dispersion value. If failed, returns -1.
+
+   """
+   # Flatten array
+   y = in_y.reshape(in_y.size, )
+
+   eps = 1.0E-20
+   c1 = 0.6745
+   c2 = 0.80
+   c3 = 6.0
+   c4 = 5.0
+   c_err = -1.0
+   min_points = 3
+
+   if zero:
+       y0 = 0.0
+   else:
+       y0 = np.median(y)
+
+   dy    = y - y0
+   del_y = abs( dy )
+
+   # First, the median absolute deviation MAD about the median:
+
+   mad = np.median( del_y ) / c1
+
+   # If the MAD=0, try the MEAN absolute deviation:
+   if mad < eps:
+       mad = np.mean( del_y ) / c2
+   if mad < eps:
+       return 0.0
+
+   # Now the biweighted value:
+   u  = dy / (c3 * mad)
+   uu = u*u
+   q  = np.where(uu <= 1.0)
+   count = len(q[0])
+   if count < min_points:
+       #print 'ROBUST_SIGMA: This distribution is TOO WEIRD! Returning', c_err
+       return c_err
+
+   numerator = np.sum( (y[q]-y0)**2.0 * (1.0-uu[q])**4.0 )
+   n    = y.size
+   den1 = np.sum( (1.0-uu[q]) * (1.0-c4*uu[q]) )
+   siggma = n * numerator / ( den1 * (den1 - 1.0) )
+
+   if siggma > 0:
+       out_val = np.sqrt( siggma )
+   else:
+       out_val = 0.0
+
+   return out_val
+
+def contrastcurve_simple(image, cx=None, cy = None,
+                         sigmalevel = 1, robust=True,
+                         region =None, maxrad = None):
+    """image - your bgd-subtracted image
+       cx  - image center [pix]
+       cy  - image center [pix]
+       robust - use robust sigma
+       region - control region
+       maxrad - max radius to calculate [pix]"""
+    if cx is None:
+        cx = image.shape[0]//2
+    if cy is None:
+        cy = image.shape[0]//2
+
+    if maxrad is None:
+        maxpix = image.shape[0]//2
+    else:
+        maxpix = maxrad
+    pixrad = np.arange(maxpix)
+    clevel = pixrad*0.0
+    if region is None:
+        region = np.ones(image.shape)
+    for idx, r in enumerate(pixrad):
+        annulusmask = annulus(image, cx, cy, r, r+1)
+        if robust:
+            sigma = robust_sigma(image[np.where(np.logical_and(annulusmask, region))].ravel())
+        else:
+            sigma = np.std(image[np.where(np.logical_and(annulusmask, region))].ravel())
+
+        clevel[idx]=sigmalevel*(sigma)
+        print(str(idx) + ' '+str( clevel[idx]))
+    return (pixrad, clevel)
+
+
 def twoD_Gaussian(x, y, amplitude, xo, yo, sigma_x, sigma_y, theta, offset):
     """Returns a two-d gaussian function
     coordinate variables:
@@ -97,7 +238,7 @@ def get_spot_centroid(image, window = 20, guess_spot=None):
 def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     """
     Create an annular wedge mask and apply it to an image.
-    
+
     Parameters:
     -----------
     image : 2D numpy array
@@ -109,7 +250,7 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     theta1, theta2 : float
         Start and end angles of the wedge in degrees (measured counterclockwise from the positive x-axis)
         Can use negative angles (e.g., -90 to 90 for a half-circle on the right side)
-    
+
     Returns:
     --------
     masked_image : 2D numpy array
@@ -119,14 +260,14 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     """
     # Create coordinate grids
     y, x = np.indices(image.shape)
-    
+
     # Calculate distance from center for each pixel
     r = np.sqrt((x - xcen)**2 + (y - ycen)**2)
-    
+
     # Calculate angle for each pixel (in degrees)
     # arctan2 returns angles in radians in range [-π, π], so convert to degrees
     theta = np.rad2deg(np.arctan2(y - ycen, x - xcen))
-    
+
     # Create the angle mask based on the input angles
     # No need to normalize angles - we can directly compare with the raw arctan2 output
     if theta1 <= theta2:
@@ -135,12 +276,12 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     else:
         # Case where the wedge crosses the -180/180 boundary
         angle_mask = (theta >= theta1) | (theta <= theta2)
-    
+
     # Create the annular wedge mask
     mask = (r >= rad1) & (r <= rad2) & angle_mask
-    
+
     # Apply mask to the image
     masked_image = np.zeros_like(image)
     masked_image[mask] = image[mask]
-    
+
     return mask
