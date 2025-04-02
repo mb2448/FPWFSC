@@ -64,7 +64,7 @@ if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dir_name = f"output_{timestamp}"
     os.makedirs(dir_name, exist_ok=False)
-    os.makedirs(os.path.join(dir_name,"bgds", exist_ok=False)
+    os.makedirs(os.path.join(dir_name,"bgds"), exist_ok=False)
     
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
@@ -343,7 +343,7 @@ if __name__ == "__main__":
     plt.close(fig)
 
     # Save Contrast Curves
-    contrast_curves = np.asarrray(contrast_curves)
+    contrast_curves = np.asarray(contrast_curves)
     hdu = fits.PrimaryHDU(contrast_curves)
     hdu.writeto(os.path.join(dir_name,"contrast_curves.fits"), overwrite=True)
 
