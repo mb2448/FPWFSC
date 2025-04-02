@@ -3,29 +3,53 @@
 
 ## Math Library
 import numpy as np
+
 ## System library
 import sys
+
 ## Operating system library
 import os
+
 ## .fits file library
 import astropy.io.fits as fits
+
+## Other standards
 import matplotlib.pyplot as plt 
 from matplotlib.patches import Wedge
 from matplotlib.colors import LogNorm
+import ipdb
+from time import sleep
+from datetime import datetime
+import shutil 
+
+## FPWFSC Imports
 sys.path.insert(0,"../common")
 import support_functions as sf
 import bench_hardware as hw
 import sn_functions as sn_f
 import sn_classes as sn_c
 import dm
-from time import sleep
-import ipdb
-from datetime import datetime
-import shutil 
-
 
 def clamp(ref_psf, control_region, clamp=0):
+    """
+    Produces a binary amplitude mask where 1's are values above the specified
+    clamp and 0's are values below the specified clamp
 
+    Parameters
+    ----------
+    ref_psf : ndarray
+        image to apply clamp to
+    control_region : ndarray
+        boolean array that contains the region of interest
+    clamp: float
+        value below which the mask returns a zero
+
+    Returns
+    -------
+    ndarray
+        1D array of binary weights of shape == where control region is 1
+        
+    """
     weight_in_control = ref_psf[control_region]
     weight_in_control[weight_in_control < clamp] = 0
     weight_in_control[weight_in_control >= clamp] = 1
@@ -33,14 +57,33 @@ def clamp(ref_psf, control_region, clamp=0):
 
 def condition(array, minimum=0, maximum=np.inf, minrep=0, maxrep=np.inf):
     """set any values less than minimum to minrep,
-    and any values greater than maximum to maxrep"""
+    and any values greater than maximum to maxrep
+    
+    Parameters
+    ----------
+    array : ndarray
+        array to apply conditioning to
+    minimum : float
+        value below which the array is set to minrep
+    maximum : float
+        value above which the array is set to maxrep
+    minrep : float
+        value to replace elements in array that are below minimum
+    maxrep : float
+        value to replace elements in array that are above maximum
+    
+    Returns
+    -------
+    ndarray
+        conditioned array subject to minimum and maximum
+    """
     array_copy = array.copy()
     array_copy[array_copy < minimum] = minrep
     array_copy[array_copy >= maximum] = maxrep
     return array_copy 
 
 def condition_coeffs(coeffs):
-    """conditions the sine and cosine coefficients"""
+    """sets NaN sine and cosine coefficients to be zero"""
     coeffs_copy = coeffs.copy()
     coeffs_copy[np.isnan(coeffs_copy)] = 0
     coeffs_copy[np.isinf(coeffs_copy)] = 0
@@ -48,6 +91,18 @@ def condition_coeffs(coeffs):
 
 def amplitude_weight(ref_psf, control_region):
     """
+    Creates array of amplitude weights where the maximum value is 1,
+    and the remaining values are scaled by 1 / maximum value
+
+    Parameters
+    ----------
+    ref_psf : ndarray
+        image to apply clamp to
+    control_region : ndarray
+        boolean array that contains the region of interest
+    
+    Returns
+    -------
     """
     # weight by electric field magnitude
     weight_in_control = ref_psf[control_region]
@@ -116,50 +171,48 @@ if __name__ == "__main__":
     IWA_pix = IWA * lambdaoverd
     OWA_pix = OWA * lambdaoverd 
     ref_img = sf.equalize_image(Camera.take_image(), **bgds) 
-    
+    DH_THETA1 = -90
+    DH_THETA2 = 90
+
     control_region = sn_f.create_annular_wedge(
                     image=ref_img,
                     xcen=xcen, # pixels
                     ycen=ycen, # pixels
                     rad1=IWA_pix, # pixels
                     rad2=OWA_pix, # pixels
-                    theta1=-75,
-                    theta2=75,
+                    theta1=DH_THETA1,
+                    theta2=DH_THETA2,
     )
-    
+
+    # construct a dark hole on the other side
+    anti_control_region = sn_f.create_annular_wedge(
+                    image=ref_img,
+                    xcen=xcen, # pixels
+                    ycen=ycen, # pixels
+                    rad1=IWA_pix, # pixels
+                    rad2=OWA_pix, # pixels
+                    theta1=DH_THETA1 + 180,
+                    theta2=DH_THETA2 + 180,
+    )
+
+    full_control_region = control_region + anti_control_region
+
     hdu = fits.PrimaryHDU(control_region*1)
     hdu.writeto(os.path.join(dir_name,"controlregion.fits"), overwrite=True)
     print("WROTE CONTROL REGION") 
-    #plt.figure()
-    #plt.title(f"Median Counts in Control Region = {np.median(ref_img[control_region==1])}")
-    #plt.imshow(ref_img * control_region, cmap="inferno", origin="lower", norm=LogNorm())
-    #plt.colorbar()
-    #ax = plt.gca()
-
-    ## build the dark hole region
-    #dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-    #                  theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    #ax.add_patch(dh_region)
-    # plt.show()
 
     ## Build the probes
     amplitude = 1 # volts
 
-    #SAN = sn_c.SpeckleAreaNulling(
-    #        camera=Camera,
-    #        aosystem=AOSystem,
-    #        initial_probe_amplitude=amplitude,
-    #        controlregion_iwa=IWA,
-    #        controlregion_owa=OWA,
-    #        xcenter=xcen,
-    #        ycenter=ycen,
-    #        Npix_foc=cropsize,
-    #        lambdaoverD=lambdaoverd)
-    
-
     control_indices = np.where(control_region)
     sine_modes = []
     cosine_modes = []
+    
+    control_pix_x = []
+    control_pix_y = []
+    
+    anti_control_pix_x = []
+    anti_control_pix_y = []
 
     for yi, xi in zip(*control_indices):
 
@@ -191,8 +244,8 @@ if __name__ == "__main__":
                 which="sin")
         
         sine_modes.append(sin)
-    
-    
+        
+        
     # Construct and scale the probes from the modes
     cos_probe = np.sum(cosine_modes, axis=0)
     sin_probe = np.sum(sine_modes, axis=0)
@@ -220,8 +273,8 @@ if __name__ == "__main__":
     pixrad, clevel = sn_f.contrastcurve_simple(ref_img, 
                                                cx=xcen,
                                                cy=ycen,
-                                               region=control_region*1,
-                                               maxrad=100)
+                                               region=full_control_region*1,
+                                               maxrad=OWA * lambdaoverd + 10)
     line, = ax.plot(pixrad, clevel, label = 'Initial Contrast')
     plt.axhline(clamp_val, label = 'Bgd limit')
     plt.xlabel('pixels')
@@ -241,6 +294,9 @@ if __name__ == "__main__":
         
         if i != 0:
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
+        
+        ref_img_rotated = sn_f.flip_array_about_point(ref_img, xcen, ycen)
+
         clamp_mask = clamp(ref_img, control_region, clamp=clamp_val)
         print(f"Pixels Clamped = {np.sum(1-clamp_mask)}")
         amp_mask = amplitude_weight(ref_img, control_region)
@@ -249,27 +305,31 @@ if __name__ == "__main__":
         cos_probe = cos_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
-        
+        cos_plus_img_rotated = sn_f.flip_array_about_point(cos_plus_img, xcen, ycen)
+
         # sine probe
         sin_probe = sin_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + sin_probe)
         sin_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
+        sin_plus_img_rotated = sn_f.flip_array_about_point(sin_plus_img, xcen, ycen)
         
         # cosine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape - cos_probe)
         cos_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
+        cos_minus_img_rotated = sn_f.flip_array_about_point(cos_minus_img, xcen, ycen)
         
         # sine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape - sin_probe)
         sin_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
+        sin_minus_img_rotated = sn_f.flip_array_about_point(sin_minus_img, xcen, ycen)
 
         # Compute the relevant quantities
         # 1- sin quantities, 2- cosine quantities
-        Ip1 = sin_plus_img
-        Im1 = sin_minus_img
-        Ip2 = cos_plus_img
-        Im2 = cos_minus_img
-        I0 = ref_img
+        Ip1 = (sin_plus_img + sin_plus_img_rotated) / 2
+        Im1 = (sin_minus_img + sin_minus_img_rotated) / 2
+        Ip2 = (cos_plus_img + cos_plus_img_rotated) / 2
+        Im2 = (cos_minus_img + cos_minus_img_rotated) / 2
+        I0 = (ref_img + ref_img_rotated) / 2
         regularization = 0
         
         dE1 = (Ip1 - Im1) / 4
@@ -284,7 +344,7 @@ if __name__ == "__main__":
         cos_coeffs = dE2 / dE2sq 
         cos_coeffs = condition_coeffs(cos_coeffs)
         
-        # plot the coefficients
+        # coeffs that get plotted
         sin_coeffs_init = sin_coeffs
         cos_coeffs_init = cos_coeffs
         
@@ -294,7 +354,6 @@ if __name__ == "__main__":
         cos_coeffs_control = cos_coeffs_control[..., None, None]
 
         # create control modes
-
         sin_mode_control = np.sum(sin_coeffs_control * sine_modes, axis=0)
         cos_mode_control = np.sum(cos_coeffs_control * cosine_modes, axis=0)
         
@@ -318,11 +377,12 @@ if __name__ == "__main__":
         print(f"Iteration {i} Sum in Region = {current_sum}")
         print(20*"-")
         
-        pixrad, clevel = sn_f.contrastcurve_simple(ref_img, 
+        pixrad, clevel = sn_f.contrastcurve_simple(corrected_img, 
                                                    cx=xcen,
                                                    cy=ycen,
-                                                   region=control_region*1,
-                                                   maxrad=100)
+                                                   region=full_control_region*1,
+                                                   maxrad=OWA * lambdaoverd + 10)
+        
         line, = ax.plot(pixrad, clevel, label = f'Iteration: {i}', alpha =0.5)
         plt.legend()
         plt.draw()
@@ -416,6 +476,7 @@ if __name__ == "__main__":
     plt.imshow(cos_coeffs_init, cmap="coolwarm", vmin=-1, vmax=1)
     plt.colorbar()
     ax = plt.gca()
+    
     # build the dark hole region
     dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
                       theta1=-90, theta2=90, facecolor="None", edgecolor="w")

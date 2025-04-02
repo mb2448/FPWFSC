@@ -3,6 +3,46 @@ import matplotlib.pyplot as plt
 import scipy.optimize as opt
 from scipy.ndimage import gaussian_filter
 
+
+def flip_array_about_point(arr, point_x, point_y):
+    """
+    Flip a 2D array about a specified point in both x and y directions.
+    
+    Parameters:
+    arr (numpy.ndarray): 2D input array to be flipped
+    point_x (float): x-coordinate of the point to flip about
+    point_y (float): y-coordinate of the point to flip about
+    
+    Returns:
+    numpy.ndarray: Flipped array
+    """
+    # Get array dimensions
+    height, width = arr.shape
+    
+    # Create coordinate meshgrid
+    y, x = np.indices((height, width))
+    
+    # Calculate new coordinates after flipping about the point
+    new_x = 2 * point_x - x
+    new_y = 2 * point_y - y
+    
+    # Create output array with same shape as input
+    flipped = np.zeros_like(arr)
+    
+    # Map values from original array to flipped positions
+    # Need to handle edge cases where new coordinates are outside the array
+    valid_indices = (new_x >= 0) & (new_x < width) & (new_y >= 0) & (new_y < height)
+    
+    # For valid indices, copy values from original array to flipped array
+    y_valid, x_valid = y[valid_indices], x[valid_indices]
+    new_y_valid, new_x_valid = new_y[valid_indices].astype(int), new_x[valid_indices].astype(int)
+    
+    flipped[y_valid, x_valid] = arr[new_y_valid, new_x_valid]
+    
+    return flipped
+
+
+
 def annulus(image, cx, cy, r1, r2):
     outer = circle(image, cx, cy, r2)
     inner = circle(image, cx, cy, r1)
