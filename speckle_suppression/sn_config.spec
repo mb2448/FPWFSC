@@ -3,6 +3,8 @@
     xcen = integer
     ycen = integer
     cropsize = integer_or_none
+    IWA = float(min=1)
+    OWA = float(max=11)
 
 [CAMERA_CALIBRATION]
     bgddir = string

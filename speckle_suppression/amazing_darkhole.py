@@ -21,7 +21,7 @@ import dm
 from time import sleep
 import ipdb
 from datetime import datetime
-
+import shutil 
 
 
 def clamp(ref_psf, control_region, clamp=0):
@@ -64,10 +64,8 @@ if __name__ == "__main__":
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dir_name = f"output_{timestamp}"
     os.makedirs(dir_name, exist_ok=False)
-
+    os.makedirs(os.path.join(dir_name,"bgds", exist_ok=False)
     
-    IWA = 4
-    OWA = 10
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
@@ -75,6 +73,28 @@ if __name__ == "__main__":
         
     settings = sf.validate_config(config, configspec)
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
+    
+    IWA = settings['SN_SETTINGS']['IWA']
+    OWA = settings['SN_SETTINGS']['OWA']
+    
+    # Save the configuration file used
+    src = config
+    src_destination = os.path.join(dir_name, src)
+    shutil.copy(src, src_destination)
+    
+    src = configspec
+    src_destination = os.path.join(dir_name, src)
+    shutil.copy(src, src_destination)
+
+    src = "amazing_darkhole.py"
+    src_destination = os.path.join(dir_name, src)
+    shutil.copy(src, src_destination)
+
+    # Save the Backgrounds
+    # src = settings['CAMERA_CALIBRATION']['bgddir']
+    # dst = dir_name
+    # shutil.copytree(src, os.path.join(dst, "bgds"))
+
     #----------------------------------------------------------------------
     # Simulation parameters
     #----------------------------------------------------------------------
@@ -209,6 +229,11 @@ if __name__ == "__main__":
     ax.legend()
     plt.draw()
     plt.pause(0.1)
+    
+    hdu = fits.PrimaryHDU(current_dm_shape)
+    hdu.writeto(os.path.join(dir_name,"starting_dm_shape.fits"), overwrite=True)
+    contrast_curves = []
+
     for i in range(MAX_ITERS):
         
         if i == 0:
@@ -302,18 +327,29 @@ if __name__ == "__main__":
         plt.legend()
         plt.draw()
         plt.pause(0.1)
-        
+        contrast_curves.append(clevel)
+
         probe_scaling_param = np.sqrt(current_sum)/np.sqrt(prev_sum)
         print(f"Probe scaling param: {probe_scaling_param}")
+        
+        hdu = fits.PrimaryHDU(updated_dm_shape)
+        hdu.writeto(os.path.join(dir_name,"SAN_iter{i}_dm_shape.fits"), overwrite=True)
+        
         # write the images
         hdu = fits.PrimaryHDU(corrected_img)
         hdu.writeto(os.path.join(dir_name,f"SAN_iter{i}_Halfdark_ND1_5ms.fits"))
     
     plt.ioff()
     plt.close(fig)
+
+    # Save Contrast Curves
+    contrast_curves = np.asarrray(contrast_curves)
+    hdu = fits.PrimaryHDU(contrast_curves)
+    hdu.writeto(os.path.join(dir_name,"contrast_curves.fits"), overwrite=True)
+
     # FINAL: Return to flat
     set_shape = AOSystem.set_dm_data(current_dm_shape) 
-    
+
     #FINAL: Plot all figures
     
     plt.figure(figsize=[10, 5])

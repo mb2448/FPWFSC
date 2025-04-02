@@ -284,7 +284,7 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     masked_image[mask] = image[mask]
 
     # MC modif
-    '''
+    """
     # Create a soft radial transition at the edges
     radial_inner = np.exp(-((r - rad1) / sigma) ** 2) * (r < rad1)
     radial_outer = np.exp(-((r - rad2) / sigma) ** 2) * (r > rad2)
@@ -299,9 +299,9 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
 
     # Clip values to [0,1]
     smoothed_mask = np.clip(smoothed_mask, 0, 1)
+    smoothed_mask = smoothed_mask.astype(bool)
 
     # Apply the smoothed mask to the image
     masked_image = smoothed_mask * image
-    '''
-
+    """
     return mask
