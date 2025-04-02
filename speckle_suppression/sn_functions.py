@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy.optimize as opt
-
+from scipy.ndimage import gaussian_filter
 
 def annulus(image, cx, cy, r1, r2):
     outer = circle(image, cx, cy, r2)
@@ -139,7 +139,6 @@ def contrastcurve_simple(image, cx=None, cy = None,
             sigma = np.std(image[np.where(np.logical_and(annulusmask, region))].ravel())
 
         clevel[idx]=sigmalevel*(sigma)
-        print(str(idx) + ' '+str( clevel[idx]))
     return (pixrad, clevel)
 
 
@@ -276,12 +275,33 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     else:
         # Case where the wedge crosses the -180/180 boundary
         angle_mask = (theta >= theta1) | (theta <= theta2)
-
+    
     # Create the annular wedge mask
     mask = (r >= rad1) & (r <= rad2) & angle_mask
 
     # Apply mask to the image
     masked_image = np.zeros_like(image)
     masked_image[mask] = image[mask]
+
+    # MC modif
+    '''
+    # Create a soft radial transition at the edges
+    radial_inner = np.exp(-((r - rad1) / sigma) ** 2) * (r < rad1)
+    radial_outer = np.exp(-((r - rad2) / sigma) ** 2) * (r > rad2)
+
+    # Convert angle mask from binary to soft transition
+    angle_blur = gaussian_filter(angle_mask.astype(float), sigma=sigma)
+
+    # Create a smoothed mask
+    smoothed_mask =  mask.astype(float)
+    smoothed_mask += radial_inner + radial_outer  # Apply edge smoothing
+    smoothed_mask *= angle_blur  # Apply angular smoothing
+
+    # Clip values to [0,1]
+    smoothed_mask = np.clip(smoothed_mask, 0, 1)
+
+    # Apply the smoothed mask to the image
+    masked_image = smoothed_mask * image
+    '''
 
     return mask

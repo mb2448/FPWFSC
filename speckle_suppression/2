@@ -22,8 +22,6 @@ from time import sleep
 import ipdb
 from datetime import datetime
 
-
-
 def clamp(ref_psf, control_region, clamp=0):
 
     weight_in_control = ref_psf[control_region]
@@ -31,27 +29,12 @@ def clamp(ref_psf, control_region, clamp=0):
     weight_in_control[weight_in_control >= clamp] = 1
     return weight_in_control
 
-def condition(array, minimum=0, maximum=np.inf, minrep=0, maxrep=np.inf):
-    """set any values less than minimum to minrep,
-    and any values greater than maximum to maxrep"""
-    array_copy = array.copy()
-    array_copy[array_copy < minimum] = minrep
-    array_copy[array_copy >= maximum] = maxrep
-    return array_copy 
-
-def condition_coeffs(coeffs):
-    """conditions the sine and cosine coefficients"""
-    coeffs_copy = coeffs.copy()
-    coeffs_copy[np.isnan(coeffs_copy)] = 0
-    coeffs_copy[np.isinf(coeffs_copy)] = 0
-    return coeffs_copy
 
 def amplitude_weight(ref_psf, control_region):
     """
     """
     # weight by electric field magnitude
-    weight_in_control = ref_psf[control_region]
-    weight_in_control = np.sqrt(np.abs(weight_in_control))
+    weight_in_control = np.sqrt(weight_in_control)
     max_in_control = weight_in_control.max()
     weight_in_control /= max_in_control
     
@@ -67,7 +50,7 @@ if __name__ == "__main__":
 
     
     IWA = 4
-    OWA = 10
+    OWA = 7
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
@@ -96,30 +79,26 @@ if __name__ == "__main__":
     IWA_pix = IWA * lambdaoverd
     OWA_pix = OWA * lambdaoverd 
     ref_img = sf.equalize_image(Camera.take_image(), **bgds) 
-    
     control_region = sn_f.create_annular_wedge(
                     image=ref_img,
                     xcen=xcen, # pixels
                     ycen=ycen, # pixels
                     rad1=IWA_pix, # pixels
                     rad2=OWA_pix, # pixels
-                    theta1=-75,
-                    theta2=75,
+                    theta1=-90,
+                    theta2=90
     )
-    
-    hdu = fits.PrimaryHDU(control_region*1)
-    hdu.writeto(os.path.join(dir_name,"controlregion.fits"), overwrite=True)
-    print("WROTE CONTROL REGION") 
-    #plt.figure()
-    #plt.title(f"Median Counts in Control Region = {np.median(ref_img[control_region==1])}")
-    #plt.imshow(ref_img * control_region, cmap="inferno", origin="lower", norm=LogNorm())
-    #plt.colorbar()
-    #ax = plt.gca()
 
-    ## build the dark hole region
-    #dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-    #                  theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    #ax.add_patch(dh_region)
+    plt.figure()
+    plt.title(f"Median Counts in Control Region = {np.median(ref_img[control_region==1])}")
+    plt.imshow(ref_img * control_region, cmap="inferno", origin="lower", norm=LogNorm())
+    plt.colorbar()
+    ax = plt.gca()
+
+    # build the dark hole region
+    dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
+                      theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+    ax.add_patch(dh_region)
     # plt.show()
 
     ## Build the probes
@@ -194,21 +173,7 @@ if __name__ == "__main__":
     hdu.writeto(os.path.join(dir_name,"ref_img_Halfdark_ND1_5ms.fits"), overwrite=True)
     
     clamp_val = sf.robust_sigma(ref_img[:50, :50].ravel())
-    probe_scaling_param = 1 
-    plt.ion()
-    fig, ax = plt.subplots()
-    pixrad, clevel = sn_f.contrastcurve_simple(ref_img, 
-                                               cx=xcen,
-                                               cy=ycen,
-                                               region=control_region*1,
-                                               maxrad=100)
-    line, = ax.plot(pixrad, clevel, label = 'Initial Contrast')
-    plt.axhline(clamp_val, label = 'Bgd limit')
-    plt.xlabel('pixels')
-    plt.ylabel('1-sigma contrast')
-    ax.legend()
-    plt.draw()
-    plt.pause(0.1)
+    
     for i in range(MAX_ITERS):
         
         if i == 0:
@@ -216,17 +181,16 @@ if __name__ == "__main__":
         
         if i != 0:
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
+        
         clamp_mask = clamp(ref_img, control_region, clamp=clamp_val)
         print(f"Pixels Clamped = {np.sum(1-clamp_mask)}")
         amp_mask = amplitude_weight(ref_img, control_region)
 
         # cosine probe
-        cos_probe = cos_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
         
         # sine probe
-        sin_probe = sin_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + sin_probe)
         sin_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
         
@@ -249,27 +213,23 @@ if __name__ == "__main__":
         
         dE1 = (Ip1 - Im1) / 4
         dE2 = (Ip2 - Im2) / 4
-        
         dE1sq = (Ip1 + Im1 - 2*I0) / 2
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
 
         # # Regularized sin / cosine coefficients
-        sin_coeffs = dE1 / dE1sq 
-        sin_coeffs = condition_coeffs(sin_coeffs)
-        cos_coeffs = dE2 / dE2sq 
-        cos_coeffs = condition_coeffs(cos_coeffs)
+        sin_coeffs = dE1 / (dE1sq + regularization)
+        cos_coeffs = dE2 / (dE2sq + regularization)
         
         # plot the coefficients
         sin_coeffs_init = sin_coeffs
         cos_coeffs_init = cos_coeffs
-        
+
         sin_coeffs_control = sin_coeffs[control_region] * clamp_mask * amp_mask
         cos_coeffs_control = cos_coeffs[control_region] * clamp_mask * amp_mask
         sin_coeffs_control = sin_coeffs_control[..., None, None]
         cos_coeffs_control = cos_coeffs_control[..., None, None]
 
         # create control modes
-
         sin_mode_control = np.sum(sin_coeffs_control * sine_modes, axis=0)
         cos_mode_control = np.sum(cos_coeffs_control * cosine_modes, axis=0)
         
@@ -277,7 +237,7 @@ if __name__ == "__main__":
         MAX_CORRECTION = 0.1
         control_surface = -1 * (sin_mode_control + cos_mode_control)
         control_surface -= np.mean(control_surface)
-        control_surface *= MAX_CORRECTION / np.max(np.abs(control_surface))*np.min([probe_scaling_param, 1])
+        control_surface *= MAX_CORRECTION / np.max(np.abs(control_surface))
 
         # Safety, threshold command greater than 7 volts 
         
@@ -287,30 +247,14 @@ if __name__ == "__main__":
         corrected_img = sf.equalize_image(Camera.take_image(), **bgds)
         
         print(20*"-")
-        prev_sum = np.sum(ref_img[control_region])
-        current_sum = np.sum(corrected_img[control_region])
-        print(f"Original Sum in Region = {prev_sum}")
-        print(f"Iteration {i} Sum in Region = {current_sum}")
+        print(f"Original Sum in Region = {np.sum(ref_img[control_region])}")
+        print(f"Iteration {i} Sum in Region = {np.sum(corrected_img[control_region])}")
         print(20*"-")
         
-        pixrad, clevel = sn_f.contrastcurve_simple(ref_img, 
-                                                   cx=xcen,
-                                                   cy=ycen,
-                                                   region=control_region*1,
-                                                   maxrad=100)
-        line, = ax.plot(pixrad, clevel, label = f'Iteration: {i}', alpha =0.5)
-        plt.legend()
-        plt.draw()
-        plt.pause(0.1)
-        
-        probe_scaling_param = np.sqrt(current_sum)/np.sqrt(prev_sum)
-        print(f"Probe scaling param: {probe_scaling_param}")
         # write the images
         hdu = fits.PrimaryHDU(corrected_img)
         hdu.writeto(os.path.join(dir_name,f"SAN_iter{i}_Halfdark_ND1_5ms.fits"))
-    
-    plt.ioff()
-    plt.close(fig)
+
     # FINAL: Return to flat
     set_shape = AOSystem.set_dm_data(current_dm_shape) 
     
