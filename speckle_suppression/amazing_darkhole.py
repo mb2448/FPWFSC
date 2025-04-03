@@ -125,8 +125,9 @@ if __name__ == "__main__":
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
-    AOSystem = hw.AOSystemAlias()
-        
+    #AOSystem = hw.AOSystemAlias()
+    AOSystem = hw.ClosedAOSystemAlias()
+
     settings = sf.validate_config(config, configspec)
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     
