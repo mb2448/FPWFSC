@@ -5,6 +5,11 @@
     cropsize = integer_or_none
     IWA = float(min=1)
     OWA = float(max=11)
+    THETA1 = float
+    THETA2 = float
+    FULL_DARKHOLE = boolean
+    DM_AMPLITUDE_VOLTS = float(max=7)
+    NUM_ITERATIONS = integer
 
 [CAMERA_CALIBRATION]
     bgddir = string

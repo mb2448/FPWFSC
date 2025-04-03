@@ -115,6 +115,7 @@ def amplitude_weight(ref_psf, control_region):
 
 if __name__ == "__main__":
     
+    
     # make timestamped directory
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dir_name = f"output_{timestamp}"
@@ -131,6 +132,9 @@ if __name__ == "__main__":
     
     IWA = settings['SN_SETTINGS']['IWA']
     OWA = settings['SN_SETTINGS']['OWA']
+    DH_THETA1 = settings['SN_SETTINGS']['THETA1']
+    DH_THETA2 = settings['SN_SETTINGS']['THETA2'] 
+    amplitude = settings['SN_SETTINGS']['DM_AMPLITUDE_VOLTS'] # volts
     
     # Save the configuration file used
     src = config
@@ -171,8 +175,6 @@ if __name__ == "__main__":
     IWA_pix = IWA * lambdaoverd
     OWA_pix = OWA * lambdaoverd 
     ref_img = sf.equalize_image(Camera.take_image(), **bgds) 
-    DH_THETA1 = -90
-    DH_THETA2 = 90
 
     control_region = sn_f.create_annular_wedge(
                     image=ref_img,
@@ -185,24 +187,27 @@ if __name__ == "__main__":
     )
 
     # construct a dark hole on the other side
-    anti_control_region = sn_f.create_annular_wedge(
-                    image=ref_img,
-                    xcen=xcen, # pixels
-                    ycen=ycen, # pixels
-                    rad1=IWA_pix, # pixels
-                    rad2=OWA_pix, # pixels
-                    theta1=DH_THETA1 + 180,
-                    theta2=DH_THETA2 + 180,
-    )
+    if settings['SN_SETTINGS']['FULL_DARKHOLE']:
+        anti_control_region = sn_f.create_annular_wedge(
+                        image=ref_img,
+                        xcen=xcen, # pixels
+                        ycen=ycen, # pixels
+                        rad1=IWA_pix, # pixels
+                        rad2=OWA_pix, # pixels
+                        theta1=DH_THETA1 + 180,
+                        theta2=DH_THETA2 + 180,
+        )
 
-    full_control_region = control_region + anti_control_region
+        full_control_region = control_region + anti_control_region
+    
+    else:
+        full_control_region = control_region
 
-    hdu = fits.PrimaryHDU(control_region*1)
+    hdu = fits.PrimaryHDU(full_control_region*1)
     hdu.writeto(os.path.join(dir_name,"controlregion.fits"), overwrite=True)
     print("WROTE CONTROL REGION") 
 
     ## Build the probes
-    amplitude = 1 # volts
 
     control_indices = np.where(control_region)
     sine_modes = []
@@ -261,8 +266,8 @@ if __name__ == "__main__":
 
     # apply DM shape
     current_dm_shape = AOSystem.get_dm_data()
-    MAX_ITERS = 15
-    
+    MAX_ITERS = settings['SN_SETTINGS']['NUM_ITERATIONS']
+
     hdu = fits.PrimaryHDU(ref_img)
     hdu.writeto(os.path.join(dir_name,"ref_img_Halfdark_ND1_5ms.fits"), overwrite=True)
     
@@ -295,7 +300,6 @@ if __name__ == "__main__":
         if i != 0:
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
         
-        ref_img_rotated = sn_f.flip_array_about_point(ref_img, xcen, ycen)
 
         clamp_mask = clamp(ref_img, control_region, clamp=clamp_val)
         print(f"Pixels Clamped = {np.sum(1-clamp_mask)}")
@@ -305,33 +309,47 @@ if __name__ == "__main__":
         cos_probe = cos_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
-        cos_plus_img_rotated = sn_f.flip_array_about_point(cos_plus_img, xcen, ycen)
 
         # sine probe
         sin_probe = sin_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + sin_probe)
         sin_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
-        sin_plus_img_rotated = sn_f.flip_array_about_point(sin_plus_img, xcen, ycen)
         
         # cosine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape - cos_probe)
         cos_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
-        cos_minus_img_rotated = sn_f.flip_array_about_point(cos_minus_img, xcen, ycen)
         
         # sine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape - sin_probe)
         sin_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
-        sin_minus_img_rotated = sn_f.flip_array_about_point(sin_minus_img, xcen, ycen)
-
-        # Compute the relevant quantities
-        # 1- sin quantities, 2- cosine quantities
-        Ip1 = (sin_plus_img + sin_plus_img_rotated) / 2
-        Im1 = (sin_minus_img + sin_minus_img_rotated) / 2
-        Ip2 = (cos_plus_img + cos_plus_img_rotated) / 2
-        Im2 = (cos_minus_img + cos_minus_img_rotated) / 2
-        I0 = (ref_img + ref_img_rotated) / 2
-        regularization = 0
         
+        if settings['SN_SETTINGS']['FULL_DARKHOLE']:
+
+            ref_img_rotated = sn_f.flip_array_about_point(ref_img, xcen, ycen)
+            cos_minus_img_rotated = sn_f.flip_array_about_point(cos_minus_img, xcen, ycen)
+            sin_minus_img_rotated = sn_f.flip_array_about_point(sin_minus_img, xcen, ycen)
+            sin_plus_img_rotated = sn_f.flip_array_about_point(sin_plus_img, xcen, ycen)
+            cos_plus_img_rotated = sn_f.flip_array_about_point(cos_plus_img, xcen, ycen)
+            
+            # Compute the relevant quantities
+            # 1- sin quantities, 2- cosine quantities
+            Ip1 = (sin_plus_img + sin_plus_img_rotated) / 2
+            Im1 = (sin_minus_img + sin_minus_img_rotated) / 2
+            Ip2 = (cos_plus_img + cos_plus_img_rotated) / 2
+            Im2 = (cos_minus_img + cos_minus_img_rotated) / 2
+            I0 = (ref_img + ref_img_rotated) / 2
+        
+        else:
+
+            # Compute the relevant quantities
+            # 1- sin quantities, 2- cosine quantities
+            Ip1 = sin_plus_img 
+            Im1 = sin_minus_img
+            Ip2 = cos_plus_img
+            Im2 = cos_minus_img
+            I0 = ref_img
+
+
         dE1 = (Ip1 - Im1) / 4
         dE2 = (Ip2 - Im2) / 4
         
@@ -357,7 +375,6 @@ if __name__ == "__main__":
         sin_mode_control = np.sum(sin_coeffs_control * sine_modes, axis=0)
         cos_mode_control = np.sum(cos_coeffs_control * cosine_modes, axis=0)
         
-        VOLT_THRESHOLD = 7
         MAX_CORRECTION = 0.1
         control_surface = -1 * (sin_mode_control + cos_mode_control)
         control_surface -= np.mean(control_surface)
