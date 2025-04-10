@@ -7,18 +7,19 @@ import hcipy
 from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
-import dm
 import ipdb
 from matplotlib.colors import LogNorm
 from matplotlib.patches import Wedge
 
-sys.path.insert(0, '../')
-from common import plotting_funcs as pf
-from common import classes as ff_c
-from common import fake_hardware as fhw
-from common import support_functions as sf
+# The FPWFSC Imports
 
-from sn_classes import SpeckleAreaNulling
+from fpwfsc.speckle_suppression import dm
+from fpwfsc.common import plotting_funcs as pf
+from fpwfsc.common import classes as ff_c
+from fpwfsc.common import fake_hardware as fhw
+from fpwfsc.common import support_functions as sf
+
+from fpwfsc.speckle_suppression.sn_classes import SpeckleAreaNulling
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None):
@@ -27,7 +28,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     if my_event is None:
         my_event = threading.Event()
-    
+
     settings = sf.validate_config(config, configspec)
     settings_copy = sf.validate_config(config, configspec)
     #----------------------------------------------------------------------
@@ -48,8 +49,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # Load instruments
     #----------------------------------------------------------------------
     if camera == 'Sim' and aosystem == 'Sim':
-
-
 
         CSM      = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
 
@@ -72,6 +71,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         Cam_noc  = fhw.FakeDetector(opticalsystem=CSM_noc, **settings_copy['SIMULATION']['CAMERA_PARAMS'])
 
         # get a contrast value
+        img = Cam_noc.take_image()
         image_nofpm = sf.equalize_image(Cam_noc.take_image())
 
         plt.figure()
@@ -79,13 +79,13 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         plt.colorbar()
         plt.show()
         contrast_norm = image_nofpm.max()
-    
+
     else:
         raise ValueError("Sim only now")
 
-    SAN = SpeckleAreaNulling(Camera, AOSystem, 
+    SAN = SpeckleAreaNulling(Camera, AOSystem,
                                initial_probe_amplitude= 10e-7 * (0.3/8),
-                               initial_regularization=1,
+                               initial_regularization=5e-4,
                                controlregion_iwa = 5,
                                controlregion_owa = 7,
                                xcenter=xcen,
@@ -96,7 +96,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                flipx=False,
                                flipy=False)
 
-    imax=[] 
+    imax=[]
     ks = []
     MAX_ITERS = 20
 
@@ -195,7 +195,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             plt.pause(0.1)
             plt.clf()
 
-        ipdb.set_trace()
 
         # plt.subplot(121)
         # plt.imshow(I_intermediate, origin="lower", vmin=vmin, vmax=vmax)
@@ -229,7 +228,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 if __name__ == "__main__":
     #plotter = pf.LivePlotter()
-    
+
     camera = "Sim"
     aosystem = "Sim"
     run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')#, plotter=plotter)

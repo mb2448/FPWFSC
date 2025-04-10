@@ -11,9 +11,8 @@ import dm
 import qt_clickpoints
 import sn_functions as sn
 
-sys.path.insert(0, '../common')
-import support_functions as sf
-import fake_hardware as fhw
+import .common.support_functions as sf
+import .common.fake_hardware as fhw
 
 
 import ipdb
@@ -25,20 +24,20 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     if my_event is None:
         my_event = threading.Event()
-    
+
     # Store the config filename for later use
     config_file = config
-    
+
     settings = sf.validate_config(config, configspec)
     #----------------------------------------------------------------------
     # Simulation parameters
-    # Default settings 
+    # Default settings
     #----------------------------------------------------------------------
-    
+
     #SN Settings
     xcen                = settings['SN_SETTINGS']['xcen']
     ycen                = settings['SN_SETTINGS']['ycen']
-    cropsize            = settings['SN_SETTINGS']['cropsize']   
+    cropsize            = settings['SN_SETTINGS']['cropsize']
     #----------------------------------------------------------------------
     # Load instruments
     #----------------------------------------------------------------------
@@ -49,7 +48,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         CSM      = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
         Camera   = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
-    
+
     else:
         from common import bench_hardware as hw
         Camera = hw.Camera.instance()
@@ -70,13 +69,13 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
-    
+
     # Create the non-blocking viewer using our new function
     viewer = qt_clickpoints.create_non_blocking_viewer(data=np.log10(np.abs(data_nospeck+1)))
-    
+
     # Set the DeleteOnClose attribute to ensure proper cleanup
     viewer.setAttribute(Qt.WA_DeleteOnClose)
-    
+
     kr = np.arange(intconf['min'],
                    intconf['max'],
                    intconf['stepsize'])
@@ -84,7 +83,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     print("Spatial frequency range for calibration:", kr)
 
     initial_dm_shape = AOSystem.get_dm_data()
-    
+
     # Example of how to use the DM to create calibration spots
     # and visualize them in the non-blocking viewer
     print("Starting DM calibration sequence...")
@@ -94,11 +93,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         additionmapx = dm.make_speckle_kxy(k, 0, DMamp, 0)
         additionmapy = dm.make_speckle_kxy(0, k, DMamp, 0)
         additionmap = additionmapx + additionmapy
-        
+
         AOSystem.set_dm_data(initial_dm_shape + additionmap)
         data_speck_raw = Camera.take_image()
         data_speck = sf.equalize_image(data_speck_raw, **bgds)
-        
+
         cleaned = data_speck - data_nospeck
         #get the spot locations
         guesses = []
@@ -108,15 +107,15 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             spotguess = dm.convert_kvecs_pixels(kx, ky, **imageparams)
             guesses.append(spotguess)
             centroids.append(sn.get_spot_centroid(cleaned, guess_spot=spotguess))
-        
+
         viewer.set_user_points(centroids)
         viewer.update_data(np.log10(np.abs(cleaned+1)))
         # Process events to keep UI responsive
         app.processEvents()
-        
+
         # Add a small delay to make the updates visible
         time.sleep(0.1)
-    
+
     AOSystem.set_dm_data(initial_dm_shape)
     print("Calibration sequence complete.")
     print("Viewer remains open. Close the window when finished.")
@@ -127,16 +126,16 @@ if __name__ == "__main__":
     camera = "Sim"
     aosystem = "Sim"
     viewer = run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')
-    
+
     # The program will continue here even while the viewer is still open
     print("Main program continues execution while viewer is open")
-    
+
     # Start the Qt event loop and make it exit when the viewer is closed
     app = QApplication.instance()
-    
+
     # This will block until the viewer is closed
     app.exec_()
-    
+
     # After viewer is closed, we can access the points the user selected
     selected_points = [(x, y) for x, y, _ in viewer.selected_points]
     print("User selected points:", selected_points)

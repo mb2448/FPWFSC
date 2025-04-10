@@ -13,13 +13,12 @@
 import ipdb
 import numpy as np
 import hcipy
-
 import matplotlib.pyplot as plt
-import support_functions as sf
-#import support_functions as sf
-import vandamstrehl as vDs
-import make_subaru_aperture as msa
-import make_keck_aperture 
+
+from . import support_functions as sf
+from . import vandamstrehl as vDs
+from . import make_subaru_aperture as msa
+from . import make_keck_aperture
 
 class Aperture:
     """A class to generate the aperture of the optical system.  This requires a
@@ -213,9 +212,9 @@ class CoronagraphSystemModel:
         lyot_wf = self.FocalSpot.forward_tolyot(self.pupil_efield, include_fpm=self.include_fpm)
         lyot_wf.electric_field *= self.LyotStop.aperture
         focal_wf = self.propagator(lyot_wf)
-        focal_wf = sf.rotate_and_flip_wavefront(focal_wf, 
+        focal_wf = sf.rotate_and_flip_wavefront(focal_wf,
                                                 angle=self.rotation_angle_deg,
-                                                flipx=self.flipx, 
+                                                flipx=self.flipx,
                                                 flipy=self.flipy)
         return focal_wf
 
