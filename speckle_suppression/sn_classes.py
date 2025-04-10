@@ -1,5 +1,7 @@
 import numpy as np
-from common import support_functions as sf
+import sys
+sys.path.insert(0,"../common")
+import support_functions as sf
 import sn_functions as snf
 import ipdb
 import dm
@@ -54,9 +56,13 @@ class SpeckleAreaNulling:
         pix_x = np.arange(self.rawI0.shape[0])
         self.pix_x, self.pix_y = np.meshgrid(pix_x, pix_x)
 
+<<<<<<< HEAD
         self.I0 = sf.reduce_images(self.rawI0, **self.imparams)
         self.sines = []
         self.cosines = []
+=======
+        self.I0 = sf.equalize_image(self.rawI0)
+>>>>>>> a58c55d2169c1f5d09d386afd5e8a060b95baad0
 
         # grab indices of control region
         control_indices = np.where(self.controlregion) # where true

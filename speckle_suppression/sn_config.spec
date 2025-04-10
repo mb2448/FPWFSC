@@ -3,6 +3,16 @@
     xcen = integer
     ycen = integer
     cropsize = integer_or_none
+    IWA = float(min=1)
+    OWA = float(max=11)
+    THETA1 = float
+    THETA2 = float
+    FULL_DARKHOLE = boolean
+    DM_AMPLITUDE_VOLTS = float(max=7)
+    NUM_ITERATIONS = integer
+
+[CAMERA_CALIBRATION]
+    bgddir = string
 
 [DM_REGISTRATION]
     calspot_kx = float
@@ -10,8 +20,8 @@
     calspot_amp = float(min=0)
 
     [[MEASURED_PARAMS]]    
-        center_x = float
-        center_y = float
+        centerx = float
+        centery = float
         angle = float
         lambdaoverd = float
 
@@ -53,6 +63,7 @@
         ysize                = integer(min=0)
         field_center_x       = integer(min=0)
         field_center_y       = integer(min=0)
+        bad_pixel_mask       = string_or_none
 
     [[AO_PARAMS]]
         modebasis               = option_or_none('zernike', 'pixel', 'disk_harmonics', 'fourier')

@@ -4,12 +4,15 @@ import numpy as np
 from scipy.ndimage import affine_transform, median_filter
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import shift
+from scipy.optimize import curve_fit  
 import json
 import io
 from configobj import flatten_errors, ConfigObj
 from validate import Validator, ValidateError
 import warnings
 import hcipy
+import matplotlib.pyplot as plt
+import astropy.io.fits as fits
 import ipdb
 
 
@@ -97,7 +100,7 @@ def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None,
         final_image = np.flip(final_image, axis=1)
 
     return final_image
-'''
+
 def take_images(detector=None, n_images=1, npix=None,
                 refpsf=None, xcen=None, ycen=None, bgds=None):
     """This is a `super` function that induces the detector class
@@ -169,7 +172,89 @@ def take_images(detector=None, n_images=1, npix=None,
     #coadd
     final_image = np.sum(data_cube, axis=0)
     return final_image
-'''
+
+def locate_badpix(data, sigmaclip = 5, plot=True): 
+    ''' -----------------------------------------------------------------------
+    Locates bad pixels by fitting a gaussian distribution to the image
+    intensity and then cutting outliers at the level of 'sigmaclip'
+    
+    XYZ -- this function needs to be rewritten to be cleaner
+    ----------------------------------------------------------------------- '''
+    # Create a vector of values borned by the min and max of the provided data
+    xvals = np.arange(data.min(), data.max())
+    # Short the value of the provided data to create an histogram
+    yvals = np.histogram(data.ravel(), bins=xvals, density=True)[0]
+    # Find the position associated to the faintest and brightest points.
+    m1 = np.abs(np.cumsum(yvals)-0.0005).argmin()
+    m2 = np.abs(np.cumsum(yvals)-0.9995).argmin()
+    # Compute the mean of the selected points
+    midx = 0.5*(xvals[m1]+xvals[m2])
+    # Reduce the list of points by removing the faintest and brightest points.
+    tmpx = xvals[m1:m2]
+    tmpy = yvals[m1:m2]
+    # Fit a Gaussian on the selected points
+    popt, pcov = curve_fit(gaussfunc, tmpx, tmpy, p0 = (midx,25))
+    # Extract the mean and standard deviation
+    mean   = popt[0]
+    stddev = popt[1]
+    # Compute the brighntness limits of the point to keep
+    cliphigh  = mean + sigmaclip*np.abs(stddev)
+    cliplow   = mean - sigmaclip*np.abs(stddev)
+    # Generate the bad pixel map 
+    bpmask = np.round(data > cliphigh) + np.round(data < cliplow)
+    # Plot the histogram
+    if plot:
+        # Create figure
+        plt.figure(figsize=(5, 3))
+        
+        # Add a small offset to avoid log(0) issues
+        epsilon = 1e-10
+        y_plot = yvals + epsilon
+        y_fit = gaussfunc(xvals[:-1], *popt) + epsilon
+        
+        # Plot the histogram with log scale
+        plt.semilogy(xvals[:-1], y_plot, 'k.', label='Pixel intensity histogram', alpha=0.5)
+        
+        # Overplot Gaussian fit on the data
+        plt.semilogy(xvals[:-1], y_fit, 'r-', 
+                   label=f'Gaussian fit (μ={mean:.2f}, σ={stddev:.2f})', alpha=0.5)
+        
+        # Add labels
+        plt.xlabel('Pixel intensity')
+        plt.ylabel('Normalized frequency (log scale)')
+        plt.legend()
+        
+        # Set y-axis limits to focus on relevant range
+        # Find the maximum value in the histogram (excluding outliers)
+        y_max = max(np.max(y_plot), 0.1)
+        plt.ylim(epsilon, y_max * 1.5)
+        
+        # Prepare the title of the figure
+        title = f'Bad Pixel Detection (σ-clip = {sigmaclip})'
+        title += '\nPixels outside shaded area are considered bad'
+        
+        # Add the title
+        plt.title(title)
+        
+        # Highlight pixels considered as good pixels
+        plt.axvspan(cliplow, cliphigh, alpha=0.2, color='grey', 
+                  label=f'Good pixel range: [{cliplow:.2f}, {cliphigh:.2f}]')
+        
+        # Add vertical lines at clip boundaries
+        plt.axvline(x=cliplow, color='red', linestyle='--', alpha=0.7)
+        plt.axvline(x=cliphigh, color='red', linestyle='--', alpha=0.7)
+        
+        # Add text showing percentage of bad pixels
+        bad_pixel_percentage = 100 * np.sum(bpmask) / bpmask.size
+        plt.figtext(0.5, 0.01, f'Bad pixels: {bad_pixel_percentage:.2f}% of image', 
+                  ha='center', fontsize=10)
+        
+        # Show the figure
+        plt.grid(True, which="both", ls="-", alpha=0.2)
+        plt.tight_layout()
+        plt.show() 
+    
+    return np.array(bpmask, dtype=np.float32)
 
 def removebadpix(data, mask, kern = 5):
     """Removes bad pixels by replacing them with a median-filtered
@@ -242,6 +327,7 @@ class MyValidator(Validator):
         self.functions['float_or_none'] = self._float_or_none
         self.functions['integer_or_none'] = self._integer_or_none
         self.functions['option_or_none'] = self._option_or_none
+        self.functions['string_or_none'] = self._string_or_none
 
 
     def _float_or_none(self, value, *args):
@@ -288,6 +374,27 @@ class MyValidator(Validator):
             return int(value)
         except ValueError:
             raise ValidateError("Expected int or 'None'")
+    
+    def _string_or_none(self, value, *args):
+        # Handle the case when value is a list
+        if isinstance(value, list):
+            # If it's a list containing option specifications, return None
+            if any('None' in str(item) for item in value):
+                return None
+            # Try to convert the first element if it's a simple list
+            try:
+                return string(value[0])
+            except (ValueError, IndexError):
+                raise ValidateError("Expected string or 'None', got list: {}".format(value))
+
+        # Original logic for string values
+        if value in ('None', ''):
+            return None
+        try:
+            return str(value)
+        
+        except ValueError:
+            raise ValidateError("Expected string or 'None'")
     
     def _option_or_none(self, value, *args):
         """Validates that a value is either None or one of the specified options"""
@@ -557,7 +664,7 @@ def load_dict(load_name):
     return dict_loaded
 
 def calculate_VAR(image, reference_PSF, mas_pix, wavelength, diameter):
-    ''' Calculates the Variance of the normalized first Airy Ring (VAR) of the image.
+    """Calculates the Variance of the normalized first Airy Ring (VAR) of the image.
 
     For the exact definition, see equation 13 in Bos et al. (2020).
 
@@ -573,7 +680,7 @@ def calculate_VAR(image, reference_PSF, mas_pix, wavelength, diameter):
         The central wavelength of the filter operated in, provided in meter.
     diameter : float
         The projected diameter of the exit pupil in meter.
-    '''
+    """
     # Calculating what lambda/D is in milliarcsec.
     lambda_D_rad = wavelength / diameter
     lambda_D_mas = np.degrees(lambda_D_rad) * 3600 * 1000
@@ -623,7 +730,7 @@ def quick_strehl_est(inputdata, reference_psf):
     return np.float(ret)
 
 def calculate_SRA(image, reference_PSF, mas_pix, wavelength, diameter, bg_subtraction=True):
-    ''' Calculates the Strehl Ratio Approximation (SRA) of the image.
+    """Calculates the Strehl Ratio Approximation (SRA) of the image.
 
 
     For the exact definition, see equation 12 in Bos et al. (2020).
@@ -642,7 +749,7 @@ def calculate_SRA(image, reference_PSF, mas_pix, wavelength, diameter, bg_subtra
         The projected diameter of the exit pupil in meter.
     bg_subtraction : Boolean
         Used for additional background suppresion to improve the SRA measurement.
-    '''
+    """
     # Calculating what lambda/D is in milliarcsec.
     lambda_D_rad = wavelength / diameter
     lambda_D_mas = np.degrees(lambda_D_rad) * 3600 * 1000
@@ -870,3 +977,57 @@ def robust_sigma(in_y, zero=0):
         out_val = 0.0
 
     return out_val
+
+def gaussfunc(x, mu, sig):
+    """1-d Gaussian  x, mu, sigma"""
+    return (1.0/(sig*np.sqrt(2*np.pi))*
+            np.exp(-(x-mu)**2/(2*sig**2)))
+
+def setup_bgd_dict(directory_path):
+    """
+    Load specific FITS files from a directory and return their data in a dictionary.
+    
+    Parameters:
+    -----------
+    directory_path : str
+        Path to the directory containing the FITS files
+    
+    Returns:
+    --------
+    dict
+        Dictionary containing the data from the FITS files with keys:
+        'bkgd', 'masterflat', and 'badpix'
+    
+    Raises:
+    -------
+    FileNotFoundError
+        If any of the required files are not found in the directory
+    """
+    # List of files to look for
+    required_files = {
+        'bkgd': 'medbackground.fits',
+        'masterflat': 'masterflat.fits',
+        'badpix': 'badpix.fits'
+    }
+    
+    # Dictionary to store the data
+    data_dict = {}
+    
+    # Check if directory exists
+    if not os.path.isdir(directory_path):
+        raise NotADirectoryError(f"The directory {directory_path} does not exist")
+    
+    # Process each file
+    for key, filename in required_files.items():
+        file_path = os.path.join(directory_path, filename)
+        
+        # Check if file exists
+        if not os.path.isfile(file_path):
+            raise FileNotFoundError(f"Required file {filename} not found in {directory_path}")
+        
+        # Open the FITS file and extract data
+        with fits.open(file_path) as hdul:
+            # Assuming the data is in the primary HDU (index 0)
+            data_dict[key] = hdul[0].data
+    
+    return data_dict

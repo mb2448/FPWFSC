@@ -15,11 +15,11 @@ import numpy as np
 import hcipy
 
 import matplotlib.pyplot as plt
-from common import support_functions as sf
-from common import vandamstrehl as vDs
-
-from common import make_subaru_aperture as msa
-from common import make_keck_aperture
+import support_functions as sf
+#import support_functions as sf
+import vandamstrehl as vDs
+import make_subaru_aperture as msa
+import make_keck_aperture 
 
 class Aperture:
     """A class to generate the aperture of the optical system.  This requires a

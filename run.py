@@ -67,6 +67,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     epsilon             = settings['FF_SETTINGS']['epsilon']
     SNR_cutoff          = settings['FF_SETTINGS']['SNR cutoff']
     #automatically sub the background in the camera frame
+    #this is not used right now anywhere in this script
     auto_background     = settings['FF_SETTINGS']['auto_background']
 
     #----------------------------------------------------------------------
