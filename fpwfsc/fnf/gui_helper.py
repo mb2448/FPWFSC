@@ -1,5 +1,5 @@
 # gui_helper.py
-from common import bench_hardware as hw
+from ..common import bench_hardware as hw
 
 valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires']
 

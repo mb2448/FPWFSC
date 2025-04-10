@@ -1,33 +1,34 @@
 import numpy as np
 import sys
-sys.path.insert(0,"../common")
-import support_functions as sf
-import sn_functions as snf
+
+from ..common import support_functions as sf
+from ..common import dm
+from . import sn_functions as snf
+
 import ipdb
-import dm
 
 # TODO: Delete import, used for debugging for now
 import matplotlib.pyplot as plt
 
 class SpeckleAreaNulling:
     def __init__(self, camera=None, aosystem=None, initial_probe_amplitude=None, initial_regularization=None,
-                 controlregion_iwa=None, controlregion_owa=None, 
+                 controlregion_iwa=None, controlregion_owa=None,
                  xcenter=None, ycenter=None, Npix_foc=None, lambdaoverD=None,
                  contrast_norm=1, flipx=False, flipy=False):
-        
+
         self.camera = camera
         self.aosystem = aosystem
         self.initial_probe_amplitude = initial_probe_amplitude
         self.regularization = initial_regularization
         self.probe_amplitude = initial_probe_amplitude
-        
+
         # NOTE: Same dimensions as image
         # NOTE: Referenced to same origin as image
 
         self.xcenter = xcenter
         self.ycenter = ycenter
         self.lambdaoverD = lambdaoverD
-        
+
         self.controlregion_iwa = controlregion_iwa
         self.controlregion_owa = controlregion_owa
         self.controlregion_iwa_pix = self.controlregion_iwa* \
@@ -45,24 +46,21 @@ class SpeckleAreaNulling:
 
         # Take reference image
         self.rawI0 = sf.equalize_image(self.camera.take_image()) / self.CN
-        
+
         # reduce the image first
-        self.controlregion = snf.create_annular_wedge(self.rawI0, 
-                                              self.imparams['xcen'], 
-                                              self.imparams['ycen'], 
-                                              self.controlregion_iwa_pix, 
-                                              self.controlregion_owa_pix, 
+        self.controlregion = snf.create_annular_wedge(self.rawI0,
+                                              self.imparams['xcen'],
+                                              self.imparams['ycen'],
+                                              self.controlregion_iwa_pix,
+                                              self.controlregion_owa_pix,
                                               -90, 90)
         pix_x = np.arange(self.rawI0.shape[0])
         self.pix_x, self.pix_y = np.meshgrid(pix_x, pix_x)
 
-<<<<<<< HEAD
+        # TODO: Switch to equalize_images
         self.I0 = sf.reduce_images(self.rawI0, **self.imparams)
         self.sines = []
         self.cosines = []
-=======
-        self.I0 = sf.equalize_image(self.rawI0)
->>>>>>> a58c55d2169c1f5d09d386afd5e8a060b95baad0
 
         # grab indices of control region
         control_indices = np.where(self.controlregion) # where true
@@ -99,11 +97,11 @@ class SpeckleAreaNulling:
             self.cosines.append(cos)
         self.cos_probe = np.sum(self.cosines, axis=0)
         self.sin_probe = np.sum(self.sines, axis=0)
-        
+
         # scale to unity, call probe amplitude in measure
         self.sin_probe /= self.sin_probe.max()
         self.cos_probe /= self.cos_probe.max()
-        
+
         self.cos_probe_init = self.cos_probe.copy()
         self.sin_probe_init = self.sin_probe.copy()
 
@@ -127,10 +125,10 @@ class SpeckleAreaNulling:
 
         if probe_amplitude is not None:
             self.probe_amplitude = probe_amplitude
-        
+
         # Take a reference image
         I0 = sf.equalize_image(self.camera.take_image()) / self.CN
-        
+
         # Take the cosine probe images
         # NOTE: Make sure that the I1p / I1m don't look exactly the same
         # NOTE: Check Oya et al. to make sure you are setting the correct probe
@@ -141,7 +139,7 @@ class SpeckleAreaNulling:
             self.images.append(sf.equalize_image(self.camera.take_image()) / self.CN)
             self.aosystem.set_dm_data(-probe_scaled)
 
-        # unpack the images 
+        # unpack the images
         Im1 = self.images[-4]  # minus sin probe
         Ip1 = self.images[-3]  # plus sin probe
         Im2 = self.images[-2]  # minus cos probe
@@ -150,20 +148,20 @@ class SpeckleAreaNulling:
         self.I1p = Ip1
         self.I2p = Ip2
         self.I1m = Im1
-        self.I2m = Im2 
+        self.I2m = Im2
 
         # filter by control region
         I0 = I0[self.controlregion==1]
-        
+
         # +sin probe
         Ip1 = Ip1[self.controlregion==1]
-        
+
         # -sin probe
         Im1 = Im1[self.controlregion==1]
-        
+
         # +cos probe
         Ip2 = Ip2[self.controlregion==1]
-        
+
         # -cos probe
         Im2 = Im2[self.controlregion==1]
 
@@ -212,7 +210,7 @@ class SpeckleAreaNulling:
         ndarray
             array containing the image after the SAN algorithm has applied a correction
         """
-        
+
         if regularization is not None:
             self.regularization = regularization
 
@@ -227,7 +225,7 @@ class SpeckleAreaNulling:
 
         # self.sin_coeffs_init = np.sum(control_sines, axis=-1)
         # self.cos_coeffs_init = np.sum(control_cosines, axis=-1)
-        
+
         control_surface = -1* np.sum(control, axis=0)
 
         # control_surface *= self.aosystem.OpticalModel.wavelength / (2 * np.pi)
@@ -237,5 +235,5 @@ class SpeckleAreaNulling:
 
         # take image after correction
         I = sf.equalize_image(self.camera.take_image()) / self.CN
-        
+
         return I

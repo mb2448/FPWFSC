@@ -2,15 +2,11 @@ import numpy as np
 import os
 import sys
 import astropy.io.fits as fits
-sys.path.insert(0, '../common')
-import support_functions as sf
 from collections import deque
 import threading
 
-try:
-    import bench_hardware as hw
-except:
-    ImportError
+import fpwfsc.common.support_functions as sf
+import fpwfsc.common.bench_hardware as hw
 
 def build_master_flat(data, badpix=None, kern=9, removezeros=True):
     '''Removes bad pixels from a background subtracted master flat'''
@@ -40,7 +36,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     # Setup instruments
     if camera == 'Sim' and aosystem == 'Sim':
-        import fake_hardware as fhw
+        import fpwfsc.common.fake_hardware as fhw
         CSM = fhw.FakeCoronagraphOpticalSystem(**settings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **settings['SIMULATION']['AO_PARAMS'])
         Camera = fhw.FakeDetector(opticalsystem=CSM, **settings['SIMULATION']['CAMERA_PARAMS'])
@@ -181,4 +177,4 @@ if __name__ == "__main__":
     #Camera = hw.NIRC2Alias()
     #AOSystem = hw.AOSystemAlias()
     Camera, AOSystem = 'Sim', 'Sim'
-    run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')
+    run(camera=Camera, aosystem=AOSystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')

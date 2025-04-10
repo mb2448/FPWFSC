@@ -1,0 +1,31 @@
+[project]
+name = "fpwfsc"
+version = "0.1.0"
+authors = [
+    { name = "Michael Bottom", email = "michael.bottom@keckobservatory.org" },
+    { name = "Jaren Ashcraft", email = "jaren.ashcraft@keckobservatory.org" },
+    { name = "Mahawa Cisse", email = "mahawa.cisse@keckobservatory.org" },
+]
+description = "A Python package for focal plane wavefront sensing and control at W.M. Keck Observatory."
+license = { file = "LICENSE.md" }
+
+dependencies = [
+    "numpy",
+    "scipy",
+    "hcipy",
+    "scikit-image", # analysis
+    "matplotlib",
+    "tqdm",
+    "PyQt5",
+    "astropy",
+]
+
+[project.urls]
+GitHub = "https://github.com/mb2448/fpwfsc"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

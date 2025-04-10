@@ -1,11 +1,14 @@
 import sys
+import warnings
+
 try:
     sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
     from guis.fast_and_furious.hardware import NIRC2, KeckAO
     import aosys.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
-except: 
-    ImportError
+except ImportError:
+    warnings.warn("Failed to import hardware modules")
+
 class NIRC2Alias:
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
     """
@@ -22,10 +25,10 @@ class AOSystemAlias:
         """Open-loop AO System Interface
         """
         self.AO = xd.xinetics_deformable_mirror.XineticsDeformableMirror(prefix='k2')
-        
+
     def set_dm_data(self, shape):
         return self.AO.set_voltages(shape)
-    
+
     def get_dm_data(self):
         return self.AO.get_voltages()
 
@@ -33,12 +36,12 @@ class ClosedAOSystemAlias:
     def __init__(self):
         """Closed-loop AO System Interface
         """
-        
+
         self.AO = KeckAO()
         self.dm = self.AO.xinetics
         self.current_cog_file = self.AO.get_cog_filename()
         self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
-    
+
         self.diameter_pupil_act = 21
         self.center_pupil_act = [10,10]
         self.Nact = 21
@@ -57,19 +60,19 @@ class ClosedAOSystemAlias:
                                           center_pupil_act,
                                           Nact,
                                           rotation_angle_dm)
-        
+
         binary_map = self.dm.get_binary_actuators_map()
         mask = np.array(binary_map, dtype='bool')
         dm_vec = dm_volts[mask]
         infmat = self.AO.open_influence_matrix()
-        
+
         # these are the updated centroid origins
-        centroids = np.dot(infmat, dm_vec) 
+        centroids = np.dot(infmat, dm_vec)
         self.current_cog_file = self.AO.get_cog_filename()
         self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
-        
+
         new_centroids = self.cur_cog + centroids
-        
+
         # now we need to write the cog file and load the cog file
         fn = self.AO.save_cog('SAN_Centroids', new_centroids)
         self.AO.load_cog(fn)

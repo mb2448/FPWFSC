@@ -2,12 +2,11 @@ import hcipy
 import numpy as np
 import sys
 import os
-
-import support_functions as sf
-import classes as ff_c
 import astropy.io.fits as pf
-sys.path.insert(0, '../speckle_suppression/')
-import dm
+
+from . import support_functions as sf
+from . import classes as ff_c
+from . import dm
 import ipdb
 
 comment = """
@@ -52,7 +51,7 @@ def center_image(small_image, large_size, center_position):
 
 def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
     """Creates a random bad pixel mask.
-    
+
     Parameters
     ----------
     height : int
@@ -61,7 +60,7 @@ def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
         Width of the detector in pixels
     bad_pixel_fraction : float
         Fraction of pixels that should be marked as bad (between 0.0 and 1.0)
-        
+
     Returns
     -------
     ndarray
@@ -69,26 +68,26 @@ def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
     """
     if bad_pixel_fraction <= 0:
         return None
-        
+
     bad_pixel_mask = np.zeros((height, width), dtype=bool)
     num_bad_pixels = int(bad_pixel_fraction * height * width)
-    
+
     # Randomly select pixels to mark as bad
-    bad_indices = np.random.choice(height * width, 
-                                  size=num_bad_pixels, 
+    bad_indices = np.random.choice(height * width,
+                                  size=num_bad_pixels,
                                   replace=False)
     bad_y, bad_x = np.unravel_index(bad_indices, (height, width))
     bad_pixel_mask[bad_y, bad_x] = True
-    
+
     if outputfile is not None:
         pf.writeto(outputfile, 1*bad_pixel_mask, overwrite=True)
-    
+
     return bad_pixel_mask
 
 class FakeCoronagraphOpticalSystem:
     """A helper class to build a coronagraph from a configuration file"""
     def __new__(self, include_fpm=True, **optical_params):
-        
+
         self.Npix_pup = optical_params['N pix pupil']
         self.Npix_foc = optical_params['N pix focal']
         self.pixscale = optical_params['pixel scale (mas/pix)']
@@ -96,34 +95,34 @@ class FakeCoronagraphOpticalSystem:
         #rots and flips applied last
         self.flipx = optical_params['flip_x']
         self.flipy = optical_params['flip_y']
-        
+
         self.rotation_angle_deg = optical_params['rotation angle im (deg)']
         self.aperturename = optical_params['APERTURE']['aperture']
         self.rotation_angle_aperture = optical_params['APERTURE']['rotation angle aperture (deg)']
-        
+
         self.coronagraph_IWA_mas = optical_params['CORONAGRAPH_MASK']['IWA_mas']
-        
+
         self.lyotstopmask = optical_params['LYOT_STOP']['lyot stop']
         self.rotation_angle_lyot = optical_params['LYOT_STOP']['rotation angle lyot (deg)']
-            
+
         self.include_fpm = include_fpm
         self.TelescopeAperture = ff_c.Aperture(Npix_pup=self.Npix_pup,
                                                aperturename=self.aperturename,
                                                rotation_angle_aperture=self.rotation_angle_aperture)
-        self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc, 
-                                                      IWA_mas=self.coronagraph_IWA_mas, 
-                                                      mas_pix=self.pixscale, 
+        self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc,
+                                                      IWA_mas=self.coronagraph_IWA_mas,
+                                                      mas_pix=self.pixscale,
                                                       pupil_grid=self.TelescopeAperture.pupil_grid)
         self.LyotStop          = ff_c.Aperture(Npix_pup=self.Npix_pup,
                                                aperturename=self.lyotstopmask,
                                               rotation_angle_aperture = self.rotation_angle_lyot)
-        
+
         self.CSM = ff_c.CoronagraphSystemModel(telescopeaperture=self.TelescopeAperture,
                            coronagraph=self.Lyotcoronagraph,
                            lyotaperture=self.LyotStop,
                            Npix_foc=self.Npix_foc,
                            mas_pix=self.pixscale,
-                           wavelength=self.wavelength, 
+                           wavelength=self.wavelength,
                            flipx=self.flipx,
                            flipy=self.flipy,
                            rotation_angle_deg=self.rotation_angle_deg,
@@ -191,7 +190,7 @@ class FakeDetector:
         self.detector = hcipy.optics.NoisyDetector(
                               self.input_grid,
                               dark_current_rate=self.dark_current_rate,
-                              read_noise=0, 
+                              read_noise=0,
                               #this is a hack to deal with not double counting read noise when making the image larger
                               flat_field=0,
                               include_photon_noise=self.include_photon_noise)
@@ -284,7 +283,7 @@ class FakeAODMSystem:
 
         if seed is not None:
             np.random.seed(seed)
-        
+
         print("Warning: rotation angle dm is not implemented yet in the simulator")
         self.num_actuators_across = num_actuators_across
         self.OpticalModel = OpticalModel
@@ -294,7 +293,7 @@ class FakeAODMSystem:
                                                             aperture=self.OpticalModel.Pupil.aperture)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
         self.modebasis = modebasis
-        
+
         # This is the 'Clocking' of the DM with respect to the image
         self.rotation_angle_dm = rotation_angle_dm
         self.flip_x_dm = flip_x_dm
@@ -305,13 +304,13 @@ class FakeAODMSystem:
 
             # compute based on num actuators across and pupil diameter
             actuator_spacing = self.OpticalModel.Pupil.diameter / num_actuators_across
-        
+
         self.influence_functions = hcipy.make_gaussian_influence_functions(self.OpticalModel.Pupil.pupil_grid,
                                                                            num_actuators_across,
                                                                            actuator_spacing)
         self.deformable_mirror = hcipy.DeformableMirror(self.influence_functions)
 
-        self.current_dm_shape = np.zeros([self.num_actuators_across, 
+        self.current_dm_shape = np.zeros([self.num_actuators_across,
                                           self.num_actuators_across])
 
     def get_dm_data(self):
@@ -330,9 +329,9 @@ class FakeAODMSystem:
         assert dm_commands.shape[0] == self.num_actuators_across
         assert dm_commands.shape[1] == self.num_actuators_across
 
-        
+
         #in the sim, just undoes the microns command from subaru
-        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi) 
+        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi)
         #print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:
@@ -341,7 +340,7 @@ class FakeAODMSystem:
         else:
             # self.current_dm_shape = dm_commands
             self.deformable_mirror.actuators = phase_DM_acts.ravel()
-        
+
 
         # NOTE: Deformable_mirror.opd doesn't add the negative OPD you get from hitting a mirror, so the minus
         # passed to phase_DM in update_pupil_wavefront takes care of it
@@ -355,7 +354,7 @@ class FakeAODMSystem:
         self.OpticalModel.generate_psf_efield()
 
         return
-    
+
     def offset_tiptilt(self, metersx, metersy,
                              angle=None,
                              flipx=None,
