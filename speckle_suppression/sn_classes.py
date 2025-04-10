@@ -13,7 +13,7 @@ class SpeckleAreaNulling:
     def __init__(self, camera=None, aosystem=None, initial_probe_amplitude=None, initial_regularization=None,
                  controlregion_iwa=None, controlregion_owa=None, 
                  xcenter=None, ycenter=None, Npix_foc=None, lambdaoverD=None,
-                 contrast_norm=1):
+                 contrast_norm=1, flipx=False, flipy=False):
         
         self.camera = camera
         self.aosystem = aosystem
@@ -40,6 +40,8 @@ class SpeckleAreaNulling:
                 'ycen': self.ycenter,
         }
         self.CN = contrast_norm
+        self.flipx = flipx
+        self.flipy = flipy
 
         # Take reference image
         self.rawI0 = sf.equalize_image(self.camera.take_image()) / self.CN
@@ -54,34 +56,50 @@ class SpeckleAreaNulling:
         pix_x = np.arange(self.rawI0.shape[0])
         self.pix_x, self.pix_y = np.meshgrid(pix_x, pix_x)
 
+<<<<<<< HEAD
+        self.I0 = sf.reduce_images(self.rawI0, **self.imparams)
+        self.sines = []
+        self.cosines = []
+=======
         self.I0 = sf.equalize_image(self.rawI0)
+>>>>>>> a58c55d2169c1f5d09d386afd5e8a060b95baad0
 
-        # Construct the probes from the wedge
-        self.cosines = dm.make_speckle_xy(xs=self.pix_x[self.controlregion==1],
-                                      ys=self.pix_y[self.controlregion==1],
-                                      amps=1,
-                                      phases=0,
-                                      centerx=self.imparams['xcen'],
-                                      centery=self.imparams['ycen'],
-                                      angle=0,
-                                      lambdaoverd=self.lambdaoverD,
-                                      N=self.aosystem.num_actuators_across,
-                                      which="cos")
+        # grab indices of control region
+        control_indices = np.where(self.controlregion) # where true
+        for yi, xi in zip(*control_indices):
 
-        self.sines = dm.make_speckle_xy(xs=self.pix_x[self.controlregion==1],
-                                      ys=self.pix_y[self.controlregion==1],
-                                      amps=1,
-                                      phases=0,
-                                      centerx=self.imparams['xcen'],
-                                      centery=self.imparams['ycen'],
-                                      angle=0,
-                                      lambdaoverd=self.lambdaoverD,
-                                      N=self.aosystem.num_actuators_across,
-                                      which="sin")
+            # Construct the probes from the wedge
+            cos = dm.make_speckle_xy(xs=xi,
+                                        ys=yi,
+                                        amps=1,
+                                        phases=0,
+                                        centerx=self.imparams['xcen'],
+                                        centery=self.imparams['ycen'],
+                                        angle=0,
+                                        lambdaoverd=self.lambdaoverD,
+                                        N=self.aosystem.num_actuators_across,
+                                        which="cos",
+                                        flipy=self.flipy,
+                                        flipx=self.flipx)
+
+            sin = dm.make_speckle_xy(xs=xi,
+                                        ys=yi,
+                                        amps=1,
+                                        phases=0,
+                                        centerx=self.imparams['xcen'],
+                                        centery=self.imparams['ycen'],
+                                        angle=0,
+                                        lambdaoverd=self.lambdaoverD,
+                                        N=self.aosystem.num_actuators_across,
+                                        which="sin",
+                                        flipy=self.flipy,
+                                        flipx=self.flipx)
+
+            self.sines.append(sin)
+            self.cosines.append(cos)
+        self.cos_probe = np.sum(self.cosines, axis=0)
+        self.sin_probe = np.sum(self.sines, axis=0)
         
-        self.cos_probe = np.sum(self.cosines, axis=-1)
-        self.sin_probe = np.sum(self.sines, axis=-1)
-
         # scale to unity, call probe amplitude in measure
         self.sin_probe /= self.sin_probe.max()
         self.cos_probe /= self.cos_probe.max()
@@ -153,7 +171,11 @@ class SpeckleAreaNulling:
         dE1 = (Ip1 - Im1) / 4
         dE2 = (Ip2 - Im2) / 4
         dE1sq = (Ip1 + Im1 - 2*I0) / 2
+        self.dE1sq = self.controlregion.copy().astype(np.float64)
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
+        self.dE2sq = self.controlregion.copy().astype(np.float64)
+        self.dE1sq[self.controlregion==1] = dE1sq
+        self.dE2sq[self.controlregion==1] = dE2sq
 
         # Filter the quantities dE1 and dE2 below the regularization threshold
 
@@ -196,8 +218,9 @@ class SpeckleAreaNulling:
 
         p, q = self._measure(probe_amplitude=probe_amplitude)
 
-        p = p[None, None]
-        q = q[None, None]
+        # Broadcast the shapes of p and q to allow element-wise multiplication
+        p = p[..., None, None]
+        q = q[..., None, None]
 
         # bypass and try to plot p/q
         control = self.probe_amplitude * (p * self.sines + q * self.cosines)
@@ -205,8 +228,7 @@ class SpeckleAreaNulling:
         # self.sin_coeffs_init = np.sum(control_sines, axis=-1)
         # self.cos_coeffs_init = np.sum(control_cosines, axis=-1)
         
-        # NOTE: This is positive 1 because the DM surface update is negative
-        control_surface = np.sum(control, axis=-1)
+        control_surface = -1* np.sum(control, axis=0)
 
         # control_surface *= self.aosystem.OpticalModel.wavelength / (2 * np.pi)
         # apply to the deformable mirror

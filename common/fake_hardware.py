@@ -86,7 +86,7 @@ def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
 
 class FakeCoronagraphOpticalSystem:
     """A helper class to build a coronagraph from a configuration file"""
-    def __new__(self, **optical_params):
+    def __new__(self, include_fpm=True, **optical_params):
         
         self.Npix_pup = optical_params['N pix pupil']
         self.Npix_foc = optical_params['N pix focal']
@@ -104,19 +104,13 @@ class FakeCoronagraphOpticalSystem:
         
         self.lyotstopmask = optical_params['LYOT_STOP']['lyot stop']
         self.rotation_angle_lyot = optical_params['LYOT_STOP']['rotation angle lyot (deg)']
-
-        # NOTE: This effectively turns off the FPM, useful for NI calculations
-        if hasattr(optical_params, 'INCLUDE_FPM'):
-            if not optical_params['INCLUDE_FPM']:
-                iwa_scale = 0
-        else:
-            iwa_scale = 1
-
+            
+        self.include_fpm = include_fpm
         self.TelescopeAperture = ff_c.Aperture(Npix_pup=self.Npix_pup,
                                                aperturename=self.aperturename,
                                                rotation_angle_aperture=self.rotation_angle_aperture)
         self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc, 
-                                                      IWA_mas=self.coronagraph_IWA_mas * iwa_scale, 
+                                                      IWA_mas=self.coronagraph_IWA_mas, 
                                                       mas_pix=self.pixscale, 
                                                       pupil_grid=self.TelescopeAperture.pupil_grid)
         self.LyotStop          = ff_c.Aperture(Npix_pup=self.Npix_pup,
@@ -131,7 +125,8 @@ class FakeCoronagraphOpticalSystem:
                            wavelength=self.wavelength, 
                            flipx=self.flipx,
                            flipy=self.flipy,
-                           rotation_angle_deg=self.rotation_angle_deg)
+                           rotation_angle_deg=self.rotation_angle_deg,
+                           include_fpm=self.include_fpm)
         return self.CSM
     def __init__(self):
         pass
@@ -336,14 +331,15 @@ class FakeAODMSystem:
 
         
         #in the sim, just undoes the microns command from subaru
-        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi) 
+        phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi)
+        ipdb.set_trace() 
         print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:
-            self.current_dm_shape += dm_commands
+            # self.current_dm_shape += dm_commands
             self.deformable_mirror.actuators += phase_DM_acts.ravel()
         else:
-            self.current_dm_shape = dm_commands
+            # self.current_dm_shape = dm_commands
             self.deformable_mirror.actuators = phase_DM_acts.ravel()
         
 
