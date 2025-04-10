@@ -108,11 +108,12 @@ class LyotCoronagraph:
         #self.pupil_grid.wavelength = self.wavelength
         self.fpm = spot_generator(self.focal_grid)
 
-    def forward_tolyot(self, input_wavefront):
+    def forward_tolyot(self, input_wavefront, include_fpm=True):
 
         prop = hcipy.FraunhoferPropagator(self.pupil_grid, self.focal_grid)
         focal = prop.forward(input_wavefront)
-        focal.electric_field *= self.fpm
+        if include_fpm:
+            focal.electric_field *= self.fpm
         lyot_efield = prop.backward(focal)
         return lyot_efield
 
@@ -151,7 +152,8 @@ class CoronagraphSystemModel:
                        wavelength=None,
                        flipx=None,
                        flipy=None,
-                       rotation_angle_deg=None):
+                       rotation_angle_deg=None,
+                       include_fpm=True):
         print("Initializing system model")
 
         self.Pupil      = telescopeaperture
@@ -165,6 +167,7 @@ class CoronagraphSystemModel:
         self.flipx = flipx
         self.flipy = flipy
         self.rotation_angle_deg = rotation_angle_deg
+        self.include_fpm = include_fpm
         self.focal_grid = hcipy.make_uniform_grid(
              [self.Npix_foc, self.Npix_foc],
              [self.Npix_foc*self.rad_pix, self.Npix_foc*self.rad_pix])
@@ -199,7 +202,7 @@ class CoronagraphSystemModel:
         """
         #XYZ somehwere here put in the flip
         print("Flip put in here somewhere")
-        lyot_wf = self.FocalSpot.forward_tolyot(self.pupil_efield)
+        lyot_wf = self.FocalSpot.forward_tolyot(self.pupil_efield, include_fpm=self.include_fpm)
         lyot_wf.electric_field *= self.LyotStop.aperture
         focal_wf = self.propagator(lyot_wf)
         focal_wf = sf.rotate_and_flip_wavefront(focal_wf, 

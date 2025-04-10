@@ -1,8 +1,9 @@
 import numpy as np
+import ipdb
 
 def rotateXY(xvals, yvals, thetadeg = 0):
     theta = np.pi/180.0*thetadeg
-    return (np.cos(theta)*xvals - np.sin(theta)*yvals, 
+    return (np.cos(theta)*xvals - np.sin(theta)*yvals,
             np.sin(theta)*xvals + np.cos(theta)*yvals)
 
 def intensitymodel( amp, k_rad, a=0, b=0, c=0):
@@ -12,7 +13,7 @@ def intensitymodel( amp, k_rad, a=0, b=0, c=0):
 
 def amplitudemodel(counts, k_rad, a=0, b=0, c=0):
     """Radial dependence of spot calibration\n
-    amplitude = sqrt(counts/(a*k_rad**2 + b*k_rad + c))""" 
+    amplitude = sqrt(counts/(a*k_rad**2 + b*k_rad + c))"""
     #fudge = 0.5
     fudge = 1
     retval = fudge*np.sqrt((counts/(a*k_rad**2 + b*k_rad + c)))
@@ -153,18 +154,18 @@ def generate_waffle(n_or_array, amplitude=1):
     return waffle
 
 def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_rotation=0, which="cos"):
-    """given an kx and ky wavevector, 
-    generates a NxN flatmap that has 
+    """given an kx and ky wavevector,
+    generates a NxN flatmap that has
     a speckle at that position
-    
+
     Parameters
     ----------
     kx : float or ndarray
-        x-component of the wavevector. If ndarray, must be same shape as ky 
+        x-component of the wavevector. If ndarray, must be same shape as ky
         and output appends a dimension of size kx.shape[0]
     ky : float or ndarray
         y-component of the wavevector. If ndarray, must be same shape as kx
-    amp: float 
+    amp: float
         amplitude in physical units of meters
     phase: float
         phase in radians
@@ -181,61 +182,63 @@ def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_r
     else:
         raise ValueError(f"kwarg 'which'={which} invalid, use 'sin' or 'cos'")
 
-    
-    dmx, dmy   = np.meshgrid( 
+
+    dmx, dmy   = np.meshgrid(
                     np.linspace(-0.5, 0.5, N),
                     np.linspace(-0.5, 0.5, N))
-    
     xm=dmx*kx*2.0*np.pi
     ym=dmy*ky*2.0*np.pi
 
     xm, ym = rotateXY(xm, ym, thetadeg=dm_rotation)
-    
+
     fx = -1 if flipx else 1
     fy = -1 if flipy else 1
-    
     ret = amp*sinusoid(fx*xm + fy*ym +  phase)
     return ret
 
-def make_speckle_xy(xs, ys, amps, phases, 
-                    centerx=None, centery=None, 
+def make_speckle_xy(xs, ys, amps, phases,
+                    centerx=None, centery=None,
                     angle = None,
                     lambdaoverd= None,
                     N=22,
                     dm_rotation=0,
-                    which="cos"):
-    """given an x and y pixel position, 
-    generates a NxN flatmap that has 
+                    which="cos",
+                    flipx=False,
+                    flipy=True):
+    """given an x and y pixel position,
+    generates a NxN flatmap that has
     a speckle at that position"""
+
     #convert first to wavevector space
-    kxs, kys = convert_pixels_kvecs(xs, ys, 
+    kxs, kys = convert_pixels_kvecs(xs, ys,
                   centerx = centerx,
                   centery = centery,
                   angle = angle,
                   lambdaoverd = lambdaoverd)
-    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N, dm_rotation=dm_rotation, which=which)
+    returnmap = make_speckle_kxy(kxs,kys,amps,phases,N=N, dm_rotation=dm_rotation, which=which,
+                                 flipy=flipy, flipx=flipx)
     return returnmap
 
-def convert_pixels_kvecs(pixelsx, pixelsy, 
-                    centerx=None, centery=None, 
+def convert_pixels_kvecs(pixelsx, pixelsy,
+                    centerx=None, centery=None,
                     angle = None,
                     lambdaoverd= None):
     """converts pixel space to wavevector space"""
     offsetx = pixelsx - centerx
     offsety = pixelsy - centery
 
-    rxs, rys = rotateXY(offsetx, offsety, 
+    rxs, rys = rotateXY(offsetx, offsety,
                             thetadeg = -1.0*angle)
     kxs, kys = rxs/lambdaoverd, rys/lambdaoverd
     return kxs, kys
-                     
-def convert_kvecs_pixels(kx, ky, 
-                    centerx=None, centery=None, 
+
+def convert_kvecs_pixels(kx, ky,
+                    centerx=None, centery=None,
                     angle = None,
                     lambdaoverd= None):
     """converts wavevector space to pixel space"""
     rxs, rxy = kx*lambdaoverd, ky*lambdaoverd
-    offsetx, offsety = rotateXY(rxs, rxy, 
+    offsetx, offsety = rotateXY(rxs, rxy,
                                     thetadeg = angle)
     pixelsx = offsetx + centerx
     pixelsy = offsety + centery
@@ -243,6 +246,3 @@ def convert_kvecs_pixels(kx, ky,
 
 if __name__ == "__main__":
     print("todo")
-    
-    
-    
