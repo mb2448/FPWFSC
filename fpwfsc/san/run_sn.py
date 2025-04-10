@@ -7,18 +7,18 @@ import hcipy
 from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
-import dm
 import ipdb
 from matplotlib.colors import LogNorm
 from matplotlib.patches import Wedge
 
-sys.path.insert(0, '../')
-from common import plotting_funcs as pf
-from common import classes as ff_c
-from common import fake_hardware as fhw
-from common import support_functions as sf
+# FPWFSC imports
+from fpwfsc.common import dm
+from fpwfsc.common import plotting_funcs as pf
+from fpwfsc.common import classes as ff_c
+from fpwfsc.common import fake_hardware as fhw
+from fpwfsc.common import support_functions as sf
 
-from sn_classes import SpeckleAreaNulling
+from fpwfsc.san.sn_classes import SpeckleAreaNulling
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None):
@@ -27,7 +27,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     if my_event is None:
         my_event = threading.Event()
-    
+
     settings = sf.validate_config(config, configspec)
     settings_copy = sf.validate_config(config, configspec)
     #----------------------------------------------------------------------
@@ -79,11 +79,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         plt.colorbar()
         plt.show()
         contrast_norm = image_nofpm.max()
-    
+
     else:
         raise ValueError("Sim only now")
 
-    SAN = SpeckleAreaNulling(Camera, AOSystem, 
+    SAN = SpeckleAreaNulling(Camera, AOSystem,
                                initial_probe_amplitude= 10e-7 * (0.3/8),
                                initial_regularization=1,
                                controlregion_iwa = 5,
@@ -96,7 +96,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                flipx=False,
                                flipy=False)
 
-    imax=[] 
+    imax=[]
     ks = []
     MAX_ITERS = 20
 
@@ -229,7 +229,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 if __name__ == "__main__":
     #plotter = pf.LivePlotter()
-    
+
     camera = "Sim"
     aosystem = "Sim"
-    run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')#, plotter=plotter)
+    run(camera, aosystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')#, plotter=plotter)

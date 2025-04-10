@@ -7,15 +7,14 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QParallelAnimationGroup, QPropertyAnimation, QAbstractAnimation, QTimer, QThread
 from PyQt5.QtGui import QFont
 
-import gui_helper as helper
+import matplotlib.pyplot as plt
 from configobj import ConfigObj, ConfigObjError, flatten_errors
 from validate import Validator
 import threading
-from run import run
-import matplotlib.pyplot as plt
 
-from common import support_functions as sf
-from common import plotting_funcs as pf
+from fpwfsc.fnf import gui_helper as helper
+from fpwfsc.fnf.run import run
+from fpwfsc.common import plotting_funcs as pf
 
 def get_instrument_values():
     return {'MODELLING':{'wavelength (m)':'3e-6',
@@ -101,8 +100,8 @@ class ConfigEditorGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.expert_options = {}
-        self.config_file = 'FF_software_sim.ini'
-        self.spec_file = 'FF_software.spec'
+        self.config_file = 'fpwfsc/fnf/FF_software_sim.ini'
+        self.spec_file = 'fpwfsc/fnf/FF_software.spec'
         self.is_running = False
         self.my_event = threading.Event()
 
@@ -650,4 +649,3 @@ if __name__ == '__main__':
 
     # Start the event loop
     sys.exit(app.exec_())
-

@@ -8,10 +8,10 @@ from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
 
-from common import plotting_funcs as pf
-from common import classes as ff_c
-from common import fake_hardware as fhw
-from common import support_functions as sf
+from ..common import plotting_funcs as pf
+from ..common import classes as ff_c
+from ..common import fake_hardware as fhw
+from ..common import support_functions as sf
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None):
@@ -180,4 +180,4 @@ if __name__ == "__main__":
     plotter = pf.LivePlotter()
     camera = "Sim"
     aosystem = "Sim"
-    run(camera, aosystem, config='FF_software_sim.ini', configspec='FF_software.spec', plotter=plotter)
+    run(camera, aosystem, config='fpwfsc/fnf/FF_software_sim.ini', configspec='fpwfsc/fnf/FF_software.spec', plotter=plotter)
