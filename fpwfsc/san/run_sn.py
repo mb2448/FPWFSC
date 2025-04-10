@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import ipdb
 from matplotlib.colors import LogNorm
 from matplotlib.patches import Wedge
+from pathlib import Path
 
 # FPWFSC imports
 from fpwfsc.common import dm
@@ -229,7 +230,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 if __name__ == "__main__":
     #plotter = pf.LivePlotter()
-
     camera = "Sim"
     aosystem = "Sim"
-    run(camera, aosystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')#, plotter=plotter)
+
+    script_dir = Path(__file__).parent
+    config_path = script_dir/"sn_config.ini"
+    spec_path   = script_dir/"sn_config.spec"
+    run(camera, aosystem, config=str(config_path),
+                          configspec=str(spec_path))

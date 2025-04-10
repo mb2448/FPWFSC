@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from configobj import ConfigObj, ConfigObjError, flatten_errors
 from validate import Validator
 import threading
+from pathlib import Path
 
 from fpwfsc.fnf import gui_helper as helper
 from fpwfsc.fnf.run import run
@@ -100,8 +101,13 @@ class ConfigEditorGUI(QWidget):
     def __init__(self):
         super().__init__()
         self.expert_options = {}
-        self.config_file = 'fpwfsc/fnf/FF_software_sim.ini'
-        self.spec_file = 'fpwfsc/fnf/FF_software.spec'
+
+        script_dir = Path(__file__).parent
+        config_path = script_dir/"FF_software_sim.ini"
+        spec_path   = script_dir/"FF_software.spec"
+
+        self.config_file = str(config_path)
+        self.spec_file = str(spec_path)
         self.is_running = False
         self.my_event = threading.Event()
 

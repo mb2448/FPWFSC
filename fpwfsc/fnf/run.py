@@ -7,6 +7,7 @@ import hcipy
 from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 from ..common import plotting_funcs as pf
 from ..common import classes as ff_c
@@ -180,4 +181,9 @@ if __name__ == "__main__":
     plotter = pf.LivePlotter()
     camera = "Sim"
     aosystem = "Sim"
-    run(camera, aosystem, config='fpwfsc/fnf/FF_software_sim.ini', configspec='fpwfsc/fnf/FF_software.spec', plotter=plotter)
+
+    script_dir = Path(__file__).parent
+    config_path = script_dir/"FF_software_sim.ini"
+    spec_path   = script_dir/"FF_software.spec"
+    run(camera, aosystem, config=str(config_path),
+                          configspec=str(spec_path))
