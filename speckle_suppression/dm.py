@@ -21,6 +21,137 @@ def amplitudemodel(counts, k_rad, a=0, b=0, c=0):
     else:
         return retval
 
+def remove_waffle(array, threshold=None):
+    """
+    Remove waffle pattern from an array by detecting and subtracting it.
+    
+    This function detects if a waffle pattern exists in the input array
+    and removes it by subtracting the estimated waffle component.
+    
+    Args:
+        array: Input array that may contain a waffle pattern.
+        threshold (float, optional): Minimum amplitude to consider a waffle pattern present.
+                                    If None, any detected pattern will be removed.
+    
+    Returns:
+        numpy.ndarray: Array with waffle pattern removed.
+    """
+    # Convert input to numpy array if it isn't already
+    array = np.asarray(array)
+    
+    # Create row and column indices
+    row_indices, col_indices = np.indices(array.shape)
+    
+    # Generate waffle pattern mask (1s and 0s)
+    waffle_mask = (row_indices + col_indices) % 2
+    
+    # Split array into even and odd cells (according to waffle pattern)
+    even_cells = array[waffle_mask == 1]
+    odd_cells = array[waffle_mask == 0]
+    
+    # Calculate the average value for even and odd cells
+    even_mean = np.mean(even_cells)
+    odd_mean = np.mean(odd_cells)
+    
+    # Calculate the amplitude of the waffle pattern
+    waffle_amplitude = even_mean - odd_mean
+    
+    # If the amplitude is below threshold, return the original array
+    if threshold is not None and abs(waffle_amplitude) < threshold:
+        return array
+    
+    # Create a waffle pattern with the detected amplitude
+    # For even cells: add waffle_amplitude/2, for odd cells: subtract waffle_amplitude/2
+    correction = (waffle_mask - 0.5) * waffle_amplitude
+    
+    # Remove the waffle pattern by subtracting the correction
+    corrected_array = array - correction
+    
+    return corrected_array
+
+def generate_tip_tilt(shape, tilt_x=0, tilt_y=0, flipx=False, flipy=False, dm_rotation=0):
+    """
+    Generates a tip/tilt (linear slope) waveform with specified x and y components.
+    
+    Parameters
+    ----------
+    shape : tuple
+        Shape of the output array (ny, nx)
+    tilt_x : float, optional
+        Amplitude of the tilt in the x-direction (peak-to-valley)
+    tilt_y : float, optional
+        Amplitude of the tilt in the y-direction (peak-to-valley)
+    flipx : bool, optional
+        Whether to flip the x-component of the tip/tilt
+    flipy : bool, optional
+        Whether to flip the y-component of the tip/tilt
+    dm_rotation : float, optional
+        Rotation of the DM about the propagation axis in degrees
+        
+    Returns
+    -------
+    numpy.ndarray
+        Array containing the tip/tilt waveform
+    """
+    # Get array dimensions
+    ny, nx = shape
+    
+    # Create normalized coordinate grids from -0.5 to 0.5
+    x, y = np.meshgrid(
+        np.linspace(-0.5, 0.5, nx),
+        np.linspace(-0.5, 0.5, ny)
+    )
+    
+    # Apply DM rotation to the coordinates
+    x_rot, y_rot = rotateXY(x, y, thetadeg=dm_rotation)
+    
+    # Apply flips if requested
+    fx = -1 if flipx else 1
+    fy = -1 if flipy else 1
+    
+    # Create the tip/tilt surface
+    # Separate x and y components allow for independent control
+    tip_tilt = fx * tilt_x * x_rot + fy * tilt_y * y_rot
+    
+    return tip_tilt
+
+def generate_waffle(n_or_array, amplitude=1):
+    """
+    Generate a waffle pattern where every other cell is 1 or 0.
+    
+    Args:
+        n_or_array: Either an integer n to create an n×n waffle,
+                   or an existing array to use as a template for dimensions.
+        amplitude (float, optional): Value to multiply the pattern by.
+                                   Default is 1, which gives 1s and 0s.
+                                   For example, amplitude=2 gives 2s and 0s.
+    
+    Returns:
+        numpy.ndarray: An array with alternating values in a waffle pattern.
+    """
+    # Determine the dimensions
+    if isinstance(n_or_array, (int, float)):
+        # If n_or_array is a number, create an n×n array
+        n = int(n_or_array)
+        # Create a meshgrid of row and column indices
+        row_indices, col_indices = np.indices((n, n))
+    else:
+        # If n_or_array is an array, use its dimensions
+        template_array = np.asarray(n_or_array)
+        shape = template_array.shape
+        # Create a meshgrid of row and column indices for the given shape
+        row_indices, col_indices = np.indices(shape)
+    
+    # A cell is 1 if the sum of its row and column indices is even
+    # and 0 if the sum is odd
+    waffle = (row_indices + col_indices) % 2
+    
+    # Apply the amplitude
+    if amplitude != 1:
+        waffle = waffle * amplitude
+    
+    return waffle
+
 def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_rotation=0, which="cos"):
     """given an kx and ky wavevector, 
     generates a NxN flatmap that has 

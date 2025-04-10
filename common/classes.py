@@ -171,18 +171,10 @@ class CoronagraphSystemModel:
         #generate the propagator, inherits from the aperture
         self.propagator = hcipy.FraunhoferPropagator(self.Pupil.pupil_grid,
                                                      self.focal_grid)
-        #generate the fourier transform operator
-        #self.fourier_transform = hcipy.make_fourier_transform(self.focal_grid, q=1, fov=1)
 
         #generate the reference aperture
         self.ref_pupil_field = hcipy.Wavefront(self.Pupil.aperture*1,
                                            wavelength=self.wavelength)
-        #compute the FT of the aperture
-        #self.a= self.propagator(self.ref_pupil_field)
-        #compute the reference psf electric field and image
-        #self.ref_psf_efield = self.a.electric_field
-        #self.ref_psf   = self.a.power
-        ##set the current pupil efield to the reference field
         ##copy by value!
         self.pupil_efield = self.ref_pupil_field.copy()
         self.focal_efield = self.generate_psf_efield().copy()

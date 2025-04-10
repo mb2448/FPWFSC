@@ -133,9 +133,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         settings.write(configfile)
 
 if __name__ == "__main__":
-    Camera = hw.NIRC2Alias()
+    #Camera = hw.NIRC2Alias()
     #AOSystem = hw.AOSystemAlias()
-    AOSystem = hw.ClosedAOSystemAlias()
-    #Camera = 'Sim'
-    #AOSystem = 'Sim'
+    #AOSystem = hw.ClosedAOSystemAlias()
+    Camera = 'Sim'
+    AOSystem = 'Sim'
     run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

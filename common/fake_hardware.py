@@ -6,7 +6,8 @@ import os
 import support_functions as sf
 import classes as ff_c
 import astropy.io.fits as pf
-
+sys.path.insert(0, '../speckle_suppression/')
+import dm
 import ipdb
 
 comment = """
@@ -337,7 +338,7 @@ class FakeAODMSystem:
         
         #in the sim, just undoes the microns command from subaru
         phase_DM_acts = dm_commands / self.OpticalModel.wavelength * (2 * np.pi) 
-        print(f"Wavelength = {self.OpticalModel.wavelength}")
+        #print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:
             self.current_dm_shape += dm_commands
@@ -359,6 +360,12 @@ class FakeAODMSystem:
         self.OpticalModel.generate_psf_efield()
 
         return
+    
+    def offset_tiptilt(self, metersx, metersy,
+                             angle=None,
+                             flipx=None,
+                             flipy=None):
+        pass
 
     def make_dm_command(self, microns):
         return microns

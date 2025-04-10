@@ -34,10 +34,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # Initialize threading objects if needed
     if my_deque is None: my_deque = deque()
     if my_event is None: my_event = threading.Event()
-    
+
     # Load configuration
     settings = sf.validate_config(config, configspec)
-    
+
     # Setup instruments
     if camera == 'Sim' and aosystem == 'Sim':
         import fake_hardware as fhw
@@ -47,7 +47,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         Camera = camera
         AOSystem = aosystem
-    
+
     # Create output directory
     outputdir = settings['CAMERA_CALIBRATION']['bgddir']
     os.makedirs(outputdir, exist_ok=True)
@@ -55,14 +55,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # Take default image to get dimensions
     print("Taking default image")
     default_image = Camera.take_image()
-    
+
     # System verification
     print('\n' + '#'*60 + '\n############### System Settings Verification ###############\n' + '#'*60)
     if get_user_input('\nCheck system settings? (i/enter): ', ['i', '']) == 'i':
         print("TODO: XYZ FIX THIS THESE DONT EXIST")
         # Camera.update_parameters()
         # Camera.print_parameters()
-    
+
     # Get number of images for calibration
     print('\n' + '#'*60 + '\n###### Number of images acquired for calibration data ######\n' + '#'*60)
     nb_images = 3
@@ -78,7 +78,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                 print("Invalid value. Using default.")
     except ValueError:
         print("Invalid input. Using default.")
-    
+
     # Define calibration types with their parameters
     calibration_types = [
         {
@@ -100,19 +100,19 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             "filename": "medflatdark.fits"
         }
     ]
-    
+
     # Acquire all calibration data
     calibration_results = {}
-    
+
     for cal_type in calibration_types:
         name = cal_type["name"]
         print(f'\n{"#"*60}\n################### {name} Acquisition ###################\n{"#"*60}\n')
-        
+
         user_choice = get_user_input(
-            f'\nUse default {name.lower()} ({cal_type["default_desc"]}), skip this step, or acquire new data? (d/s/enter): ', 
+            f'\nUse default {name.lower()} ({cal_type["default_desc"]}), skip this step, or acquire new data? (d/s/enter): ',
             ['d', 's', '']
         )
-        
+
         if user_choice == 's':
             print(f'Skipping {name.lower()} acquisition')
             continue  # Skip to the next calibration type
@@ -121,31 +121,31 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             data = cal_type["default_value"]
         else:
             print(f'Acquiring {name.lower()}')
-            
-            if get_user_input(f'\nIs system ready for {name.lower()} acquisition? (i/enter): ', 
+
+            if get_user_input(f'\nIs system ready for {name.lower()} acquisition? (i/enter): ',
                              ['i', '']) == 'i':
                 print("TODO: XYZ FIX THIS THESE DONT EXIST")
                 # Camera.update_parameters()
                 # Camera.print_parameters()
-            
+
             # Acquire and process images
             data_cube = np.zeros([nb_images] + list(default_image.shape))
             for i in range(nb_images):
                 data_cube[i] = Camera.take_image()
             data = np.median(data_cube, 0)
-        
+
         # Save the data
         output_path = os.path.join(outputdir, cal_type["filename"])
         fits.PrimaryHDU(data).writeto(output_path, overwrite=True)
         os.chmod(output_path, 0o644)
         print(f'The {name.lower()} has been saved to: {output_path}')
-        
+
         # Store for later processing
         calibration_results[name.lower()] = data
-    
+
     # Process bad pixel map
     print('\n' + '#'*60 + '\n####################### Bad Pixel Map ######################\n' + '#'*60 + '\n')
-    
+
     flatdark = calibration_results["flat dark"]
     if np.allclose(flatdark, 0):
         badpix = np.copy(flatdark)
@@ -153,14 +153,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         badpix = sf.locate_badpix(flatdark, sigmaclip=3)
         print('Generated bad pixel map from flat dark')
-    
+
     badpix_path = os.path.join(outputdir, 'badpix.fits')
     fits.PrimaryHDU(badpix).writeto(badpix_path, overwrite=True)
     print(f'Bad pixel map saved to: {badpix_path}')
-    
+
     # Process master flat
     print('\n' + '#'*60 + '\n###################### Master Flat Map #####################\n' + '#'*60 + '\n')
-    
+
     flat = calibration_results["flat"]
     if np.allclose(flat, 1):
         masterflat = np.copy(flat)
@@ -168,16 +168,17 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         masterflat = build_master_flat(flat - flatdark, badpix=badpix)
         print('Generated master flat from flat and flat dark')
-    
+
     masterflat_path = os.path.join(outputdir, 'masterflat.fits')
     fits.PrimaryHDU(masterflat).writeto(masterflat_path, overwrite=True)
     print(f'Master flat saved to: {masterflat_path}')
-    
+
     print('\n' + '#'*60 + '\n#################### Return to operation ###################\n' + '#'*60 + '\n')
     print('Do not forget to set up the system properly.')
     return
 
 if __name__ == "__main__":
-    Camera = hw.NIRC2Alias()
-    AOSystem = hw.AOSystemAlias()
+    #Camera = hw.NIRC2Alias()
+    #AOSystem = hw.AOSystemAlias()
+    Camera, AOSystem = 'Sim', 'Sim'
     run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')

@@ -1,9 +1,11 @@
 import sys
-sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
-from guis.fast_and_furious.hardware import NIRC2, KeckAO
-import aosys.xinetics_deformable_mirror as xd
-from aosys.shwfs.shwfs import SHWFS
-
+try:
+    sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
+    from guis.fast_and_furious.hardware import NIRC2, KeckAO
+    import aosys.xinetics_deformable_mirror as xd
+    from aosys.shwfs.shwfs import SHWFS
+except: 
+    ImportError
 class NIRC2Alias:
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
     """
