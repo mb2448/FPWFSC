@@ -4,8 +4,8 @@ from scipy.spatial.distance import pdist
 from scipy.ndimage import median_filter, gaussian_filter
 from skimage.measure import label, regionprops
 import sys
-sys.path.insert(0, '../speckle_suppression')
-import sn_functions as sn_f
+import fpwfsc.common.support_functions as sf
+from fpwfsc.san import sn_functions as sn_f
 import ipdb
 
 import numpy as np
@@ -209,7 +209,7 @@ def find_spots_in_annulus(
     """
     row_c, col_c = center
     max_offset = int(np.ceil(radius + tol))
-    
+
     # Compute subimage bounds (ensure integer slicing)
     rmin = int(max(np.floor(row_c - max_offset), 0))
     rmax = int(min(np.ceil(row_c + max_offset + 1), image.shape[0]))
@@ -252,7 +252,7 @@ def find_spots_in_annulus(
                 refined = sn_f.get_spot_centroid(smooth, window = 20, guess_spot=(x_local, y_local))
                 y_full = refined[1] + rmin  # override with refined coordinates
                 x_full = refined[0] + cmin
-            
+
             brightness = p.max_intensity
             candidates.append(((y_full, x_full), brightness))
 
@@ -302,7 +302,7 @@ def find_square_from_points(points, side_tol=0.15, diag_tol=0.15):
         if is_square(pts, side_tol, diag_tol):
             # Optional: sort points into consistent order (e.g., clockwise from top-left)
             return sort_points_clockwise(pts)
-    
+
     return None
 
 def sort_points_clockwise(pts):

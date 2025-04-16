@@ -1,8 +1,15 @@
+[HITCHHIKER MODE]
+    hitchhike = boolean
+    imagedir = string
+
 [SETPOINT]
     xcen = float
     ycen = float
+    #radius in pixels to search for spots
+    spot search radius (pix) = float(min=0)
+    radius tolerance (pix) = float(min=0)
 
-[SPOTSETTINGS]
+[SPOT SETTINGS]
     amplitude = float
 
 [PID]

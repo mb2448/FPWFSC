@@ -1023,11 +1023,12 @@ def setup_bgd_dict(directory_path):
         
         # Check if file exists
         if not os.path.isfile(file_path):
-            raise FileNotFoundError(f"Required file {filename} not found in {directory_path}")
-        
-        # Open the FITS file and extract data
-        with fits.open(file_path) as hdul:
-            # Assuming the data is in the primary HDU (index 0)
-            data_dict[key] = hdul[0].data
+            print(f"Warning: Required file {filename} not found in {directory_path}. Setting to None.")
+            data_dict[key] = None
+        else:
+            # Open the FITS file and extract data
+            with fits.open(file_path) as hdul:
+                # Assuming the data is in the primary HDU (index 0)
+                data_dict[key] = hdul[0].data
     
     return data_dict

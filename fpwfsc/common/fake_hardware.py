@@ -335,10 +335,10 @@ class FakeAODMSystem:
         #print(f"Wavelength = {self.OpticalModel.wavelength}")
         # Modify existing DM surface
         if modify_existing:
-            # self.current_dm_shape += dm_commands
+            self.current_dm_shape += dm_commands
             self.deformable_mirror.actuators += phase_DM_acts.ravel()
         else:
-            # self.current_dm_shape = dm_commands
+            self.current_dm_shape = dm_commands
             self.deformable_mirror.actuators = phase_DM_acts.ravel()
 
 
