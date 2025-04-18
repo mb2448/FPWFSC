@@ -1,6 +1,7 @@
 import sys
 import numpy as np
 from PyQt5 import QtWidgets, QtGui
+from PyQt5.QtCore import QTimer, Qt
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
 
@@ -60,6 +61,28 @@ class LiveSquarePlotter(QtWidgets.QWidget):
         self.outer_circle = None
         self.inner_circle = None
         
+        # Enable mouse interaction for panning and zooming
+        self.main_plot.setMouseEnabled(x=True, y=True)
+        self.residuals_plot.setMouseEnabled(x=True, y=True)
+
+        # Add variables to track manual view state for both plots
+        self.main_plot_zoom_active = False
+        self.residuals_plot_zoom_active = False
+        self.initial_main_view_set = False
+        self.initial_residuals_view_set = False
+        
+        # Connect signals to detect user interaction with the views
+        self.main_plot.sigRangeChanged.connect(self.main_view_changed)
+        self.residuals_plot.sigRangeChanged.connect(self.residuals_view_changed)
+
+        # Set up a timer for periodic updates
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_plot)
+        self.timer.start(100)  # Update every 100 ms
+
+        # Flag to track if the window has been closed
+        self.closed = False
+        
         # Show the widget
         self.show()
         
@@ -72,11 +95,41 @@ class LiveSquarePlotter(QtWidgets.QWidget):
         positions = [0.0, 0.25, 0.5, 0.75, 1.0]
         self.jet_colormap = ColorMap(pos=positions, color=colors)
         self.img_item.setLookupTable(self.jet_colormap.getLookupTable(0.0, 1.0, 256))
+        
+    def closeEvent(self, event):
+        """Handle window close event - ensures cleanup"""
+        self.closed = True
+        self.timer.stop()
+        event.accept()
+        
+    def close(self):
+        """Explicitly close the widget and stop the timer"""
+        self.closed = True
+        self.timer.stop()
+        super().close()
+
+    # Function to track when user changes the main view
+    def main_view_changed(self, view):
+        self.main_plot_zoom_active = True
+    
+    # Function to track when user changes the residuals view
+    def residuals_view_changed(self, view):
+        self.residuals_plot_zoom_active = True
+    
+    def update_plot(self):
+        """Update the plot periodically"""
+        if not self.closed:
+            # Process events to update the plot and allow interaction
+            QtWidgets.QApplication.processEvents()
 
     def update(self, image, center, side, theta,
-               setpoint=None, points=None, radius=None, tol=None,
-               search_center=None, zoom_factor=2, 
-               cmap='gray', title=None):
+               setpoint=None, points=None, radius=None, radtol=None,
+               centerguess=None, zoom_factor=2.5, 
+               cmap='jet', title=None):
+        """Update the plot with new data"""
+        if self.closed:
+            return
+            
         c_y, c_x = center
         half = side / 2.0
         
@@ -128,77 +181,78 @@ class LiveSquarePlotter(QtWidgets.QWidget):
             self.points_scatter.setData(points[:, 1], points[:, 0])
         
         # Update annulus
-        if radius is not None and tol is not None:
-            annulus_center = search_center if search_center is not None else (c_y, c_x)
+        if radius is not None and radtol is not None:
+            annulus_center = centerguess if centerguess is not None else (c_y, c_x)
             sc_y, sc_x = annulus_center
             if self.outer_circle is None:
-                self.outer_circle = pg.CircleROI([sc_x - radius - tol, sc_y - radius - tol], 
-                                                 [2 * (radius + tol), 2 * (radius + tol)], 
+                self.outer_circle = pg.CircleROI([sc_x - radius - radtol, sc_y - radius - radtol], 
+                                                 [2 * (radius + radtol), 2 * (radius + radtol)], 
                                                  pen=pg.mkPen('c', style=pg.QtCore.Qt.DashLine))
                 self.main_plot.addItem(self.outer_circle)
             else:
-                self.outer_circle.setPos([sc_x - radius - tol, sc_y - radius - tol])
-                self.outer_circle.setSize([2 * (radius + tol), 2 * (radius + tol)])
+                self.outer_circle.setPos([sc_x - radius - radtol, sc_y - radius - radtol])
+                self.outer_circle.setSize([2 * (radius + radtol), 2 * (radius + radtol)])
             
             if self.inner_circle is None:
-                self.inner_circle = pg.CircleROI([sc_x - radius + tol, sc_y - radius + tol], 
-                                                 [2 * (radius - tol), 2 * (radius - tol)], 
+                self.inner_circle = pg.CircleROI([sc_x - radius + radtol, sc_y - radius + radtol], 
+                                                 [2 * (radius - radtol), 2 * (radius - radtol)], 
                                                  pen=pg.mkPen('c', style=pg.QtCore.Qt.DashLine))
                 self.main_plot.addItem(self.inner_circle)
             else:
-                self.inner_circle.setPos([sc_x - radius + tol, sc_y - radius + tol])
-                self.inner_circle.setSize([2 * (radius - tol), 2 * (radius - tol)])
+                self.inner_circle.setPos([sc_x - radius + radtol, sc_y - radius + radtol])
+                self.inner_circle.setSize([2 * (radius - radtol), 2 * (radius - radtol)])
         
-        # Zoom around the square center
-        zoom_half = (side * zoom_factor) / 2
-        self.main_plot.setXRange(c_x - zoom_half, c_x + zoom_half)
-        self.main_plot.setYRange(c_y - zoom_half, c_y + zoom_half)
+        # Only set the main plot view range if this is the first update or user hasn't zoomed/panned
+        if not self.initial_main_view_set or not self.main_plot_zoom_active:
+            zoom_half = (side * zoom_factor) / 2
+            self.main_plot.setXRange(c_x - zoom_half, c_x + zoom_half)
+            self.main_plot.setYRange(c_y - zoom_half, c_y + zoom_half)
+            self.initial_main_view_set = True
         
-        # Update residuals plot
+        # Update residuals plot with actual values
         if len(self.centers_history) > 0 and len(self.setpoints_history) > 0:
-            residuals = []
-
-            for i in range(len(self.centers_history)):
-                center = self.centers_history[i]
-                setpoint = self.setpoints_history[i]
-                res_y = center[0] - setpoint[0]
-                res_x = center[1] - setpoint[1]
-                residuals.append((res_x, res_y))
-
-            x_res = [r[0] for r in residuals]
-            y_res = [r[1] for r in residuals]
-
-            # Plot residuals as a trail
+            # Plot the setpoint as an 'X'
             self.residuals_plot.clear()
-            self.residuals_plot.plot(x_res, y_res, pen=pg.mkPen('b', width=1))
-            self.residuals_plot.plot([x_res[-1]], [y_res[-1]], pen=None, symbol='o', symbolBrush='r', symbolSize=5)
+            self.residuals_plot.plot([current_setpoint[1]], [current_setpoint[0]], pen=None, symbol='x', symbolBrush='g', symbolSize=10)
+            
+            # Plot the actual measured centers
+            x_centers = [c[1] for c in self.centers_history]
+            y_centers = [c[0] for c in self.centers_history]
+            self.residuals_plot.plot(x_centers, y_centers, pen=pg.mkPen('b', width=1), symbol='o', symbolBrush='b', symbolSize=5)
 
             # Set equal aspect ratio
             self.residuals_plot.setAspectLocked(True)
 
-            # Adaptive scaling based on recent residuals
-            window_size = 5
-            recent_residuals = residuals[-window_size:] if len(residuals) > window_size else residuals
-            recent_x = [r[0] for r in recent_residuals]
-            recent_y = [r[1] for r in recent_residuals]
-
-            recent_dists = [np.sqrt(x**2 + y**2) for x, y in zip(recent_x, recent_y)]
-            recent_max_dist = max(recent_dists) if recent_dists else 0
-
-            min_scale = 1.0
-            axis_limit = max(min_scale, recent_max_dist * 1.5)
-
-            self.residuals_plot.setXRange(-axis_limit, axis_limit)
-            self.residuals_plot.setYRange(-axis_limit, axis_limit)
+            # Only set the residuals plot view range if user hasn't manually zoomed/panned
+            if not self.initial_residuals_view_set or not self.residuals_plot_zoom_active:
+                min_x = min(x_centers + [current_setpoint[1]])
+                max_x = max(x_centers + [current_setpoint[1]])
+                min_y = min(y_centers + [current_setpoint[0]])
+                max_y = max(y_centers + [current_setpoint[0]])
+                
+                # Add some padding to the ranges
+                x_padding = max(10, (max_x - min_x) * 0.1)
+                y_padding = max(10, (max_y - min_y) * 0.1)
+                
+                self.residuals_plot.setXRange(min_x - x_padding, max_x + x_padding)
+                self.residuals_plot.setYRange(min_y - y_padding, max_y + y_padding)
+                self.initial_residuals_view_set = True
 
             # Calculate and display the current residual error
-            current_residual_error = np.sqrt(x_res[-1]**2 + y_res[-1]**2)
+            current_residual_error = np.sqrt((x_centers[-1] - current_setpoint[1])**2 + (y_centers[-1] - current_setpoint[0])**2)
             self.residual_label.setText(f"Residual Error: {current_residual_error:.2f} px")
 
-        # Process events to update the plot
-        QtWidgets.QApplication.processEvents()
+        # Process events to update the plot and allow interaction
+        if not self.closed:
+            QtWidgets.QApplication.processEvents()
+        
+    # Method to reset zoom to default for all plots
+    def reset_zoom(self):
+        """Reset zoom to default for all plots - can be connected to a reset button if needed."""
+        self.main_plot_zoom_active = False
+        self.residuals_plot_zoom_active = False
 
     def execute(self):
-        # Execute the application
-        if hasattr(self, 'app'):
+        """Execute the application event loop"""
+        if not self.closed and hasattr(self, 'app'):
             self.app.exec_()

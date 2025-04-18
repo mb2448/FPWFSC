@@ -15,6 +15,93 @@ plt.rcParams.update({
     'legend.fontsize': 6,  # Legend text
     'figure.titlesize': 9  # Figure title
 })
+
+def plot_square_on_image(image, center, side, theta,
+                         points=None,
+                         radius=None, tol=None,
+                         search_center=None,
+                         figsize=(6, 6), cmap='gray', title=None,
+                         zoom_factor=2):
+    """
+    Plot a square over a 2D image using fitted parameters, with optional annulus.
+
+    Parameters:
+        image (2D ndarray): Image to display
+        center (tuple): (y, x) center of the square
+        side (float): Side length of the square
+        theta (float): Rotation angle (radians)
+        points (list of (y, x)): Optional observed points to overlay
+        radius (float): Radius of annular search region (optional)
+        tol (float): Tolerance of annulus (defines thickness, optional)
+        search_center (tuple): (y, x) center of annular search region (optional)
+        figsize (tuple): Size of the plot
+        cmap (str): Colormap for image display
+        title (str): Plot title
+        zoom_factor (float): Size of zoom box relative to square side
+    """
+    c_y, c_x = center
+    half = side / 2.0
+
+    # Define corners in canonical (unrotated) coordinates
+    corners = np.array([
+        [-half, -half],
+        [-half,  half],
+        [ half,  half],
+        [ half, -half],
+        [-half, -half]  # to close the square
+    ])
+
+    # Apply rotation
+    rot = np.array([
+        [np.cos(theta), -np.sin(theta)],
+        [np.sin(theta),  np.cos(theta)]
+    ])
+    rotated = corners @ rot.T
+    square_yx = rotated + [c_y, c_x]
+
+    # Plot image
+    plt.figure(figsize=figsize)
+    plt.imshow(image, cmap=cmap, origin='lower')
+
+    # Draw square
+    plt.plot(square_yx[:, 1], square_yx[:, 0], 'r-', linewidth=2, alpha=0.4)
+
+    # Mark fitted center
+    plt.plot(c_x, c_y, marker='x', color='red', markersize=3, alpha=0.4, zorder=10)
+
+    # Optional: overlay observed points
+    if points:
+        points = np.array(points)
+        plt.plot(points[:, 1], points[:, 0], 'bx', markersize=3)
+
+    # Optional: draw annulus centered on search_center
+    if radius is not None and tol is not None:
+        annulus_center = search_center if search_center is not None else (c_y, c_x)
+        sc_y, sc_x = annulus_center
+
+        outer_circle = Circle((sc_x, sc_y), radius + tol, edgecolor='cyan',
+                              facecolor='none', linestyle='--', linewidth=1.5, alpha=0.3)
+        inner_circle = Circle((sc_x, sc_y), radius - tol, edgecolor='cyan',
+                              facecolor='none', linestyle='--', linewidth=1.5, alpha=0.3)
+        plt.gca().add_patch(outer_circle)
+        plt.gca().add_patch(inner_circle)
+
+    # Zoom around the square center
+    zoom_half = (side * zoom_factor) / 2
+    plt.xlim(c_x - zoom_half, c_x + zoom_half)
+    plt.ylim(c_y - zoom_half, c_y + zoom_half)
+
+    if title:
+        plt.title(title)
+    plt.xlabel("X (col)")
+    plt.ylabel("Y (row)")
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+
+
 class LiveSquarePlotter:
     def __init__(self, initial_setpoint=None, figsize=(6, 6)):
         """

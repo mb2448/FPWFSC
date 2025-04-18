@@ -1,3 +1,5 @@
+#https://github.com/m-lundberg/simple-pid/blob/master/simple_pid/pid.py
+
 def _clamp(value, limits):
     lower, upper = limits
     if value is None:
