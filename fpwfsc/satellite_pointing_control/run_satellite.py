@@ -39,7 +39,7 @@ def apply_waffle(aosystem=None, waffle_amplitude=None):
 
 def remove_waffle(aosystem=None):
     initial_shape = aosystem.get_dm_data()
-    withoutwaffle = remove_waffle(initial_shape)
+    withoutwaffle = dm.remove_waffle(initial_shape)
     aosystem.set_dm_data(withoutwaffle)
     return True
 
