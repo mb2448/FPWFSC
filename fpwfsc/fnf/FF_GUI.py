@@ -13,10 +13,11 @@ from validate import Validator
 import threading
 from pathlib import Path
 
+import FF_plotter_qt as pf
+
 from fpwfsc.fnf import gui_helper as helper
 from fpwfsc.fnf.run import run
-from fpwfsc.common import plotting_funcs as pf
-
+#from fpwfsc.common import plotting_funcs as pf
 def get_instrument_values():
     return {'MODELLING':{'wavelength (m)':'3e-6',
             'aperture':'NIRC2_large_hexagonal_mask'}}
@@ -568,7 +569,7 @@ class ConfigEditorGUI(QWidget):
                 print()
 
             if self.config['LOOP_SETTINGS']['Plot']:
-                self.plotter = pf.LivePlotter()
+                self.plotter = pf.LivePlotter(figsize=(500, 500))
             else:
                 self.plotter = None
             self.my_event = threading.Event()
