@@ -12,7 +12,8 @@ config_info = {
         },
         "imagedir": {
             "help": "Directory path for image files in hitchhiker mode",
-            "expert": True
+            "expert": True,
+            "directory": True
         }
     },
     "EXECUTION": {
@@ -24,11 +25,11 @@ config_info = {
             "help": "Number of iterations for the algorithm",
             "expert": False
         },
-        "xcen": {
+        "x setpoint": {
             "help": "X-coordinate of the setpoint",
             "expert": False
         },
-        "ycen": {
+        "y setpoint": {
             "help": "Y-coordinate of the setpoint",
             "expert": False
         },
@@ -46,19 +47,19 @@ config_info = {
             "help": "Amplitude for waffle pattern",
             "expert": False
         },
-        "tt_gain": {
+        "tip tilt gain": {
             "help": "Gain to convert from pixels to TT_OFFSET commands",
             "expert": True
         },
-        "tt_rot_deg": {
+        "tip tilt angle (deg)": {
             "help": "Rotation angle for tip-tilt in degrees",
             "expert": True
         },
-        "tt_flipx": {
+        "tip tilt flip x": {
             "help": "Flip the X-axis for tip-tilt",
             "expert": True
         },
-        "tt_flipy": {
+        "tip tilt flip y": {
             "help": "Flip the Y-axis for tip-tilt",
             "expert": True
         }
@@ -100,3 +101,7 @@ def get_help_message(section, key):
 def is_expert_option(section, key):
     """Check if a given option is an expert option."""
     return config_info.get(section, {}).get(key, {}).get("expert", False)
+
+def is_directory_option(section, key):
+    """Check if a given option requires a directory selection."""
+    return config_info.get(section, {}).get(key, {}).get("directory", False)

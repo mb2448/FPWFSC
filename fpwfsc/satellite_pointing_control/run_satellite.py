@@ -14,6 +14,8 @@ from PID import PID
 from pathlib import Path
 from satellite_plotter_qt import LiveSquarePlotter
 
+import ipdb
+
 def printstatus(iteration=None,
                 setpoint=None,
                 center=None,
@@ -26,8 +28,20 @@ def printstatus(iteration=None,
     print("Error: ", setpoint-center)
     print("control in pixel coords: ", pixcontrol)
     print("Control in t/t = ", control)
-    print("\n\n")
     return
+
+def apply_waffle(aosystem=None, waffle_amplitude=None):
+    initial_shape = aosystem.get_dm_data()
+    waffle = dm.generate_waffle(initial_shape, amplitude=waffle_amplitude)
+    aosystem.set_dm_data(initial_shape + waffle)
+    print(waffle)
+    return True
+
+def remove_waffle(aosystem=None):
+    initial_shape = aosystem.get_dm_data()
+    withoutwaffle = remove_waffle(initial_shape)
+    aosystem.set_dm_data(withoutwaffle)
+    return True
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None):
@@ -65,11 +79,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     settings = sf.validate_config(config, configspec)
     bgds = sf.setup_bgd_dict(hwsettings['CAMERA_CALIBRATION']['bgddir'])
     
-    n_iter    = settings['EXECUTION']['n_iter']
-    setpointx = settings['EXECUTION']['xcen']
-    setpointy = settings['EXECUTION']['ycen']
+    n_iter    = settings['EXECUTION']['N iterations']
+    setpointx = settings['EXECUTION']['x setpoint']
+    setpointy = settings['EXECUTION']['y setpoint']
     setpoint = np.array([setpointy, setpointx])
-    
     centerguess = setpoint.copy()
     radius      = settings['EXECUTION']['spot search radius (pix)']
     radtol      = settings['EXECUTION']['radius tolerance (pix)']
@@ -79,11 +92,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     Kd = settings['PID']['Kd']
     output_limit = settings['PID']['output_limits']
 
-    waffleamp = settings['AO']['default_waffle_amplitude']
-    tt_gain = settings['AO']['tt_gain']
-    tt_rot_deg  = settings['AO']['tt_rot_deg']
-    tt_flipx    = settings['AO']['tt_flipx']
-    tt_flipy    = settings['AO']['tt_flipy']
+    waffleamp = settings['AO']['waffle mode amplitude']
+    tt_gain = settings['AO']['tip tilt gain']
+    tt_rot_deg  = settings['AO']['tip tilt angle (deg)']
+    tt_flipx    = settings['AO']['tip tilt flip x']
+    tt_flipy    = settings['AO']['tip tilt flip y']
 
     initial_shape = AOSystem.get_dm_data()
     data_nospeck_raw = Camera.take_image()
@@ -95,7 +108,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     data_speck = sf.equalize_image(data_speck_raw, **bgds)
     #this should be about 5 pixels off
     tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = -1000e-9, tilt_y=0,
-                                          dm_rotation=35, flipx=False)
+                                          dm_rotation=tt_rot_deg, flipx=False)
     current_shape = AOSystem.get_dm_data()
     AOSystem.set_dm_data(current_shape + tt_control)
     PIDloop = PID(Kp=Kp, Ki=Ki, Kd = Kd, setpoint=setpoint, output_limits=(-output_limit, output_limit))

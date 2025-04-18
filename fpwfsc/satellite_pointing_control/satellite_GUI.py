@@ -22,6 +22,7 @@ from satellite_plotter_qt import LiveSquarePlotter
 
 # Import the run function from run_satellite.py
 from run_satellite import run as original_run
+from run_satellite import apply_waffle, remove_waffle
 
 class AlgorithmThread(QThread):
     """Thread to run the satellite tracking algorithm with proper stop handling"""
@@ -197,7 +198,7 @@ class SatelliteConfigGUI(QWidget):
     def initUI(self):
         # Set up the main window
         self.setWindowTitle('Satellite Tracking')
-        self.resize(425, 500)  # Reduced height
+        self.resize(325, 500)  # Reduced height
 
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)  # Reduced overall spacing
@@ -237,27 +238,59 @@ class SatelliteConfigGUI(QWidget):
         
         # Set up the button layout with more vertical space before it
         main_layout.addSpacing(10)  # Add space before buttons
-        
-        # Set up the button layout
-        button_layout = QGridLayout()
-        button_layout.setVerticalSpacing(10)  # Increase vertical spacing between buttons
-        button_layout.setHorizontalSpacing(10)  # Increase horizontal spacing between buttons
 
-        # Create and add buttons
+        # Set up the button layout
+        button_layout = QVBoxLayout()  # Change to vertical layout
+        button_layout.setSpacing(10)  # Spacing between button sections
+
+        # Create a horizontal layout for Waffle control buttons with different shading
+        waffle_buttons_layout = QHBoxLayout()
+        waffle_buttons_layout.setSpacing(10)  # Horizontal spacing between buttons
+
+        # Add Waffle and Remove Waffle buttons with different shading
+        add_waffle_button = QPushButton('Add Waffle')
+        add_waffle_button.clicked.connect(self.on_add_waffle)
+        add_waffle_button.setStyleSheet("background-color: #E8E8FF;")  # Light blue shade
+        waffle_buttons_layout.addWidget(add_waffle_button)
+
+        remove_waffle_button = QPushButton('Remove Waffle')
+        remove_waffle_button.clicked.connect(self.on_remove_waffle)
+        remove_waffle_button.setStyleSheet("background-color: #FFE8E8;")  # Light red shade
+        waffle_buttons_layout.addWidget(remove_waffle_button)
+
+        # Add the waffle buttons layout to the main button layout
+        button_layout.addLayout(waffle_buttons_layout)
+
+        # Add spacing between button rows
+        button_layout.addSpacing(5)
+
+        # Create a horizontal layout for Save and Load buttons
+        config_buttons_layout = QHBoxLayout()
+        config_buttons_layout.setSpacing(10)  # Horizontal spacing between buttons
+
+        # Add Save and Load buttons
+        save_button = QPushButton('Save configuration')
+        save_button.clicked.connect(self.save_config)
+        config_buttons_layout.addWidget(save_button)
+
+        load_config_button = QPushButton('Load configuration')
+        load_config_button.clicked.connect(lambda: self.load_config(None))
+        config_buttons_layout.addWidget(load_config_button)
+
+        # Add this horizontal layout to the main button layout
+        button_layout.addLayout(config_buttons_layout)
+
+        # Add spacing between button rows
+        button_layout.addSpacing(5)
+
+        # Add Run button at the bottom
         self.run_stop_button = QPushButton('Run')
         self.run_stop_button.setFont(QFont('Arial', 10, QFont.Bold))
         self.run_stop_button.clicked.connect(self.toggle_run_stop)
         self.run_stop_button.setStyleSheet("background-color: green; color: white;")
-        button_layout.addWidget(self.run_stop_button, 0, 0, 1, 2)  # Make Run button span two columns
+        button_layout.addWidget(self.run_stop_button)  # Run button at the bottom
 
-        save_button = QPushButton('Save configuration')
-        save_button.clicked.connect(self.save_config)
-        button_layout.addWidget(save_button, 1, 0)
-
-        load_config_button = QPushButton('Load configuration')
-        load_config_button.clicked.connect(lambda: self.load_config(None))
-        button_layout.addWidget(load_config_button, 1, 1)
-
+        # Add the entire button layout to the main layout
         main_layout.addLayout(button_layout)
 
         # Add timer to check thread status
@@ -335,6 +368,51 @@ class SatelliteConfigGUI(QWidget):
                     self._stopping = False
                     self.cleanup_resources()
     
+    def on_add_waffle(self):
+        """
+        Handler for the Add Waffle button.
+        This will apply a waffle pattern to the DM using the amplitude from the config.
+        """
+        # First update config from GUI to ensure we have the latest values
+        self.update_config_from_gui()
+        
+        # Get the waffle amplitude from the config
+        try:
+            # Get the waffle amplitude from the AO section
+            waffle_amplitude = float(self.config['AO']['waffle mode amplitude'])
+            
+            # Apply the waffle pattern (function already imported at top of file)
+            success = apply_waffle(aosystem=self.aosystem, waffle_amplitude=waffle_amplitude)
+            
+            if success:
+                print(f"Successfully applied waffle pattern with amplitude {waffle_amplitude}")
+            else:
+                print("Failed to apply waffle pattern")
+                
+        except KeyError:
+            print("Error: 'waffle mode amplitude' not found in config")
+        except ValueError as e:
+            print(f"Error parsing waffle amplitude: {e}")
+        except Exception as e:
+            print(f"Unexpected error applying waffle: {e}")
+    
+    def on_remove_waffle(self):
+        """
+        Handler for the Remove Waffle button.
+        This will remove the waffle pattern from the DM.
+        """
+        try:
+            # Remove the waffle pattern (function already imported at top of file)
+            success = remove_waffle(aosystem=self.aosystem)
+            
+            if success:
+                print("Successfully removed waffle pattern")
+            else:
+                print("Failed to remove waffle pattern")
+                
+        except Exception as e:
+            print(f"Unexpected error removing waffle: {e}")
+
     def check_if_force_terminate(self):
         """Check if we need to force terminate the thread"""
         if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
@@ -448,50 +526,79 @@ class SatelliteConfigGUI(QWidget):
             self.config = new_config
             self.update_gui_from_config()
             print(f"Configuration loaded successfully from {file_name}")
+        ####
         except (IOError, ConfigObjError) as e:
-            print(f"Error loading configuration: {e}")
-            if initial_load:
-                # If there's an error loading the initial configuration, 
-                # create a basic config based on the satellite_config.ini from the documents
-                print("Error loading default configuration. Creating basic config.")
-                self.config = ConfigObj(configspec=self.spec_file)
-                
-                # Create sections and add default values from satellite_config.ini
-                self.config['HITCHHIKER MODE'] = {
-                    'hitchhike': 'False',
-                    'imagedir': '/nirc2/fitsfiles'
-                }
-                
-                self.config['EXECUTION'] = {
-                    'plot': 'True',
-                    'n_iter': '1000',
-                    'xcen': '330',
-                    'ycen': '426',
-                    'spot search radius (pix)': '60',
-                    'radius tolerance (pix)': '20'
-                }
-                
-                self.config['AO'] = {
-                    'default_waffle_amplitude': '150e-9',
-                    'tt_gain': '-250e-9',
-                    'tt_rot_deg': '35',
-                    'tt_flipx': 'False',
-                    'tt_flipy': 'False'
-                }
-                
-                self.config['PID'] = {
-                    'Kp': '0.5',
-                    'Ki': '0.1',
-                    'Kd': '0.0',
-                    'output_limits': '3'
-                }
-                
-                # Validate the default config
-                validator = Validator()
-                self.config.validate(validator, preserve_errors=True)
-                
-                self.update_gui_from_config()
+         print(f"Error loading configuration: {e}")
+         if initial_load:
+             # If there's an error loading the initial configuration, 
+             # create a basic config based on the defaults in the spec file
+             print("Error loading default configuration. Creating config from spec file.")
+             try:
+                 # Create a new config with the spec file
+                 self.config = ConfigObj(configspec=self.spec_file)
 
+                 # Apply defaults from the spec file
+                 validator = Validator()
+                 result = self.config.validate(validator, copy=True)
+
+                 if result is not True:
+                     print("Warning: Some validation errors occurred with defaults")
+                     for section_list, key, error in flatten_errors(self.config, result):
+                         if key is not None:
+                             section_str = '.'.join(section_list)
+                             if error is False:
+                                 print(f"Missing value for '{section_str}.{key}'")
+                             else:
+                                 print(f"Invalid value for '{section_str}.{key}': {error}")
+                         else:
+                             print(f"Missing section: {'.'.join(section_list)}")
+
+                 print("Created configuration using defaults from spec file")
+             except Exception as ex:
+                 print(f"Error creating config from spec file: {ex}")
+                 # Create a minimal fallback configuration if spec file processing fails
+                 self.config = ConfigObj(configspec=self.spec_file)
+
+                 # Add minimal required sections and values
+                 self.config['HITCHHIKER MODE'] = {
+                     'hitchhike': 'False',
+                     'imagedir': '/'
+                 }
+
+                 self.config['EXECUTION'] = {
+                     'plot': 'True',
+                     'N iterations': '100',
+                     'x setpoint': '512.0',
+                     'y setpoint': '512.0',
+                     'spot search radius (pix)': '60',
+                     'radius tolerance (pix)': '20'
+                 }
+
+                 self.config['AO'] = {
+                     'waffle mode amplitude': '150e-9',
+                     'tip tilt gain': '-250e-9',
+                     'tip tilt angle (deg)': '0',
+                     'tip tilt flip x': 'False',
+                     'tip tilt flip y': 'False'
+                 }
+
+                 self.config['PID'] = {
+                     'Kp': '0.5',
+                     'Ki': '0.1',
+                     'Kd': '0.0',
+                     'output_limits': '3'
+                 }
+
+                 # Validate the minimal config
+                 validator = Validator()
+                 self.config.validate(validator, preserve_errors=True)
+
+                 print("Created minimal fallback configuration")
+
+             self.update_gui_from_config() 
+    
+    
+    ####
     def create_widgets(self):
         """Create widgets for each configuration section"""
         # Clear existing widgets
@@ -573,29 +680,68 @@ class SatelliteConfigGUI(QWidget):
         input_widget.setToolTip(tooltip)
 
         return widget
-
+    
     def create_input_widget(self, section, key, value):
         """Create an appropriate input widget based on the configuration specification"""
         # Get the spec for this key
         spec = self.get_spec_for_key(f"{section}.{key}")
 
-        if spec and 'boolean' in spec:
+        if helper.is_directory_option(section, key):
+            # Directory selection - create a widget with a text field and browse button
+            widget = QWidget()
+            layout = QHBoxLayout(widget)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(2)
+
+            # Text field for the directory path
+            text_field = QLineEdit(str(value))
+            text_field.setFixedHeight(20)
+
+            # Browse button
+            browse_button = QPushButton("...")
+            browse_button.setFixedWidth(30)
+            browse_button.setFixedHeight(20)
+
+            # Connect browse button to directory selection dialog
+            def browse_directory():
+                directory = QFileDialog.getExistingDirectory(
+                    None, "Select Directory", text_field.text(),
+                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                )
+                if directory:
+                    text_field.setText(directory)
+
+            browse_button.clicked.connect(browse_directory)
+
+            # Add widgets to layout
+            layout.addWidget(text_field, 1)  # Text field takes most of the space
+            layout.addWidget(browse_button, 0)  # Browse button takes minimal space
+
+            # Save reference to text field for getting/setting value
+            widget.text_field = text_field
+
+            return widget
+
+        elif spec and 'boolean' in spec:
             # Boolean values get dropdown
             input_widget = QComboBox()
             input_widget.addItems(['True', 'False'])
             input_widget.setCurrentText(str(value))
+            input_widget.setFixedHeight(20)
+            return input_widget
         elif spec and 'option(' in spec:
             # Options get dropdown
             input_widget = QComboBox()
             options = spec.split('option(')[1].split(')')[0].replace("'", "").split(',')
             input_widget.addItems([opt.strip() for opt in options])
             input_widget.setCurrentText(str(value).strip())
+            input_widget.setFixedHeight(20)
+            return input_widget
         else:
             # Everything else gets a text field
             input_widget = QLineEdit(str(value))
-
-        input_widget.setFixedHeight(20)
-        return input_widget
+            input_widget.setFixedHeight(20)
+            return input_widget
         
     def get_spec_for_key(self, key):
         """Get the specification for a given key from the config spec"""
@@ -666,8 +812,25 @@ class SatelliteConfigGUI(QWidget):
             return widget.text()
         elif isinstance(widget, QComboBox):
             return widget.currentText()
+        elif hasattr(widget, 'text_field') and isinstance(widget.text_field, QLineEdit):
+            # This is our directory selection widget
+            return widget.text_field.text()
         else:
-            return str(widget.text())  # Fallback for any other widget types
+            return str(widget.text())  # Fallback for any other widget types    
+
+    def set_widget_value(self, widget, value):
+        """Set the value of an input widget"""
+        if isinstance(widget, QLineEdit):
+            widget.setText(str(value))
+        elif isinstance(widget, QComboBox):
+            index = widget.findText(str(value))
+            if index >= 0:
+                widget.setCurrentIndex(index)
+            else:
+                widget.setCurrentText(str(value))
+        elif hasattr(widget, 'text_field') and isinstance(widget.text_field, QLineEdit):
+            # This is our directory selection widget
+            widget.text_field.setText(str(value))
 
     def update_gui_from_config(self):
         """Update GUI widgets from the configuration"""
@@ -722,17 +885,6 @@ class SatelliteConfigGUI(QWidget):
                         key = label.text()
                         if key in config_section:
                             self.set_widget_value(input_widget, config_section[key])
-
-    def set_widget_value(self, widget, value):
-        """Set the value of an input widget"""
-        if isinstance(widget, QLineEdit):
-            widget.setText(str(value))
-        elif isinstance(widget, QComboBox):
-            index = widget.findText(str(value))
-            if index >= 0:
-                widget.setCurrentIndex(index)
-            else:
-                widget.setCurrentText(str(value))
 
     def run_config(self):
         """Run the satellite tracking algorithm with the current configuration"""

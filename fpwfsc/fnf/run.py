@@ -166,7 +166,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                                mas_pix, wavelength,
                                                Aperture.pupil_diameter)
         print('Strehl:', SRA_measurements[i], ";  VAR: ", VAR_measurements[i])
-        if plotter is not None and i % 1 == 0:  # Update every other iteration
+        if plotter is not None:
             plotter.update(Niter=Niter,
                                 data=FnF.previous_image,
                                 pupil_wf=phase_DM,

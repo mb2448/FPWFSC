@@ -94,11 +94,13 @@ config_info = {
     },
     "FF_SETTINGS": {
         "xcen": {
-            "help": "The x position of the target psf, in instrument coordinates (eg, pixel 350)",
+            "help": """The x position of the target psf, in instrument coordinates (eg, pixel 350).
+                        does not need to be accurate to more than a few pixels.""",
             "expert": False
         },
         "ycen": {
-            "help": "The x position of the target psf, in instrument coordinates (eg, pixel 350)",
+            "help": """The x position of the target psf, in instrument coordinates (eg, pixel 350).
+                        does not need to be accurate to more than a few pixels.""",
             "expert": False
         },
         "Apply smooth filter": {
@@ -121,6 +123,7 @@ config_info = {
     "IO": {
         "save path": {
             "help": "Path to save output files",
+            "directory":True,
             "expert": False
         },
         "plot dm command": {
@@ -171,6 +174,10 @@ def get_help_message(section, key):
 def is_expert_option(section, key):
     """Check if a given option is an expert option."""
     return config_info.get(section, {}).get(key, {}).get("expert", False)
+
+def is_directory_option(section, key):
+    """Check if a given option requires a directory selection."""
+    return config_info.get(section, {}).get(key, {}).get("directory", False)
 
 #def get_expert_options(section):
 #    """Get a list of expert options for a given section."""

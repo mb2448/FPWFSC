@@ -397,9 +397,70 @@ class ConfigEditorGUI(QWidget):
         input_widget.setToolTip(tooltip)
 
         return widget
+    ###
+    #def create_input_widget(self, section, key, value):
+    #    # Create an appropriate input widget based on the configuration specification
+    #    spec = self.get_spec_for_key(f"{section}.{key}")
 
+    #    if spec:
+    #        if 'option(' in spec:
+    #            input_widget = QComboBox()
+    #            options = spec.split('option(')[1].split(')')[0].replace("'", "").split(',')
+    #            input_widget.addItems([opt.strip() for opt in options])
+    #            input_widget.setCurrentText(str(value).strip())
+    #        elif 'boolean' in spec:
+    #            input_widget = QComboBox()
+    #            input_widget.addItems(['True', 'False'])
+    #            input_widget.setCurrentText(str(value))
+    #        else:
+    #            input_widget = QLineEdit(str(value))
+    #    else:
+    #        input_widget = QLineEdit(str(value))
+
+    #    #input_widget.setMinimumHeight(20)  # Ensure minimum height for all input widgets
+    #    input_widget.setFixedHeight(20)  # Ensure minimum 20height for all input widgets
+    #    return input_widget
+    ###
     def create_input_widget(self, section, key, value):
         # Create an appropriate input widget based on the configuration specification
+        # Check if this is a directory option
+        if helper.is_directory_option(section, key):
+            # Directory selection - create a widget with a text field and browse button
+            widget = QWidget()
+            layout = QHBoxLayout(widget)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(2)
+
+            # Text field for the directory path
+            text_field = QLineEdit(str(value))
+            text_field.setFixedHeight(20)
+
+            # Browse button
+            browse_button = QPushButton("...")
+            browse_button.setFixedWidth(30)
+            browse_button.setFixedHeight(20)
+
+            # Connect browse button to directory selection dialog
+            def browse_directory():
+                directory = QFileDialog.getExistingDirectory(
+                    self, "Select Directory", text_field.text(),
+                    QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
+                )
+                if directory:
+                    text_field.setText(directory)
+
+            browse_button.clicked.connect(browse_directory)
+
+            # Add widgets to layout
+            layout.addWidget(text_field, 1)  # Text field takes most of the space
+            layout.addWidget(browse_button, 0)  # Browse button takes minimal space
+
+            # Save reference to text field for getting/setting value
+            widget.text_field = text_field
+
+            return widget
+
+        # For non-directory options, use the original method
         spec = self.get_spec_for_key(f"{section}.{key}")
 
         if spec:
@@ -417,10 +478,9 @@ class ConfigEditorGUI(QWidget):
         else:
             input_widget = QLineEdit(str(value))
 
-        #input_widget.setMinimumHeight(20)  # Ensure minimum height for all input widgets
-        input_widget.setFixedHeight(20)  # Ensure minimum 20height for all input widgets
+        input_widget.setFixedHeight(20)  # Ensure minimum height for all input widgets
         return input_widget
-
+    
     def get_spec_for_key(self, key):
         # Get the specification for a given key from the config spec
         keys = key.split('.')
@@ -516,13 +576,31 @@ class ConfigEditorGUI(QWidget):
                             config_section[key] = value
 
     def get_widget_value(self, widget):
+        """Get the value from a widget"""
         if isinstance(widget, QLineEdit):
             return widget.text()
         elif isinstance(widget, QComboBox):
             return widget.currentText()
+        elif hasattr(widget, 'text_field') and isinstance(widget.text_field, QLineEdit):
+            # This is our directory selection widget
+            return widget.text_field.text()
         else:
             return str(widget.text())  # Fallback for any other widget types
-
+    
+    def set_widget_value(self, widget, value):
+        """Set the value of an input widget"""
+        if isinstance(widget, QLineEdit):
+            widget.setText(str(value))
+        elif isinstance(widget, QComboBox):
+            index = widget.findText(str(value))
+            if index >= 0:
+                widget.setCurrentIndex(index)
+            else:
+                widget.setCurrentText(str(value))
+        elif hasattr(widget, 'text_field') and isinstance(widget.text_field, QLineEdit):
+            # This is our directory selection widget
+            widget.text_field.setText(str(value))
+    
     def save_centroids(self):
         # Placeholder function for saving centroids
         file_name, _ = QFileDialog.getSaveFileName(self, "Save Centroids", "", "All Files (*)")
@@ -634,16 +712,6 @@ class ConfigEditorGUI(QWidget):
                         if key in config_section:
                             self.set_widget_value(input_widget, config_section[key])
 
-    def set_widget_value(self, widget, value):
-        # Set the value of an input widget
-        if isinstance(widget, QLineEdit):
-            widget.setText(str(value))
-        elif isinstance(widget, QComboBox):
-            index = widget.findText(str(value))
-            if index >= 0:
-                widget.setCurrentIndex(index)
-            else:
-                widget.setCurrentText(str(value))
 
 # Main execution block
 if __name__ == '__main__':

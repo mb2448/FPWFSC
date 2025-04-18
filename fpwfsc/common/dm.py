@@ -24,51 +24,48 @@ def amplitudemodel(counts, k_rad, a=0, b=0, c=0):
 
 def remove_waffle(array, threshold=None):
     """
-    Remove waffle pattern from an array by detecting and subtracting it.
+    Remove a waffle pattern from an array.
     
-    This function detects if a waffle pattern exists in the input array
-    and removes it by subtracting the estimated waffle component.
+    This function removes the waffle component from an array by detecting
+    the alternating checkerboard pattern. Works with waffle patterns generated
+    by the improved generate_waffle function.
     
     Args:
-        array: Input array that may contain a waffle pattern.
+        array: Input array that may contain a waffle pattern
         threshold (float, optional): Minimum amplitude to consider a waffle pattern present.
-                                    If None, any detected pattern will be removed.
+                                     If None, any detected pattern will be removed.
     
     Returns:
-        numpy.ndarray: Array with waffle pattern removed.
+        numpy.ndarray: Array with waffle pattern removed
     """
+    import numpy as np
+    
     # Convert input to numpy array if it isn't already
     array = np.asarray(array)
     
-    # Create row and column indices
+    # Create the same checkerboard pattern used in generate_waffle
     row_indices, col_indices = np.indices(array.shape)
+    checkerboard = (row_indices + col_indices) % 2
+    normalized_pattern = checkerboard - 0.5  # Values of -0.5 and +0.5
     
-    # Generate waffle pattern mask (1s and 0s)
-    waffle_mask = (row_indices + col_indices) % 2
+    # Calculate the dot product to find how much of the waffle pattern exists
+    dot_product = np.sum(array * normalized_pattern)
     
-    # Split array into even and odd cells (according to waffle pattern)
-    even_cells = array[waffle_mask == 1]
-    odd_cells = array[waffle_mask == 0]
+    # Calculate the total squared magnitude of the normalized pattern
+    pattern_magnitude = np.sum(normalized_pattern * normalized_pattern)
     
-    # Calculate the average value for even and odd cells
-    even_mean = np.mean(even_cells)
-    odd_mean = np.mean(odd_cells)
-    
-    # Calculate the amplitude of the waffle pattern
-    waffle_amplitude = even_mean - odd_mean
+    # Calculate the amplitude of the waffle component
+    waffle_amplitude = dot_product / pattern_magnitude
     
     # If the amplitude is below threshold, return the original array
     if threshold is not None and abs(waffle_amplitude) < threshold:
         return array
     
-    # Create a waffle pattern with the detected amplitude
-    # For even cells: add waffle_amplitude/2, for odd cells: subtract waffle_amplitude/2
-    correction = (waffle_mask - 0.5) * waffle_amplitude
+    # Subtract the detected waffle component
+    detected_waffle = waffle_amplitude * normalized_pattern
+    result = array - detected_waffle
     
-    # Remove the waffle pattern by subtracting the correction
-    corrected_array = array - correction
-    
-    return corrected_array
+    return result
 
 def generate_tip_tilt(shape, tilt_x=0, tilt_y=0, flipx=False, flipy=False, dm_rotation=0):
     """
@@ -118,18 +115,20 @@ def generate_tip_tilt(shape, tilt_x=0, tilt_y=0, flipx=False, flipy=False, dm_ro
 
 def generate_waffle(n_or_array, amplitude=1):
     """
-    Generate a waffle pattern where every other cell is 1 or 0.
+    Generate a waffle pattern where alternate cells have +amplitude/2 and -amplitude/2.
     
     Args:
         n_or_array: Either an integer n to create an n×n waffle,
                    or an existing array to use as a template for dimensions.
-        amplitude (float, optional): Value to multiply the pattern by.
-                                   Default is 1, which gives 1s and 0s.
-                                   For example, amplitude=2 gives 2s and 0s.
+        amplitude (float, optional): Peak-to-valley amplitude of the pattern.
+                                   Default is 1, which gives +0.5 and -0.5.
+                                   For example, amplitude=2 gives +1 and -1.
     
     Returns:
         numpy.ndarray: An array with alternating values in a waffle pattern.
     """
+    import numpy as np
+    
     # Determine the dimensions
     if isinstance(n_or_array, (int, float)):
         # If n_or_array is a number, create an n×n array
@@ -143,13 +142,11 @@ def generate_waffle(n_or_array, amplitude=1):
         # Create a meshgrid of row and column indices for the given shape
         row_indices, col_indices = np.indices(shape)
     
-    # A cell is 1 if the sum of its row and column indices is even
-    # and 0 if the sum is odd
-    waffle = (row_indices + col_indices) % 2
+    # Create checkerboard pattern (0s and 1s)
+    checkerboard = (row_indices + col_indices) % 2
     
-    # Apply the amplitude
-    if amplitude != 1:
-        waffle = waffle * amplitude
+    # Convert to alternating -0.5 and +0.5 scaled by amplitude
+    waffle = (checkerboard - 0.5) * amplitude
     
     return waffle
 
