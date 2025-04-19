@@ -8,13 +8,21 @@ config_info = {
     "HITCHHIKER MODE": {
         "hitchhike": {
             "help": "Enable hitchhiker mode to look for files in a directory",
-            "expert": True
+            "expert": False
         },
         "imagedir": {
             "help": "Directory path for image files in hitchhiker mode",
-            "expert": True,
+            "expert": False,
             "directory": True
-        }
+        },
+        "poll interval": {
+            "help": "How often to check the directory for new files",
+            "expert": True
+        },
+        "timeout": {
+            "help": "loop will exit if a file does not appear in this timeframe",
+            "expert": True
+        },
     },
     "EXECUTION": {
         "plot": {

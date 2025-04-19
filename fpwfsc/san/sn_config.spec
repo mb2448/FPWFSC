@@ -64,6 +64,7 @@
         field_center_x       = integer(min=0)
         field_center_y       = integer(min=0)
         bad_pixel_mask       = string_or_none
+        output_directory     = string_or_none
 
     [[AO_PARAMS]]
         modebasis               = option_or_none('zernike', 'pixel', 'disk_harmonics', 'fourier')

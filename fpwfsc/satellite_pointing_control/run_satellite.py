@@ -9,7 +9,6 @@ from fpwfsc.common import fake_hardware as fhw
 import fpwfsc.common.support_functions as sf
 import fpwfsc.common.dm as dm
 
-import numpy as np
 from PID import PID
 from pathlib import Path
 from satellite_plotter_qt import LiveSquarePlotter
@@ -53,6 +52,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     
     if camera == 'Sim' and aosystem == 'Sim':
         print("Using Simulator Mode")
+        simmode = True
         script_dir = Path(__file__).parent.absolute()
         hwconfig_path = script_dir.parent / "san" / "sn_config.ini"
         hwspec_path = script_dir.parent / "san" / "sn_config.spec"
@@ -75,6 +75,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         Camera = camera
         AOSystem = aosystem
+        simmode = False
     
     settings = sf.validate_config(config, configspec)
     bgds = sf.setup_bgd_dict(hwsettings['CAMERA_CALIBRATION']['bgddir'])
@@ -98,19 +99,24 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     tt_flipx    = settings['AO']['tip tilt flip x']
     tt_flipy    = settings['AO']['tip tilt flip y']
 
-    initial_shape = AOSystem.get_dm_data()
-    data_nospeck_raw = Camera.take_image()
-    data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
-
-    waffle = dm.generate_waffle(initial_shape, amplitude = waffleamp)
-    AOSystem.set_dm_data(initial_shape + waffle)
-    data_speck_raw = Camera.take_image()
-    data_speck = sf.equalize_image(data_speck_raw, **bgds)
-    #this should be about 5 pixels off
-    tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = -1000e-9, tilt_y=0,
-                                          dm_rotation=tt_rot_deg, flipx=False)
-    current_shape = AOSystem.get_dm_data()
-    AOSystem.set_dm_data(current_shape + tt_control)
+    if settings['HITCHHIKER MODE']['hitchhike']:
+        path_to_fits = settings['HITCHHIKER MODE']['imagedir']
+        Hitch = fhw.Hitchhiker(imagedir=path_to_fits,
+                               poll_interval=settings['HITCHHIKER MODE']['poll interval'],
+                               timeout=settings['HITCHHIKER MODE']['timeout'])
+                            
+    if simmode: 
+        #add initial speckle spots and 
+        initial_shape = AOSystem.get_dm_data()
+        waffle = dm.generate_waffle(initial_shape, amplitude = waffleamp)
+        AOSystem.set_dm_data(initial_shape + waffle)
+    
+        #this should be about 5 pixels off
+        tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = -1000e-9, tilt_y=0,
+                                              dm_rotation=tt_rot_deg, flipx=False)
+        current_shape = AOSystem.get_dm_data()
+        AOSystem.set_dm_data(current_shape + tt_control)
+    
     PIDloop = PID(Kp=Kp, Ki=Ki, Kd = Kd, setpoint=setpoint, output_limits=(-output_limit, output_limit))
     current_shape = AOSystem.get_dm_data()
     for i in range(n_iter):
@@ -118,10 +124,21 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         if my_event is not None and my_event.is_set():
             print('Stop event detected, stopping loop')
             break
-        #drift = dm.generate_tip_tilt(initial_shape.shape, tilt_x = 4*250e-9, tilt_y=400e-9,
-        #                                  dm_rotation=35, flipx=False)
+        #drift = dm.generate_tip_tilt(initial_shape.shape, tilt_x = i*250e-9, tilt_y=400e-9,
+        #                                  dm_rotation=tt_rot_deg, flipx=False)
         current_shape = AOSystem.get_dm_data()
-        data_speck_raw = Camera.take_image()
+        if settings['HITCHHIKER MODE']['hitchhike']:
+            if simmode:
+                #need to generate an image in the first place
+                _ = Camera.take_image()
+            try:
+                data_speck_raw = Hitch.wait_for_next_image()
+            except fhw.HitchhikerTimeoutError:
+                print("Timeout waiting for image - exiting loop")
+                break
+        else: 
+            data_speck_raw = Camera.take_image()
+        
         data_speck = sf.equalize_image(data_speck_raw, **bgds)
         try:
             points = satfuncs.find_spots_in_annulus(data_speck, centerguess, radius, tol=radtol,

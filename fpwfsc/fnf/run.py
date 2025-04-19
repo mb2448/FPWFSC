@@ -131,15 +131,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #MAIN LOOP SETUP AND RUNNING
     #----------------------------------------------------------------------
 
-    RMS_measurements = np.zeros(Niter)
     SRA_measurements = np.zeros(Niter)
     VAR_measurements = np.zeros(Niter)
 
-    RMS_measurements[RMS_measurements==0] = np.nan
     SRA_measurements[SRA_measurements==0] = np.nan
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
-
 
     for i in np.arange(Niter):
         #The next two lines stop it if the user presses stop in the gui

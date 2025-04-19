@@ -2,7 +2,9 @@ import hcipy
 import numpy as np
 import sys
 import os
+import time
 import astropy.io.fits as pf
+from pathlib import Path
 
 from . import support_functions as sf
 from . import classes as ff_c
@@ -84,6 +86,101 @@ def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
 
     return bad_pixel_mask
 
+class HitchhikerTimeoutError(Exception):
+    """Raised when Hitchhiker times out waiting for a new image."""
+    pass
+
+
+class Hitchhiker:
+    """
+    Watches a directory for new FITS files and loads them once they appear fully written.
+    Assumes all files will match the size of the first complete file.
+
+    Args:
+        imagedir (str or Path): Directory to monitor for incoming FITS files.
+        poll_interval (float): Time (in seconds) between file system checks.
+        timeout (float): Maximum time (in seconds) to wait for a new file.
+    """
+
+    def __init__(self, imagedir=None, poll_interval=0.5, timeout=20):
+        self.watch_dir = Path(imagedir)
+        self.poll_interval = poll_interval
+        self.timeout = timeout
+        self.suffixes = ('.fits', '.fit')
+        self.seen_files = set()
+        self.reference_size = None
+
+        if not self.watch_dir.exists():
+            raise FileNotFoundError(f"Directory {self.watch_dir} does not exist.")
+
+    def wait_for_next_image(self, timeout=None):
+        """
+        Waits for the next complete FITS file to appear in the watch directory.
+
+        Args:
+            timeout (float or None): Override the default timeout set at initialization.
+
+        Returns:
+            numpy.ndarray: Image data from the FITS file.
+
+        Raises:
+            HitchhikerTimeoutError: If no file is found within the timeout period.
+        """
+        timeout = timeout or self.timeout
+        start_time = time.time()
+
+        while True:
+            new_files = sorted([
+                f for f in self.watch_dir.iterdir()
+                if f.suffix.lower() in self.suffixes and f not in self.seen_files
+            ], key=os.path.getmtime)
+
+            for f in new_files:
+                size = f.stat().st_size
+                if size == 0:
+                    continue
+
+                if self.reference_size is None:
+                    if self._is_fully_written(f):
+                        self.reference_size = f.stat().st_size
+                        self.seen_files.add(f)
+                        return self._read_fits(f)
+                    else:
+                        continue
+
+                if size == self.reference_size:
+                    self.seen_files.add(f)
+                    return self._read_fits(f)
+                else:
+                    print(f"⚠️  File {f.name} has size {size}, expected {self.reference_size}. Trying to open anyway...")
+                    try:
+                        self.seen_files.add(f)
+                        return self._read_fits(f)
+                    except Exception as e:
+                        print(f"Could not read {f.name}: {e}")
+                        continue
+
+            if timeout and (time.time() - start_time) > timeout:
+                raise HitchhikerTimeoutError("No valid FITS file found within timeout.")
+
+            time.sleep(self.poll_interval)
+
+    def _is_fully_written(self, filepath):
+        """Check if a file has stopped growing, to confirm it's finished writing."""
+        try:
+            size1 = filepath.stat().st_size
+            time.sleep(0.2)
+            size2 = filepath.stat().st_size
+            return size1 == size2 and size1 > 0
+        except FileNotFoundError:
+            return False
+
+    def _read_fits(self, filepath):
+        """Reads and returns the primary HDU data from a FITS file."""
+        with pf.open(filepath, ignore_missing_end=True, do_not_scale_image_data=True) as hdul:
+            return hdul[0].data
+
+
 class FakeCoronagraphOpticalSystem:
     """A helper class to build a coronagraph from a configuration file"""
     def __new__(self, include_fpm=True, **optical_params):
@@ -150,22 +247,22 @@ class FakeDetector:
         exposure time in seconds
     optical system - classes.py SystemModel
     """
-
     def __init__(self,
-                 flux = None,
-                 read_noise=0,
-                 dark_current_rate=0,
-                 flat_field=0,
-                 bad_pixel_mask=None,
-                 bias_offset=0,
-                 include_photon_noise=True,
-                 exptime=None,
-                 xsize = None,
-                 ysize = None,
-                 field_center_x = None,
-                 field_center_y = None,
-                 rotation_angle_deg = None, #not yet implemented
-                 opticalsystem=None):
+             flux = None,
+             read_noise=0,
+             dark_current_rate=0,
+             flat_field=0,
+             bad_pixel_mask=None,
+             bias_offset=0,
+             include_photon_noise=True,
+             exptime=None,
+             xsize = None,
+             ysize = None,
+             field_center_x = None,
+             field_center_y = None,
+             rotation_angle_deg = None, #not yet implemented
+             opticalsystem=None,
+             output_directory=None):  
         self.flux = flux
         self.input_grid = opticalsystem.focal_grid
         self.read_noise = read_noise
@@ -179,7 +276,8 @@ class FakeDetector:
         self.field_center_x = field_center_x
         self.field_center_y = field_center_y
         self.rotation_angle_deg = rotation_angle_deg
-
+        self.output_directory = output_directory  # Store the output directory
+    
         # passed by reference...so the latest efields will update
         self.opticalsystem = opticalsystem
         self.exptime = exptime
@@ -197,22 +295,29 @@ class FakeDetector:
 
         return
 
-    def take_image(self, focal_wf=None, t=None):
-        """Returns an image.
-        focal_wf - hcipy wavefront
-            the focal plane wavefront.  If None, will pull
-            the opticalsystem.focal_efield
+    def take_image(self, focal_wf=None, t=None, output_directory=None):
+        """Returns an image and optionally saves it to a directory.
+    
         Parameters
         ----------
-        focal_wf - hcipy Wavefront
+        focal_wf : hcipy Wavefront, optional
             focal plane wavefront, used to calculate the power
             and hence energy in time t
-        t - float
+        t : float, optional
             integration time in seconds
+        output_directory : str, optional
+            directory path where the image should be saved as a FITS file.
+            If None, uses the output_directory set during initialization.
 
         Returns
         -------
+        ndarray
+            The generated image
         """
+        # Use provided output_directory or fall back to self.output_directory
+        output_directory = output_directory or self.output_directory
+    
+        # Generate the image
         if focal_wf is None:
             this_focal_wf = self.opticalsystem.focal_efield.copy()
         else:
@@ -231,8 +336,39 @@ class FakeDetector:
         if self.bad_pixel_mask is not None:
             output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
 
-        return output_image
+        # Save image to disk if a directory is specified
+    
+        if output_directory is None:
+            return output_image
 
+        try:
+            os.makedirs(output_directory, exist_ok=True)
+
+            # Generate a unique filename (appending a counter if needed)
+            timestamp = time.strftime('%Y%m%d_%H%M%S')
+            base_filename = f"image_{timestamp}"
+            filename = f"{base_filename}.fits"
+            filepath = os.path.join(output_directory, filename)
+            counter = 1
+            while os.path.exists(filepath):
+                filename = f"{base_filename}_{counter}.fits"
+                filepath = os.path.join(output_directory, filename)
+                counter += 1
+
+            print(f"Saving image to {filepath}...")
+            with open(filepath, 'wb') as f:
+                pf.writeto(f, output_image, overwrite=True)
+                f.flush()
+                os.fsync(f.fileno())  # Ensures it's really written to disk
+
+            print(f"Image saved to {filepath}")
+            return output_image
+
+        except Exception as e:
+            print(f"Error saving image to disk: {e}")
+            return None
+
+    
 class FakeAOSystem:
     """A class that has the same API as the normal AO system class.
        Accepts an optical system and modifies the pupil efield by reference"""

@@ -1,5 +1,7 @@
 [HITCHHIKER MODE]
     hitchhike = boolean(default=False)
+    poll interval = float(min=0.001, default=0.5)
+    timeout = float(min=0.001, default=20)
     imagedir = string(default='/')
 
 [EXECUTION]
