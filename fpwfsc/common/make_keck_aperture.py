@@ -79,6 +79,26 @@ def get_aperture(aperturename=None, pupil_grid=None,
         pupil_diameter_long  = 10.5 # meter
         pupil_diameter_short = 9.46
         pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+        
+    elif aperturename == 'keck+OSIRIS_20_mas':
+        keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
+        osi20 = evaluate_supersampled(circular_aperture(10.94), pupil_grid, oversampling_factor)
+        aperture      = keck_aperture * osi20
+
+        pupil_diameter_long  = 10.92 # meter
+        pupil_diameter_short = 9.92 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+        
+    elif aperturename == 'keck+OSIRIS_35_50_mas':
+        keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
+        osi35 = evaluate_supersampled(circular_aperture(10.), pupil_grid, oversampling_factor)
+        aperture      = keck_aperture * osi35
+
+        pupil_diameter_long  = 10. # meter
+        pupil_diameter_short = 9.92 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+  
+    
 
     else:
         raise ValueError('No valid aperture chosen!')

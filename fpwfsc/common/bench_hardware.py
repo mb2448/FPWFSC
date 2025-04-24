@@ -8,7 +8,9 @@ try:
     from aosys.shwfs.shwfs import SHWFS
 except ImportError:
     warnings.warn("Failed to import hardware modules")
-
+    
+#this would need to be update, is there a OSIRIS version similar to NIRC2?
+    
 class NIRC2Alias:
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
     """
