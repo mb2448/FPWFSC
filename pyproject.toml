@@ -2,9 +2,9 @@
 name = "fpwfsc"
 version = "0.1.0"
 authors = [
-    { name = "Michael Bottom", email = "michael.bottom@keckobservatory.org" },
-    { name = "Jaren Ashcraft", email = "jaren.ashcraft@keckobservatory.org" },
-    { name = "Mahawa Cisse", email = "mahawa.cisse@keckobservatory.org" },
+    { name = "Michael Bottom", email = "mbottom@hawaii.edu" },
+    { name = "Jaren Ashcraft", email = "jarenashcraft@ucsb.edu" },
+    { name = "Mahawa Cisse", email = "mcisse@keck.hawaii.edu" },
 ]
 description = "A Python package for focal plane wavefront sensing and control at W.M. Keck Observatory."
 license = { file = "LICENSE.md" }
