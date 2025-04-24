@@ -6,6 +6,7 @@ try:
     from guis.fast_and_furious.hardware import NIRC2, KeckAO
     import aosys.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
+    from aosys.shwfs_field_steering_mirror.shwfs_field_steering_mirror import SHWFSFieldSteeringMirror
 except ImportError:
     warnings.warn("Failed to import hardware modules")
 
@@ -25,6 +26,7 @@ class AOSystemAlias:
         """Open-loop AO System Interface
         """
         self.AO = xd.xinetics_deformable_mirror.XineticsDeformableMirror(prefix='k2')
+        self.ttm = SHWFSFieldSteeringMirror(prefix='k2')
 
     def set_dm_data(self, shape):
         return self.AO.set_voltages(shape)
@@ -39,6 +41,7 @@ class ClosedAOSystemAlias:
 
         self.AO = KeckAO()
         self.dm = self.AO.xinetics
+        self.ttm = SHWFS
         self.current_cog_file = self.AO.get_cog_filename()
         self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
 
