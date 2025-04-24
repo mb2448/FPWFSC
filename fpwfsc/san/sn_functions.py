@@ -4,41 +4,125 @@ import scipy.optimize as opt
 from scipy.ndimage import gaussian_filter
 
 
+def clamp(ref_psf, control_region, clamp=0):
+    """
+    Produces a binary amplitude mask where 1's are values above the specified
+    clamp and 0's are values below the specified clamp
+
+    Parameters
+    ----------
+    ref_psf : ndarray
+        image to apply clamp to
+    control_region : ndarray
+        boolean array that contains the region of interest
+    clamp: float
+        value below which the mask returns a zero
+
+    Returns
+    -------
+    ndarray
+        1D array of binary weights of shape == where control region is 1
+
+    """
+    weight_in_control = ref_psf[control_region]
+    weight_in_control[weight_in_control < clamp] = 0
+    weight_in_control[weight_in_control >= clamp] = 1
+    return weight_in_control
+
+def condition(array, minimum=0, maximum=np.inf, minrep=0, maxrep=np.inf):
+    """set any values less than minimum to minrep,
+    and any values greater than maximum to maxrep
+
+    Parameters
+    ----------
+    array : ndarray
+        array to apply conditioning to
+    minimum : float
+        value below which the array is set to minrep
+    maximum : float
+        value above which the array is set to maxrep
+    minrep : float
+        value to replace elements in array that are below minimum
+    maxrep : float
+        value to replace elements in array that are above maximum
+
+    Returns
+    -------
+    ndarray
+        conditioned array subject to minimum and maximum
+    """
+    array_copy = array.copy()
+    array_copy[array_copy < minimum] = minrep
+    array_copy[array_copy >= maximum] = maxrep
+    return array_copy
+
+def condition_coeffs(coeffs):
+    """sets NaN sine and cosine coefficients to be zero"""
+    coeffs_copy = coeffs.copy()
+    coeffs_copy[np.isnan(coeffs_copy)] = 0
+    coeffs_copy[np.isinf(coeffs_copy)] = 0
+    return coeffs_copy
+
+def amplitude_weight(ref_psf, control_region):
+    """
+    Creates array of amplitude weights where the maximum value is 1,
+    and the remaining values are scaled by 1 / maximum value
+
+    Parameters
+    ----------
+    ref_psf : ndarray
+        image to apply clamp to
+    control_region : ndarray
+        boolean array that contains the region of interest
+
+    Returns
+    -------
+    """
+    # weight by electric field magnitude
+    weight_in_control = ref_psf[control_region]
+    weight_in_control = np.sqrt(np.abs(weight_in_control))
+    max_in_control = weight_in_control.max()
+    weight_in_control /= max_in_control
+
+    return weight_in_control
+
+
+
 def flip_array_about_point(arr, point_x, point_y):
     """
     Flip a 2D array about a specified point in both x and y directions.
-    
+
     Parameters:
     arr (numpy.ndarray): 2D input array to be flipped
     point_x (float): x-coordinate of the point to flip about
     point_y (float): y-coordinate of the point to flip about
-    
+
     Returns:
     numpy.ndarray: Flipped array
     """
     # Get array dimensions
     height, width = arr.shape
-    
+
     # Create coordinate meshgrid
     y, x = np.indices((height, width))
-    
+
     # Calculate new coordinates after flipping about the point
     new_x = 2 * point_x - x
     new_y = 2 * point_y - y
-    
+
     # Create output array with same shape as input
     flipped = np.zeros_like(arr)
-    
+
     # Map values from original array to flipped positions
     # Need to handle edge cases where new coordinates are outside the array
     valid_indices = (new_x >= 0) & (new_x < width) & (new_y >= 0) & (new_y < height)
-    
+
     # For valid indices, copy values from original array to flipped array
     y_valid, x_valid = y[valid_indices], x[valid_indices]
     new_y_valid, new_x_valid = new_y[valid_indices].astype(int), new_x[valid_indices].astype(int)
-    
+
     flipped[y_valid, x_valid] = arr[new_y_valid, new_x_valid]
-    
+
     return flipped
 
 
@@ -315,7 +399,7 @@ def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):
     else:
         # Case where the wedge crosses the -180/180 boundary
         angle_mask = (theta >= theta1) | (theta <= theta2)
-    
+
     # Create the annular wedge mask
     mask = (r >= rad1) & (r <= rad2) & angle_mask
 

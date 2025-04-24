@@ -57,8 +57,7 @@ class SpeckleAreaNulling:
         pix_x = np.arange(self.rawI0.shape[0])
         self.pix_x, self.pix_y = np.meshgrid(pix_x, pix_x)
 
-        # TODO: Switch to equalize_images
-        self.I0 = sf.reduce_images(self.rawI0, **self.imparams)
+        self.I0 = sf.equalize_image(self.rawI0)
         self.sines = []
         self.cosines = []
 
@@ -128,6 +127,7 @@ class SpeckleAreaNulling:
 
         # Take a reference image
         I0 = sf.equalize_image(self.camera.take_image()) / self.CN
+        self.I0 = I0
 
         # Take the cosine probe images
         # NOTE: Make sure that the I1p / I1m don't look exactly the same
@@ -135,9 +135,9 @@ class SpeckleAreaNulling:
         self.images = []
         for probe in [-self.sin_probe, self.sin_probe, -self.cos_probe, self.cos_probe]:
             probe_scaled = probe * self.probe_amplitude
-            self.aosystem.set_dm_data(probe_scaled)
+            self.aosystem.set_dm_data(probe_scaled, modify_existing=True)
             self.images.append(sf.equalize_image(self.camera.take_image()) / self.CN)
-            self.aosystem.set_dm_data(-probe_scaled)
+            self.aosystem.set_dm_data(-probe_scaled, modify_existing=True)
 
         # unpack the images
         Im1 = self.images[-4]  # minus sin probe
@@ -180,6 +180,14 @@ class SpeckleAreaNulling:
         # # Regularized sin / cosine coefficients
         sin_coeffs = dE1 / (dE1sq + self.regularization)
         cos_coeffs = dE2 / (dE2sq + self.regularization)
+
+        # coefficient conditioning
+        clampval = snf.robust_sigma(self.I0[:50,:50])
+        clamp_mask = snf.clamp(self.I0, self.controlregion, clamp=clampval)
+
+        sin_coeffs *= clamp_mask
+        cos_coeffs *= clamp_mask
+
         # # sin_coeffs = dE1 / (dE1sq)
         # # cos_coeffs = dE2 / (dE2sq)
         # sin_coeffs[np.abs(sin_coeffs) > self.regularization] = 0
@@ -227,11 +235,12 @@ class SpeckleAreaNulling:
         # self.cos_coeffs_init = np.sum(control_cosines, axis=-1)
 
         control_surface = -1* np.sum(control, axis=0)
-
+        control_surface /= control_surface.max()
+        control_surface *= 60e-9
         # control_surface *= self.aosystem.OpticalModel.wavelength / (2 * np.pi)
         # apply to the deformable mirror
         self.control_surface = control_surface
-        self.aosystem.set_dm_data(control_surface)
+        self.aosystem.set_dm_data(control_surface, modify_existing=True)
 
         # take image after correction
         I = sf.equalize_image(self.camera.take_image()) / self.CN

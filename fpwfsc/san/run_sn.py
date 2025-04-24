@@ -80,26 +80,27 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         plt.colorbar()
         plt.show()
         contrast_norm = image_nofpm.max()
+        # contrast_norm = 1
 
     else:
         raise ValueError("Sim only now")
 
     SAN = SpeckleAreaNulling(Camera, AOSystem,
-                               initial_probe_amplitude= 10e-7 * (0.3/8),
-                               initial_regularization=1,
-                               controlregion_iwa = 5,
+                               initial_probe_amplitude= 1e-6 * 0.3/8,
+                               initial_regularization=0,
+                               controlregion_iwa = 4,
                                controlregion_owa = 7,
                                xcenter=xcen,
                                ycenter=ycen,
                                Npix_foc=cropsize,
                                lambdaoverD=4.0,
-                               contrast_norm=contrast_norm,
+                               contrast_norm=1,
                                flipx=False,
                                flipy=False)
 
     imax=[]
     ks = []
-    MAX_ITERS = 20
+    MAX_ITERS = 5
 
     # speckle_iwa = dm.make_speckle_kxy(4, 4, 1, 0, N=22, flipy=False, which="sin")
     # # speckle_owa = dm.make_speckle_kxy(8, 0, 1, 0, N=22, flipy=False)
@@ -117,32 +118,30 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # ax.add_patch(dh_region)
     # plt.show()
 
-
+    from time import sleep
     # plt.ion()
     plt.figure(figsize=[15, 3])
     mean_ni = []
     iterations = []
     for k in np.arange(MAX_ITERS):
-
         for i in range(3):
+            sleep(1)
 
             I_after = SAN.iterate()
 
             # plot the +sin probed image
             if i == 0:
-                I_intermediate = SAN.I1p - SAN.I1m
+                I_intermediate = SAN.I1p # - SAN.I1m
                 coeffs = SAN.sin_coeffs_init
                 title = "Sin probe"
-                norm = None
-                vlim = np.abs(I_intermediate).max() # np.abs(I_intermediate[~np.isnan(I_intermediate) & SAN.controlregion]).max()
+                norm = LogNorm(vmin=1e-4, vmax=1e-2)
 
             # plot the +cos probed image
             elif i == 1:
-                I_intermediate = SAN.I2p - SAN.I2m
+                I_intermediate = SAN.I2p # - SAN.I2m
                 coeffs = SAN.cos_coeffs_init
                 title = "Cos probe"
-                norm = None
-                vlim = np.abs(I_intermediate).max() # np.abs(I_intermediate[~np.isnan(I_intermediate) & SAN.controlregion]).max()
+                norm = LogNorm(vmin=1e-4, vmax=1e-2)
 
             else:
                 I_intermediate = I_after
@@ -153,10 +152,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
             plt.subplot(141)
             plt.title(title+"image")
-            if norm is None:
-                plt.imshow(I_intermediate, origin="lower", vmin=-vlim, vmax=vlim, cmap="coolwarm")
-            else:
-                plt.imshow(I_intermediate, origin="lower", norm=norm, cmap="inferno")
+            # if norm is None:
+            #     plt.imshow(I_intermediate, origin="lower", vmin=-vlim, vmax=vlim, cmap="inferno")
+            plt.imshow(I_intermediate / contrast_norm, origin="lower", norm=norm, cmap="inferno")
             plt.xlim([275, 375])
             plt.ylim([375, 475])
             plt.colorbar(label="Normalized Intensity")
@@ -196,7 +194,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             plt.pause(0.1)
             plt.clf()
 
-        ipdb.set_trace()
 
         # plt.subplot(121)
         # plt.imshow(I_intermediate, origin="lower", vmin=vmin, vmax=vmax)
