@@ -2,7 +2,7 @@ import sys
 import warnings
 
 try:
-    sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
+    sys.path.insert(0, '/usr/local/home/localdev/mcisse/data_pyao/')
     from guis.fast_and_furious.hardware import NIRC2, KeckAO
     import aosys.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
@@ -35,7 +35,7 @@ class AOSystemAlias:
         return self.AO.get_voltages()
 
 class ClosedAOSystemAlias:
-    def __init__(self):
+    def __init__(self, settings):
         """Closed-loop AO System Interface
         """
 

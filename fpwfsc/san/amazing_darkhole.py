@@ -23,12 +23,12 @@ from datetime import datetime
 import shutil 
 
 ## FPWFSC Imports
-sys.path.insert(0,"../common")
-import support_functions as sf
-import bench_hardware as hw
-import sn_functions as sn_f
-import sn_classes as sn_c
-import dm
+# sys.path.insert(0,"../common")
+from fpwfsc.common import support_functions as sf
+from fpwfsc.common import bench_hardware as hw
+from fpwfsc.san import sn_functions as sn_f
+from fpwfsc.san import sn_classes as sn_c
+from fpwfsc.common import dm
 
 def clamp(ref_psf, control_region, clamp=0):
     """
@@ -126,11 +126,12 @@ if __name__ == "__main__":
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
     #AOSystem = hw.AOSystemAlias()
-    AOSystem = hw.ClosedAOSystemAlias()
 
     settings = sf.validate_config(config, configspec)
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     
+    AOSystem = hw.ClosedAOSystemAlias(settings)
+
     IWA = settings['SN_SETTINGS']['IWA']
     OWA = settings['SN_SETTINGS']['OWA']
     DH_THETA1 = settings['SN_SETTINGS']['THETA1']
