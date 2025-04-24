@@ -4,8 +4,9 @@ from scipy.spatial.distance import pdist
 from scipy.ndimage import median_filter, gaussian_filter
 from skimage.measure import label, regionprops
 import sys
-import fpwfsc.common.support_functions as sf
-from fpwfsc.san import sn_functions as sn_f
+import ipdb
+from ..common import support_functions as sf
+from ..san import sn_functions as sn_f
 import ipdb
 
 import numpy as np
