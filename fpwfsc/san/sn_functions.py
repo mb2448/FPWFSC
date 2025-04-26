@@ -133,7 +133,7 @@ def annulus(image, cx, cy, r1, r2):
     return ( outer-inner)
 
 def circle(image, cx, cy, rad):
-    zeroim = np.zeros(image.shape, dtype = np.int)
+    zeroim = np.zeros(image.shape, dtype = int)
     for x in range(int(cx-rad), int(cx+rad+1)):
         for y in range(int(cy-rad), int(cy+rad+1) ):
             #print xs, ys

@@ -121,16 +121,16 @@ if __name__ == "__main__":
     dir_name = f"output_{timestamp}"
     os.makedirs(dir_name, exist_ok=False)
     os.makedirs(os.path.join(dir_name,"bgds"), exist_ok=False)
-    
+    folder = 'fpwfsc/san/'
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
     #AOSystem = hw.AOSystemAlias()
 
-    settings = sf.validate_config(config, configspec)
+    settings = sf.validate_config(folder+config, folder+configspec)
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     
-    AOSystem = hw.ClosedAOSystemAlias(settings)
+    AOSystem = hw.ClosedAOSystemAlias()
 
     IWA = settings['SN_SETTINGS']['IWA']
     OWA = settings['SN_SETTINGS']['OWA']
@@ -141,15 +141,15 @@ if __name__ == "__main__":
     # Save the configuration file used
     src = config
     src_destination = os.path.join(dir_name, src)
-    shutil.copy(src, src_destination)
+    shutil.copy(folder+src, src_destination)
     
     src = configspec
     src_destination = os.path.join(dir_name, src)
-    shutil.copy(src, src_destination)
+    shutil.copy(folder+src, src_destination)
 
     src = "amazing_darkhole.py"
     src_destination = os.path.join(dir_name, src)
-    shutil.copy(src, src_destination)
+    shutil.copy(folder+src, src_destination)
 
     # Save the Backgrounds
     # src = settings['CAMERA_CALIBRATION']['bgddir']
@@ -267,11 +267,7 @@ if __name__ == "__main__":
     # NOTE: ref_img is the un-probed psf
 
     # apply DM shape
-    if not AOSystem._closed:
-        current_dm_shape = AOSystem.get_dm_data()
-    else:
-        current_dm_shape = AOSystem.cur_cog
-        modify_existing = True
+    current_dm_shape = AOSystem.get_dm_data()
 
     MAX_ITERS = settings['SN_SETTINGS']['NUM_ITERATIONS']
 
@@ -299,6 +295,10 @@ if __name__ == "__main__":
     hdu.writeto(os.path.join(dir_name,"starting_dm_shape.fits"), overwrite=True)
     contrast_curves = []
 
+    if AOSystem._closed:
+        cos_probe = AOSystem.convert_voltage_to_cog(cos_probe)
+        sin_probe = AOSystem.convert_voltage_to_cog(sin_probe)
+    
     for i in range(MAX_ITERS):
         
         if i == 0:
@@ -306,7 +306,6 @@ if __name__ == "__main__":
         
         if i != 0:
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
-        
 
         clamp_mask = clamp(ref_img, control_region, clamp=clamp_val)
         print(f"Pixels Clamped = {np.sum(1-clamp_mask)}")
@@ -314,12 +313,13 @@ if __name__ == "__main__":
 
         # cosine probe
         cos_probe = cos_probe*probe_scaling_param
+        sin_probe = sin_probe*probe_scaling_param
+
 
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
 
         # sine probe
-        sin_probe = sin_probe*probe_scaling_param
         set_shape = AOSystem.set_dm_data(updated_dm_shape + sin_probe)
         sin_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
         
@@ -391,6 +391,9 @@ if __name__ == "__main__":
         # Safety, threshold command greater than 7 volts 
         
         # Apply correction and take image
+        if AOSystem._closed:
+            control_surface = AOSystem.convert_voltage_to_cog(control_surface)
+
         updated_dm_shape = updated_dm_shape + control_surface
         set_shape = AOSystem.set_dm_data(updated_dm_shape)
         corrected_img = sf.equalize_image(Camera.take_image(), **bgds)
@@ -423,7 +426,17 @@ if __name__ == "__main__":
         # write the images
         hdu = fits.PrimaryHDU(corrected_img)
         hdu.writeto(os.path.join(dir_name,f"SAN_iter{i}_Halfdark_ND1_5ms.fits"))
-    
+
+        intermediates = [I0, Im1, Ip1, Im2, Ip2]
+        intermediates = np.asarray(intermediates)
+        hdu = fits.PrimaryHDU(intermediates)
+        hdu.header["IM1"] = "I0"
+        hdu.header["IM2"] = "Im1 Sin"
+        hdu.header["IM3"] = "Ip1 Sin"
+        hdu.header["IM4"] = "Im2 Cos"
+        hdu.header["IM5"] = "Ip2 Cos"
+        hdu.writeto(os.path.join(dir_name,f"SAN_iter{i}_intermediates_ND1_5ms.fits"))
+            
     plt.ioff()
     plt.close(fig)
 
@@ -436,75 +449,75 @@ if __name__ == "__main__":
     set_shape = AOSystem.set_dm_data(current_dm_shape) 
 
     #FINAL: Plot all figures
-    
-    plt.figure(figsize=[10, 5])
-    plt.subplot(121)
-    plt.title("Differential sin image")
-    plt.imshow(sin_plus_img - ref_img, cmap="coolwarm", vmin=-200, vmax=200)
-    plt.colorbar()
-    ax = plt.gca()
-    # build the dark hole region
-    dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                      theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    ax.add_patch(dh_region)
-    
-    plt.subplot(122)
-    plt.title("Differential cosine image")
-    plt.imshow(cos_plus_img - ref_img, cmap="coolwarm", vmin=-200, vmax=200)
-    plt.colorbar()
-    ax = plt.gca()
-    # build the dark hole region
-    dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                      theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    ax.add_patch(dh_region)
-    plt.figure(figsize=[10, 5])
-    plt.subplot(121)
-    plt.title("SAN Control Surface")
-    plt.imshow(control_surface, cmap="RdBu_r")
-    plt.colorbar(label="Volts")
-    
-    plt.subplot(122)
-    plt.title("Image Correction")
-    plt.imshow(corrected_img, cmap="inferno", norm=LogNorm())
-    plt.colorbar()
-    ax = plt.gca()
-    # build the dark hole region
-    dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                      theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    ax.add_patch(dh_region)
-    
-    pushpulls = [Ip1, Im1, Ip2, Im2]
-    plt.figure(figsize=[7, 7])
-    for i, img in enumerate(pushpulls):
-        plt.subplot(2, 2, i+1)
-        plt.imshow(img, cmap="inferno", norm=LogNorm())
+    if not AOSystem._closed: 
+        plt.figure(figsize=[10, 5])
+        plt.subplot(121)
+        plt.title("Differential sin image")
+        plt.imshow(sin_plus_img - ref_img, cmap="coolwarm", vmin=-200, vmax=200)
         plt.colorbar()
         ax = plt.gca()
+        # build the dark hole region
         dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                          theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+                        theta1=-90, theta2=90, facecolor="None", edgecolor="w")
         ax.add_patch(dh_region)
-    
+        
+        plt.subplot(122)
+        plt.title("Differential cosine image")
+        plt.imshow(cos_plus_img - ref_img, cmap="coolwarm", vmin=-200, vmax=200)
+        plt.colorbar()
+        ax = plt.gca()
+        # build the dark hole region
+        dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
+                        theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+        ax.add_patch(dh_region)
+        plt.figure(figsize=[10, 5])
+        plt.subplot(121)
+        plt.title("SAN Control Surface")
+        plt.imshow(control_surface, cmap="RdBu_r")
+        plt.colorbar(label="Volts")
+        
+        plt.subplot(122)
+        plt.title("Image Correction")
+        plt.imshow(corrected_img, cmap="inferno", norm=LogNorm())
+        plt.colorbar()
+        ax = plt.gca()
+        # build the dark hole region
+        dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
+                        theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+        ax.add_patch(dh_region)
+        
+        pushpulls = [Ip1, Im1, Ip2, Im2]
+        plt.figure(figsize=[7, 7])
+        for i, img in enumerate(pushpulls):
+            plt.subplot(2, 2, i+1)
+            plt.imshow(img, cmap="inferno", norm=LogNorm())
+            plt.colorbar()
+            ax = plt.gca()
+            dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
+                            theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+            ax.add_patch(dh_region)
+        
 
-    plt.figure(figsize=[10, 5])
-    plt.subplot(121)
-    plt.title("SAN sin coefficients")
-    plt.imshow(sin_coeffs_init, cmap="coolwarm", vmin=-1, vmax=1)
-    plt.colorbar()
-    ax = plt.gca()
-    # build the dark hole region
-    dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                      theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    ax.add_patch(dh_region)
-    
-    plt.subplot(122)
-    plt.title("SAN cos coefficients")
-    plt.imshow(cos_coeffs_init, cmap="coolwarm", vmin=-1, vmax=1)
-    plt.colorbar()
-    ax = plt.gca()
-    
-    # build the dark hole region
-    dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                      theta1=-90, theta2=90, facecolor="None", edgecolor="w")
-    ax.add_patch(dh_region)
-    plt.show()
+        plt.figure(figsize=[10, 5])
+        plt.subplot(121)
+        plt.title("SAN sin coefficients")
+        plt.imshow(sin_coeffs_init, cmap="coolwarm", vmin=-1, vmax=1)
+        plt.colorbar()
+        ax = plt.gca()
+        # build the dark hole region
+        dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
+                        theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+        ax.add_patch(dh_region)
+        
+        plt.subplot(122)
+        plt.title("SAN cos coefficients")
+        plt.imshow(cos_coeffs_init, cmap="coolwarm", vmin=-1, vmax=1)
+        plt.colorbar()
+        ax = plt.gca()
+        
+        # build the dark hole region
+        dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
+                        theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+        ax.add_patch(dh_region)
+        plt.show()
 

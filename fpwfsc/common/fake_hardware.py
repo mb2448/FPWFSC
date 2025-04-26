@@ -386,6 +386,7 @@ class FakeAOSystem:
                                                             pupil_grid=self.OpticalModel.Pupil.pupil_grid,
                                                             aperture=self.OpticalModel.Pupil.aperture)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
+        self._closed = False
 
     def set_dm_data(self, dm_microns):
         #in the sim, just undoes the microns command from subaru
@@ -434,6 +435,7 @@ class FakeAODMSystem:
         self.rotation_angle_dm = rotation_angle_dm
         self.flip_x_dm = flip_x_dm
         self.flip_y_dm = flip_y_dm
+        self._closed = False
 
         # Build deformable mirror
         if actuator_spacing is None:
