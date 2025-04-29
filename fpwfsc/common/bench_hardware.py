@@ -1,5 +1,7 @@
 import sys
 import warnings
+import hcipy
+import numpy as np
 
 try:
     sys.path.insert(0, '/usr/local/home/localdev/mcisse/data_pyao/')
@@ -9,6 +11,8 @@ try:
     from aosys.shwfs_field_steering_mirror.shwfs_field_steering_mirror import SHWFSFieldSteeringMirror
 except ImportError:
     warnings.warn("Failed to import hardware modules")
+
+
 
 class NIRC2Alias:
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
@@ -27,15 +31,16 @@ class AOSystemAlias:
         """
         self.AO = xd.xinetics_deformable_mirror.XineticsDeformableMirror(prefix='k2')
         self.ttm = SHWFSFieldSteeringMirror(prefix='k2')
+        self._closed = False
 
-    def set_dm_data(self, shape):
+    def set_dm_data(self, shape, modify_existing=False):
         return self.AO.set_voltages(shape)
 
     def get_dm_data(self):
         return self.AO.get_voltages()
 
 class ClosedAOSystemAlias:
-    def __init__(self, settings):
+    def __init__(self):
         """Closed-loop AO System Interface
         """
 
@@ -48,39 +53,21 @@ class ClosedAOSystemAlias:
         self.diameter_pupil_act = 21
         self.center_pupil_act = [10,10]
         self.Nact = 21
-        self.rotation_angle_dm = settings['MODELLING']['rotation angle dm (deg)']
+        self.rotation_angle_dm = 0 # settings['MODELLING']['rotation angle dm (deg)']
+        self._closed = True
+        self.grid = hcipy.make_uniform_grid([self.Nact, self.Nact], 1, 0)
 
-    def set_dm_data(self, shape):
-        """Updates DM centroid offsets
-
+    def set_dm_data(self, shape, modify_existing=False):
+        """
         Parameters
         ----------
-        shape : ndarray
-            2D array of voltage to apply to DM
+        new_centroids : array
+            array of centroid offsets to apply to the DM. 
         """
-        dm_volts = self.AO.make_dm_command(shape,
-                                          diameter_pupil_act,
-                                          center_pupil_act,
-                                          Nact,
-                                          rotation_angle_dm)
-
-        binary_map = self.dm.get_binary_actuators_map()
-        mask = np.array(binary_map, dtype='bool')
-        dm_vec = dm_volts[mask]
-        infmat = self.AO.open_influence_matrix()
-
-        # these are the updated centroid origins
-        centroids = np.dot(infmat, dm_vec)
-        self.current_cog_file = self.AO.get_cog_filename()
-        self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
-
-        new_centroids = self.cur_cog + centroids
-
-        # now we need to write the cog file and load the cog file
-        fn = self.AO.save_cog('SAN_Centroids', new_centroids)
+        fn = self.AO.save_cog('SAN_Centroids', shape)
         self.AO.load_cog(fn)
         A = self.AO.open_cog(fn)
-
+        return A
 
     def get_dm_data(self):
         """
@@ -91,8 +78,35 @@ class ClosedAOSystemAlias:
         ndarray
             current "cog", centroid offsets
         """
-        return self.cur_cog()
 
+        current_cog_file = self.AO.get_cog_filename()                                                                                             
+        current_shape = self.AO.open_cog(current_cog_file, shape_requested='vector')
+
+        return current_shape
+
+    def convert_voltage_to_cog(self, shape):
+        # condition shape to be a hcipy Field
+        shape = hcipy.Field(shape.ravel(), self.grid)
+
+        # NOTE: self.rotation_angle_dm is derived with SAN
+        # it is set to zero here to do that derivation
+        # In FNF, the reference is the perfect PSF - so some
+        # amount of derotation is necessarry
+        dm_volts = self.AO.make_dm_command(shape,
+                                          self.diameter_pupil_act,
+                                          self.center_pupil_act,
+                                          self.Nact,
+                                          self.rotation_angle_dm)
+
+        binary_map = self.dm.get_binary_actuators_map()
+        mask = np.array(binary_map, dtype='bool')
+        dm_vec = dm_volts[mask]
+        infmat = self.AO.open_influence_matrix()
+
+        # these are the updated centroid origins
+        centroids = np.dot(infmat, dm_vec)
+
+        return centroids
 
 #class NIRC2:
 #    """

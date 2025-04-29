@@ -5,19 +5,19 @@ import numpy as np
 import threading
 from collections import deque
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-import dm
-import qt_clickpoints
-import sn_functions as sn
+from fpwfsc.common import dm
+from fpwfsc.san import qt_clickpoints
+from fpwfsc.san import sn_functions as sn
 
-sys.path.insert(0, '../common')
-import support_functions as sf
-import fake_hardware as fhw
+from fpwfsc.common import support_functions as sf
+from fpwfsc.common import fake_hardware as fhw
 
 import ipdb
 
 try:
-    import bench_hardware as hw
+    from fpwfsc.common import bench_hardware as hw
 except:
     raise ImportError
 
@@ -92,22 +92,40 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
     
+    # NOTE: In closed loop - this returns a cog, so we need a conversion
+    # if not AOSystem._closed:
+    #     initial_shape = AOSystem.get_dm_data()
+    #     modify_existing = False
+    # else:
+    #     initial_shape = 0
+    #     initial_cogs = AOSystem.get_dm_data()
+    #     modify_existing = False
     initial_shape = AOSystem.get_dm_data()
+
     data_nospeck_raw = Camera.take_image()
     data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
     
     speck1 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=21, flipy = False, flipx = False)
+
+    if AOSystem._closed:
+        speck1 = AOSystem.convert_voltage_to_cog(speck1)
+
     AOSystem.set_dm_data(initial_shape + speck1)
     data_ph1_raw    = Camera.take_image()
     data_ph1        = sf.equalize_image(data_ph1_raw, **bgds)
-    
+
     speck2 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, np.pi/2, N=21, flipy = False, flipx = False)
+    
+    if AOSystem._closed:
+        speck2 = AOSystem.convert_voltage_to_cog(speck2) 
+    
     AOSystem.set_dm_data(initial_shape + speck2)
     data_ph2_raw    = Camera.take_image()
     data_ph2        = sf.equalize_image(data_ph2_raw, **bgds)
 
-    print("Resetting AO system to initial state")
+    print("Resetting AO system to initial state")    
     AOSystem.set_dm_data(initial_shape)
+
 
     cleaned = 0.5*(data_ph1+data_ph2)-data_nospeck
     #plt.imshow(cleaned, origin='lower' );plt.show()
@@ -133,9 +151,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         settings.write(configfile)
 
 if __name__ == "__main__":
-    #Camera = hw.NIRC2Alias()
+    Camera = hw.NIRC2Alias()
     #AOSystem = hw.AOSystemAlias()
-    #AOSystem = hw.ClosedAOSystemAlias()
-    Camera = 'Sim'
-    AOSystem = 'Sim'
-    run(camera=Camera, aosystem=AOSystem, config='../speckle_suppression/sn_config.ini', configspec='../speckle_suppression/sn_config.spec')
+    AOSystem = hw.ClosedAOSystemAlias()
+    # Camera = 'Sim'
+    # AOSystem = 'Sim'
+    folder = "fpwfsc/san/"
+
+    run(camera=Camera, aosystem=AOSystem, config=folder+'sn_config.ini', configspec=folder+'sn_config.spec')
