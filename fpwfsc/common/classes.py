@@ -40,11 +40,12 @@ class Aperture:
     """
 
     def __init__(self, Npix_pup=None,
-                 aperturename=None, rotation_angle_aperture=None):
+                 aperturename=None, rotation_angle_aperture=None, rotation_primary_deg=None):
         print("Initializing aperture")
         self.Npix_pup = Npix_pup
         self.aperturename = aperturename
         self.rotation_angle_aperture = rotation_angle_aperture
+        self.rotation_primary_deg = rotation_primary_deg
         if aperturename == 'subaru':
             self.diameter = 8.0
             self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.diameter)
@@ -62,7 +63,8 @@ class Aperture:
             self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.diameter)
             self.aperture, self.pupil_diameter  = make_keck_aperture.get_aperture(aperturename=self.aperturename,
                                 pupil_grid=self.pupil_grid,
-                                rotation_angle_aperture=self.rotation_angle_aperture)
+                                rotation_angle_aperture=self.rotation_angle_aperture, 
+                                rotation_primary_deg = self.rotation_primary_deg)
         return
 
     def display(self):

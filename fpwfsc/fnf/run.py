@@ -81,11 +81,25 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #----------------------------------------------------------------------
     # Load the classes
     #----------------------------------------------------------------------
+    rotation_primary_deg_pre  = 0
+    rotation_primary_threshold = 5
+
     Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
-                             rotation_angle_aperture=rotation_angle_aperture)
+                             rotation_angle_aperture=rotation_angle_aperture,
+                             rotation_primary_deg = rotation_primary_deg_pre)
 
     OpticalModel = ff_c.SystemModel(aperture=Aperture,
+                                    Npix_foc=Npix_foc,
+                                    mas_pix=mas_pix,
+                                    wavelength=wavelength)
+    
+    Aperture2 = ff_c.Aperture(Npix_pup=Npix_pup,
+                             aperturename='keck+OSIRIS_35_50_mas',
+                             rotation_angle_aperture=60,
+                             rotation_primary_deg = 50)
+
+    OpticalModel2 = ff_c.SystemModel(aperture=Aperture2,
                                     Npix_foc=Npix_foc,
                                     mas_pix=mas_pix,
                                     wavelength=wavelength)
@@ -138,6 +152,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
+    test_rot = np.arange(100)
+
+
     for i in np.arange(Niter):
         #The next two lines stop it if the user presses stop in the gui
         if my_event.is_set():
@@ -146,11 +163,44 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         SRA_measurements[i] = FnF.estimate_strehl()
         my_deque.append(SRA_measurements)
 
+
+        #check if the change in primary mirror rotation has surpass the threshold required to regenerate the reference
+        rotation_primary_deg_cur = test_rot[i]
+        
+        if np.abs(rotation_primary_deg_pre-rotation_primary_deg_cur) > rotation_primary_threshold:
+            new_Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
+                             aperturename=chosen_aperture,
+                             rotation_angle_aperture=rotation_angle_aperture,
+                             rotation_primary_deg = rotation_primary_deg_cur)
+
+            new_OpticalModel = ff_c.SystemModel(aperture=new_Aperture,
+                                    Npix_foc=Npix_foc,
+                                    mas_pix=mas_pix,
+                                    wavelength=wavelength)
+            
+            rotation_primary_deg_pre = rotation_primary_deg_cur
+
+            
+            #Camera.opticalsystem=new_OpticalModel
+            #AOsystem.OpticalModel = new_OpticalModel
+            
+            FnF.SystemModel = new_OpticalModel
+            focalfield = new_OpticalModel.generate_psf_efield()
+            focalimg = np.abs(focalfield.intensity)**2
+            plt.figure()
+            hcipy.imshow_field(np.log(focalimg))
+            plt.colorbar()
+            plt.title('focalimg '+str(i))
+            plt.savefig(f'C:/UHManoa/First/focalimg{i}.png')
+
+            
+
+
         img = Camera.take_image()
         data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
                                 flipx = flip_x, flipy=flip_y,
                                 refpsf=OpticalModel.ref_psf.shaped,
-                                rotation_angle_deg=rotation_angle_deg)
+                                rotation_angle_deg= rotation_angle_deg)
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
