@@ -7,13 +7,12 @@ import matplotlib.pyplot as plt
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import Qt
 
-import dm
-import qt_clickpoints
-import sn_functions as sn
+from fpwfsc.san import qt_clickpoints
+from fpwfsc.san import sn_functions as sn
 
-sys.path.insert(0, '../common')
-import support_functions as sf
-import fake_hardware as fhw
+from fpwfsc.common import dm
+from fpwfsc.common import support_functions as sf
+from fpwfsc.common import fake_hardware as fhw
 
 
 import ipdb
@@ -126,7 +125,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 if __name__ == "__main__":
     camera = "Sim"
     aosystem = "Sim"
-    viewer = run(camera, aosystem, config='sn_config.ini', configspec='sn_config.spec')
+    viewer = run(camera, aosystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')
     
     # The program will continue here even while the viewer is still open
     print("Main program continues execution while viewer is open")
