@@ -174,6 +174,8 @@ if __name__ == "__main__":
     dm_angle            = settings['DM_REGISTRATION']['MEASURED_PARAMS']['angle']
     lambdaoverd         = settings['DM_REGISTRATION']['MEASURED_PARAMS']['lambdaoverd']
 
+    #DM Calibration
+    parabola_params     = settings['DM_REGISTRATION']['INTENSITY_CAL']['parabola_parameters']
     # Draw a dark hole
 
     # convert IWA/OWA to pixels
@@ -225,6 +227,19 @@ if __name__ == "__main__":
     anti_control_pix_y = []
 
     for yi, xi in zip(*control_indices):
+        
+        focal_amplitude = ref_img[yi, xi]
+
+        # construct the amplitude weight
+        kx, ky = dm.convert_pixels_kvecs(
+                xi, yi,
+                centerx=xcen,
+                centery=ycen,
+                angle=dm_angle,
+                lambdaoverd=lambdaoverd)
+        
+        kr = np.sqrt(kx**2 + ky**2)
+        speckle_amp = sn_f.parabola(kr, *parabola_params)
 
         # construct probes from the wedge
         cos = dm.make_speckle_xy(
@@ -239,7 +254,7 @@ if __name__ == "__main__":
                 N=21,
                 which="cos")
         
-        cosine_modes.append(cos)
+        cosine_modes.append(cos / speckle_amp * focal_amplitude)
 
         sin = dm.make_speckle_xy(
                 xs=xi,
@@ -253,7 +268,7 @@ if __name__ == "__main__":
                 N=21,
                 which="sin")
         
-        sine_modes.append(sin)
+        sine_modes.append(sin / speckle_amp * focal_amplitude)
         
         
     # Construct and scale the probes from the modes

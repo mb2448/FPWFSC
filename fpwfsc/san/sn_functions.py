@@ -88,10 +88,29 @@ def amplitude_weight(ref_psf, control_region):
 
 
 def parabola(x, a, b, c):
+    """ function used to curve fit intensity calibration
+    of deformable mirror v.s. spatial frequency
+
+    Parameters
+    ----------
+    x : ndarray
+        independent variable
+    a : float
+        quadratic coefficient
+    b : float
+        linear coefficient
+    c : float
+        constant term
+
+    Returns
+    -------
+    ndarray
+        array of size x containing a parabola evaluated
+        over x
+    """
     return a * x**2 + b * x + c
 
 def curve_fit_parabola(spatial_freq, amplitudes):
-
     # Starting guesses
     x0 = [-1, 1, 1]
 
