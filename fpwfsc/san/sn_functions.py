@@ -87,6 +87,19 @@ def amplitude_weight(ref_psf, control_region):
     return weight_in_control
 
 
+def parabola(x, a, b, c):
+    return a * x**2 + b * x + c
+
+def curve_fit_parabola(spatial_freq, amplitudes):
+
+    # Starting guesses
+    x0 = [-1, 1, 1]
+
+    popt, pcov = opt.curve_fit(parabola, xdata=spatial_freq, ydata=amplitudes, p0=x0)
+
+    return popt
+
+
 
 def flip_array_about_point(arr, point_x, point_y):
     """
@@ -333,6 +346,12 @@ def image_centroid_gaussian(image, x=None, y=None):
     popt = fitgaussian(image, x=x, y=y)
     return popt[1], popt[2]
 
+def image_amplitude_gaussian(image, x=None, y=None):
+    """Returns the amplitude of a gaussian blob in the image"""
+    popt = fitgaussian(image, x=x, y=y)
+    return popt[3]
+
+
 # =============================================================================
 def get_spot_centroid(image, window = 20, guess_spot=None):
     ''' -----------------------------------------------------------------------
@@ -351,11 +370,33 @@ def get_spot_centroid(image, window = 20, guess_spot=None):
     subim =  image[x0-hw:x0+hw,y0-hw:y0+hw]
     # Fit a gaussian on the subimage roughtly centered on the speckle.
     popt  = image_centroid_gaussian(subim)
+    
     # Extract center position (x,y) of the gaussian fitted on the speckles.
     xcen  = round(y0-hw+popt[0],3)
     ycen  = round(x0-hw+popt[1],3)
     # Add the position computed to the list of positions.
     return xcen, ycen
+
+def get_spot_amplitude(image, window = 20, guess_spot=None):
+    ''' -----------------------------------------------------------------------
+    Measures the centroid of a spot accurately by fitting a guassian on a
+    subimage centered on the spot.
+
+    image - a numpy array containing the image
+    window - the size of the subimage in pixels
+    guess_spot - a tuple containing the (x,y) coordinates of the spot
+    ----------------------------------------------------------------------- '''
+    # Measure acurately the position of each satellite
+    # Generate a sub image centered on the xy position
+    y0    = int(round(guess_spot[0]))
+    x0    = int(round(guess_spot[1]))
+    hw    = int(round(window/2.))
+    subim =  image[x0-hw:x0+hw,y0-hw:y0+hw]
+    
+    # Fit a gaussian on the subimage roughtly centered on the speckle.
+    popt  = image_amplitude_gaussian(subim)
+    
+    return popt
 
 
 def create_annular_wedge(image, xcen, ycen, rad1, rad2, theta1, theta2):

@@ -31,6 +31,7 @@
         max = float
         ical_dm_amplitude = float(min=0)
         aperture_radius = float(min=0)
+        parabola_parameters = float_list
 
 [SIMULATION]
     [[OPTICAL_PARAMS]]
