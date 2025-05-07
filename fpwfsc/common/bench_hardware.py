@@ -3,13 +3,22 @@ import warnings
 
 try:
     sys.path.insert(0,'/home/mcisse/SpeckleNulling/data_pyao/')
-    from guis.fast_and_furious.hardware import NIRC2, KeckAO
+    from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
     import aosys.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
 except ImportError:
     warnings.warn("Failed to import hardware modules")
     
-#this would need to be update, is there a OSIRIS version similar to NIRC2?
+class OSIRISAlias:
+    """OSIRIS Alias to make image aquisition compatible with FPWFSC API
+    """
+    def __init__(self):
+        self.OSIRIS = OSIRIS()
+        self._take_image = self.OSIRIS.take_image
+
+    def take_image(self):
+        img_hdu = self._take_image()
+        return img_hdu.data
     
 class NIRC2Alias:
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
@@ -20,7 +29,7 @@ class NIRC2Alias:
 
     def take_image(self):
         img_hdu = self._take_image()
-        return img_hdu[0].data
+        return img_hdu.data
 
 class AOSystemAlias:
     def __init__(self):
