@@ -198,7 +198,11 @@ class ConfigEditorGUI(QWidget):
             self.camera, self.aosystem = helper.load_instruments(selected_hardware,
                                                                  camargs={},
                                                                  aoargs={'rotation_angle_dm':
-                                                                         self.config['MODELLING']['rotation angle dm (deg)']})
+                                                                         self.config['MODELLING']['rotation angle dm (deg)'],
+                                                                         'flip_x':
+                                                                         self.config['MODELLING']['flip_x'],
+                                                                         'flip_y':
+                                                                         self.config['MODELLING']['flip_y']})
             print(f"{selected_hardware} loaded successfully")
 
         except Exception as e:

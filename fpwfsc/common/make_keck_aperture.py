@@ -2,11 +2,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from hcipy import *
 
-from . import support_functions as sf
-#import support_functions as sf
+#from . import support_functions as sf
+import support_functions as sf
 
 def get_aperture(aperturename=None, pupil_grid=None,
-                 rotation_angle_aperture=0, oversampling_factor=8, rotation_primary_deg=0):
+                 rotation_angle_aperture=0, oversampling_factor=8, ): #rotation_primary_deg=0
     """A helper function to return an aperture, and rotate it
     to the appropriate angle.
 
@@ -21,7 +21,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
 
     return_segments : Boolean
 
-    rotation_primary_deg : the rotation of the keck primary ralative to instrument in field tracking, in degrees
+    #rotation_primary_deg : the rotation of the keck primary ralative to instrument in field tracking, in degrees
    
 
     Returns
@@ -38,7 +38,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
     elif aperturename == 'keck':
 
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
+        #aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         aperture = Field(aperture.ravel(), pupil_grid)
 
         pupil_diameter_long  = 10.92 # meter
@@ -59,7 +59,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
 
     elif aperturename == 'keck+NIRC2_large_hexagonal_mask':
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
+        #keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
 
         large_hex_mask = evaluate_supersampled(make_NIRC2_large_hexagonal_mask(), pupil_grid, oversampling_factor)
@@ -71,7 +71,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
 
     elif aperturename == 'keck+NIRC2_incircle_mask':
         keck_aperture     = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
+        #keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
 
         incircle_pup_mask = evaluate_supersampled(make_NIRC2_incircle_pupil_mask(), pupil_grid, oversampling_factor)
@@ -88,7 +88,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
 
     elif aperturename == 'keck+NIRC2_Lyot_Stop':
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
+        #keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
 
         lyot_stop     = evaluate_supersampled(make_NIRC2_lyot_stop(), pupil_grid, oversampling_factor)
@@ -100,7 +100,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
         
     elif aperturename == 'keck+OSIRIS_20_mas':
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
+        #keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
         osi20 = evaluate_supersampled(circular_aperture(10.94), pupil_grid, oversampling_factor)
         aperture      = keck_aperture * osi20
@@ -111,7 +111,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
         
     elif aperturename == 'keck+OSIRIS_35_50_mas':
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
+        #keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
         osi35 = evaluate_supersampled(circular_aperture(10.), pupil_grid, oversampling_factor)
         aperture      = keck_aperture * osi35
@@ -476,10 +476,10 @@ if __name__ == '__main__':
     # plt.show()
 
     test_aperture, _ = get_aperture(aperturename='keck+NIRC2_large_hexagonal_mask', pupil_grid=pupil_grid,
-                                 rotation_angle_aperture=0, oversampling_factor=1, rotation_primary_deg=45)
+                                 rotation_angle_aperture=15, oversampling_factor=1, )#rotation_primary_deg=0)
 
     plt.figure()
     imshow_field(test_aperture)
     plt.colorbar()
-    plt.title('keck+NIRC2_large_hexagonal_mask, pri_rot = 15')
+    plt.title('keck+NIRC2_large_hexagonal_mask')
     plt.show()

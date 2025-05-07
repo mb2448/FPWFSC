@@ -81,28 +81,18 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #----------------------------------------------------------------------
     # Load the classes
     #----------------------------------------------------------------------
-    rotation_primary_deg_pre  = 0
-    rotation_primary_threshold = 5
+   
+
 
     Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
-                             rotation_angle_aperture=rotation_angle_aperture,
-                             rotation_primary_deg = rotation_primary_deg_pre)
+                             rotation_angle_aperture=rotation_angle_aperture)
 
     OpticalModel = ff_c.SystemModel(aperture=Aperture,
                                     Npix_foc=Npix_foc,
                                     mas_pix=mas_pix,
                                     wavelength=wavelength)
     
-    Aperture2 = ff_c.Aperture(Npix_pup=Npix_pup,
-                             aperturename='keck+OSIRIS_35_50_mas',
-                             rotation_angle_aperture=60,
-                             rotation_primary_deg = 50)
-
-    OpticalModel2 = ff_c.SystemModel(aperture=Aperture2,
-                                    Npix_foc=Npix_foc,
-                                    mas_pix=mas_pix,
-                                    wavelength=wavelength)
 
     FnF = ff_c.FastandFurious(SystemModel=OpticalModel,
                               leak_factor=leak_factor,
@@ -137,9 +127,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     data_raw = Camera.take_image()
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
-                                          flipx = flip_x, flipy=flip_y,
                                           refpsf=OpticalModel.ref_psf.shaped,
-                                          rotation_angle_deg=rotation_angle_deg)
+                                          )
     # Take first image
     FnF.initialize_first_image(data_ref)
     #MAIN LOOP SETUP AND RUNNING
@@ -153,6 +142,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     t0 = time.time()
 
     test_rot = np.arange(100)
+    rotation_angle_threshold = 5
+    rotation_angle_deg_pre = rotation_angle_aperture
 
 
     for i in np.arange(Niter):
@@ -165,20 +156,20 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
         #check if the change in primary mirror rotation has surpass the threshold required to regenerate the reference
-        rotation_primary_deg_cur = test_rot[i]
+        rotation_angle_deg_cur = test_rot[i]
         
-        if np.abs(rotation_primary_deg_pre-rotation_primary_deg_cur) > rotation_primary_threshold:
+        if np.abs(rotation_angle_deg_pre-rotation_angle_deg_cur) > rotation_angle_threshold:
             new_Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
-                             rotation_angle_aperture=rotation_angle_aperture,
-                             rotation_primary_deg = rotation_primary_deg_cur)
+                             rotation_angle_aperture=rotation_angle_deg_cur,
+                             )
 
             new_OpticalModel = ff_c.SystemModel(aperture=new_Aperture,
                                     Npix_foc=Npix_foc,
                                     mas_pix=mas_pix,
                                     wavelength=wavelength)
             
-            rotation_primary_deg_pre = rotation_primary_deg_cur
+            rotation_angle_deg_pre = rotation_angle_deg_cur
 
             
             #Camera.opticalsystem=new_OpticalModel
@@ -198,13 +189,15 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         img = Camera.take_image()
         data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
-                                flipx = flip_x, flipy=flip_y,
                                 refpsf=OpticalModel.ref_psf.shaped,
-                                rotation_angle_deg= rotation_angle_deg)
+                                )
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
         microns = phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+        # This need to be fixed so that it is consistent between simulation and actual instruments, 
+        # the alias function should be made so that it can handle all instruments taking different parameters 
+        #or maybe just write seperate script for different instrument? 
         dm_microns = AOsystem.make_dm_command(microns)
         AOsystem.set_dm_data(dm_microns)
 

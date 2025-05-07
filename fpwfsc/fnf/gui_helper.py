@@ -158,8 +158,12 @@ config_info = {
 def load_instruments(instrumentname, camargs={}, aoargs={}):
     if instrumentname == 'Sim':
         return 'Sim','Sim'
+    #XXX changed to alias function as the original one no longer exis in bench_hardware
     elif instrumentname == 'NIRC2':
-        return hw.NIRC2(**camargs), hw.KeckAO(**aoargs)
+        return hw.NIRC2Alias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
+    elif instrumentname == 'OSIRIS':
+        return hw.OSIRISAlias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
+
     elif instrumentname == 'Palila':
         return hw.Palila(**camargs), hw.SCEXAO(**aoargs)
     elif instrumentname == 'Vampires':
