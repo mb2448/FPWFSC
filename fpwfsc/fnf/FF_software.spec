@@ -14,7 +14,7 @@
     pixel scale (mas/pix)         = float(min=0)
     N pix pupil                   = integer
     N pix focal                   = integer
-    aperture                      = option('open', 'subaru', 'keck', 'NIRC2_large_hexagonal_mask', 'NIRC2_incircle_mask', 'keck+NIRC2_large_hexagonal_mask', 'keck+NIRC2_incircle_mask', 'NIRC2_Lyot_Stop', 'keck+NIRC2_Lyot_Stop')
+    aperture                      = option('open', 'subaru', 'keck', 'NIRC2_large_hexagonal_mask', 'NIRC2_incircle_mask', 'keck+NIRC2_large_hexagonal_mask', 'keck+NIRC2_incircle_mask', 'NIRC2_Lyot_Stop', 'keck+NIRC2_Lyot_Stop','keck+OSIRIS_20_mas','keck+OSIRIS_35_50_mas')
     rotation angle aperture (deg) = float
     rotation angle dm (deg)       = float
     rotation angle im (deg)       = float

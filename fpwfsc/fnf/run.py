@@ -81,6 +81,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #----------------------------------------------------------------------
     # Load the classes
     #----------------------------------------------------------------------
+   
+
+
     Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
                              rotation_angle_aperture=rotation_angle_aperture)
@@ -89,6 +92,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                     Npix_foc=Npix_foc,
                                     mas_pix=mas_pix,
                                     wavelength=wavelength)
+    
 
     FnF = ff_c.FastandFurious(SystemModel=OpticalModel,
                               leak_factor=leak_factor,
@@ -123,9 +127,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     data_raw = Camera.take_image()
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
-                                          flipx = flip_x, flipy=flip_y,
                                           refpsf=OpticalModel.ref_psf.shaped,
-                                          rotation_angle_deg=rotation_angle_deg)
+                                          )
     # Take first image
     FnF.initialize_first_image(data_ref)
     #MAIN LOOP SETUP AND RUNNING
@@ -138,6 +141,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
+    test_rot = np.arange(100)
+    rotation_angle_threshold = 5
+    rotation_angle_deg_pre = rotation_angle_aperture
+
+
     for i in np.arange(Niter):
         #The next two lines stop it if the user presses stop in the gui
         if my_event.is_set():
@@ -146,17 +154,52 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         SRA_measurements[i] = FnF.estimate_strehl()
         my_deque.append(SRA_measurements)
 
+
+        #check if the change in primary mirror rotation has surpass the threshold required to regenerate the reference
+        rotation_angle_deg_cur = test_rot[i]
+        
+        if np.abs(rotation_angle_deg_pre-rotation_angle_deg_cur) > rotation_angle_threshold:
+            new_Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
+                             aperturename=chosen_aperture,
+                             rotation_angle_aperture=rotation_angle_deg_cur,
+                             )
+
+            new_OpticalModel = ff_c.SystemModel(aperture=new_Aperture,
+                                    Npix_foc=Npix_foc,
+                                    mas_pix=mas_pix,
+                                    wavelength=wavelength)
+            
+            rotation_angle_deg_pre = rotation_angle_deg_cur
+
+            
+            #Camera.opticalsystem=new_OpticalModel
+            #AOsystem.OpticalModel = new_OpticalModel
+            
+            FnF.SystemModel = new_OpticalModel
+            focalfield = new_OpticalModel.generate_psf_efield()
+            focalimg = np.abs(focalfield.intensity)**2
+            plt.figure()
+            hcipy.imshow_field(np.log(focalimg))
+            plt.colorbar()
+            plt.title('focalimg '+str(i))
+            plt.savefig(f'C:/UHManoa/First/focalimg{i}.png')
+
+            
+
+
         img = Camera.take_image()
         data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
-                                flipx = flip_x, flipy=flip_y,
                                 refpsf=OpticalModel.ref_psf.shaped,
-                                rotation_angle_deg=rotation_angle_deg)
+                                )
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
         microns = phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
-        dm_microns = AOsystem.make_dm_command(microns)
-        AOsystem.set_dm_data(dm_microns)
+        # This need to be fixed so that it is consistent between simulation and actual instruments, 
+        # the alias function should be made so that it can handle all instruments taking different parameters 
+        #or maybe just write seperate script for different instrument? 
+        #dm_microns = AOsystem.make_dm_command(microns)
+        AOsystem.set_dm_data(microns)#???
 
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
@@ -172,7 +215,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 VAR=VAR_measurements)
     t1 = time.time()
     print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
-    AOsystem.close_dm_stream()
+    #AOsystem.close_dm_stream()???
 
 if __name__ == "__main__":
     plotter = pf.LivePlotter()
