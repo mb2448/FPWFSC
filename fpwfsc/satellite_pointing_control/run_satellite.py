@@ -1,5 +1,5 @@
 import os, sys
-import satellite_funcs as satfuncs
+from fpwfsc.satellite_pointing_control import satellite_funcs as satfuncs
 
 import numpy as np
 import threading
@@ -9,9 +9,9 @@ from fpwfsc.common import fake_hardware as fhw
 import fpwfsc.common.support_functions as sf
 import fpwfsc.common.dm as dm
 
-from PID import PID
+from fpwfsc.satellite_pointing_control import PID
 from pathlib import Path
-from satellite_plotter_qt import LiveSquarePlotter
+from fpwfsc.satellite_pointing_control.satellite_plotter_qt import LiveSquarePlotter
 
 import ipdb
 
@@ -49,7 +49,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     if my_event is None:
         my_event = threading.Event()
-    
+
     if camera == 'Sim' and aosystem == 'Sim':
         print("Using Simulator Mode")
         simmode = True
@@ -60,26 +60,26 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # Print paths for debugging
         print(f"Looking for config at: {hwconfig_path}")
         print(f"Looking for spec at: {hwspec_path}")
-    
+
         # Check if files exist
         if not hwconfig_path.exists():
             raise FileNotFoundError(f"Config file not found: {hwconfig_path}")
         if not hwspec_path.exists():
             raise FileNotFoundError(f"Config spec file not found: {hwspec_path}")
-        
+
         hwsettings = sf.validate_config(str(hwconfig_path), str(hwspec_path))
         CSM      = fhw.FakeCoronagraphOpticalSystem(**hwsettings['SIMULATION']['OPTICAL_PARAMS'])
         AOSystem = fhw.FakeAODMSystem(OpticalModel=CSM, **hwsettings['SIMULATION']['AO_PARAMS'])
         Camera   = fhw.FakeDetector(opticalsystem=CSM, **hwsettings['SIMULATION']['CAMERA_PARAMS'])
-    
+
     else:
         Camera = camera
         AOSystem = aosystem
         simmode = False
-    
+
     settings = sf.validate_config(config, configspec)
     bgds = sf.setup_bgd_dict(hwsettings['CAMERA_CALIBRATION']['bgddir'])
-    
+
     n_iter    = settings['EXECUTION']['N iterations']
     setpointx = settings['EXECUTION']['x setpoint']
     setpointy = settings['EXECUTION']['y setpoint']
@@ -87,7 +87,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     centerguess = setpoint.copy()
     radius      = settings['EXECUTION']['spot search radius (pix)']
     radtol      = settings['EXECUTION']['radius tolerance (pix)']
-    
+
     Kp = settings['PID']['Kp']
     Ki = settings['PID']['Ki']
     Kd = settings['PID']['Kd']
@@ -104,19 +104,19 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         Hitch = fhw.Hitchhiker(imagedir=path_to_fits,
                                poll_interval=settings['HITCHHIKER MODE']['poll interval'],
                                timeout=settings['HITCHHIKER MODE']['timeout'])
-                            
-    if simmode: 
-        #add initial speckle spots and 
+
+    if simmode:
+        #add initial speckle spots and
         initial_shape = AOSystem.get_dm_data()
         waffle = dm.generate_waffle(initial_shape, amplitude = waffleamp)
         AOSystem.set_dm_data(initial_shape + waffle)
-    
+
         #this should be about 5 pixels off
         tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = -1000e-9, tilt_y=0,
                                               dm_rotation=tt_rot_deg, flipx=False)
         current_shape = AOSystem.get_dm_data()
         AOSystem.set_dm_data(current_shape + tt_control)
-    
+
     PIDloop = PID(Kp=Kp, Ki=Ki, Kd = Kd, setpoint=setpoint, output_limits=(-output_limit, output_limit))
     current_shape = AOSystem.get_dm_data()
     for i in range(n_iter):
@@ -136,9 +136,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             except fhw.HitchhikerTimeoutError:
                 print("Timeout waiting for image - exiting loop")
                 break
-        else: 
+        else:
             data_speck_raw = Camera.take_image()
-        
+
         data_speck = sf.equalize_image(data_speck_raw, **bgds)
         try:
             points = satfuncs.find_spots_in_annulus(data_speck, centerguess, radius, tol=radtol,
@@ -147,7 +147,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         except Exception as e:
             print(f"Error in spot detection: {e}")
             print("Skipping iteration ", i)
-            continue  
+            continue
 
         if plotter is not None:
             plotter.update(image=data_speck,
@@ -183,10 +183,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 if __name__ == "__main__":
     camera = 'Sim'
     aosystem = 'Sim'
-    config = 'satellite_config.ini'
-    configspec = 'satellite_config.spec'
+    config = 'fpwfsc/satellite_pointing_control/satellite_config.ini'
+    configspec = 'fpwfsc/satellite_pointing_control/satellite_config.spec'
     plotter = LiveSquarePlotter(figsize=(300*1.5,600*1.5))
-    
+
     run(camera, aosystem, config=config,
-                          configspec=configspec, 
+                          configspec=configspec,
                           plotter=plotter)

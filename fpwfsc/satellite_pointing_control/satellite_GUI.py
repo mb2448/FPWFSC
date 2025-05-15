@@ -1,5 +1,7 @@
 import sys
 import os
+import ipdb
+
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QLabel, QLineEdit, QComboBox, QPushButton,
                              QScrollArea, QFrame, QToolButton, QSizePolicy,
@@ -15,10 +17,10 @@ import time
 from pathlib import Path
 
 # Import the satellite GUI helper module
-import satellite_gui_helper as helper
+import fpwfsc.satellite_pointing_control.satellite_gui_helper as helper
 
 # Import the satellite plotter
-from satellite_plotter_qt import LiveSquarePlotter
+from fpwfsc.satellite_pointing_control.satellite_plotter_qt import LiveSquarePlotter
 
 # Import the run function from run_satellite.py
 from run_satellite import run as original_run
@@ -35,18 +37,18 @@ class AlgorithmThread(QThread):
         self.my_event = my_event
         self.plotter = plotter
         self.original_update = None
-        
+
         # Store the original plotter update function if it exists
         if self.plotter is not None and hasattr(self.plotter, 'update'):
             self.original_update = self.plotter.update
-            
+
             # Create a wrapped update function that checks for stop event
             def wrapped_update(*args, **kwargs):
                 if self.my_event.is_set():
                     # Don't update if we're stopping
                     return
                 return self.original_update(*args, **kwargs)
-            
+
             # Replace the update function
             self.plotter.update = wrapped_update
 
@@ -101,10 +103,10 @@ class CollapsibleBox(QWidget):
         self.toggle_animation.addAnimation(QPropertyAnimation(self, b"minimumHeight"))
         self.toggle_animation.addAnimation(QPropertyAnimation(self, b"maximumHeight"))
         self.toggle_animation.addAnimation(QPropertyAnimation(self.content_area, b"maximumHeight"))
-        
+
         # Connect the animation finished signal
         self.toggle_animation.finished.connect(self.animation_finished)
-        
+
         # Track animation state
         self.is_animating = False
         self.is_expanded = False
@@ -115,10 +117,10 @@ class CollapsibleBox(QWidget):
         if self.is_animating:
             # Ignore clicks during animation
             return
-            
+
         self.is_animating = True
         self.toggle_button.setEnabled(False)  # Disable button during animation
-        
+
         # Set arrow direction
         if not self.is_expanded:
             self.toggle_button.setArrowType(Qt.DownArrow)
@@ -126,7 +128,7 @@ class CollapsibleBox(QWidget):
         else:
             self.toggle_button.setArrowType(Qt.RightArrow)
             self.toggle_animation.setDirection(QAbstractAnimation.Backward)
-            
+
         self.toggle_animation.start()
 
     def animation_finished(self):
@@ -157,7 +159,7 @@ class SatelliteConfigGUI(QWidget):
     """Main GUI class for the satellite configuration editor"""
     def __init__(self):
         super().__init__()
-        
+
         # Get file paths
         script_dir = Path(__file__).parent
         config_path = script_dir/"satellite_config.ini"
@@ -171,17 +173,17 @@ class SatelliteConfigGUI(QWidget):
         self._stopping = False  # Flag to track stopping state
 
         self.initUI()
-        
+
     def closeEvent(self, event):
         """Handle window close event - ensure all resources are cleaned up"""
         print("Window closing, cleaning up resources...")
-        
+
         # If we're still running, try to stop gracefully
         if self.is_running:
             self.is_running = False
             if hasattr(self, 'my_event'):
                 self.my_event.set()
-        
+
         # Force terminate any running thread
         if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
             try:
@@ -190,7 +192,7 @@ class SatelliteConfigGUI(QWidget):
                 self.algorithm_thread.wait(500)  # Wait half a second max
             except Exception as e:
                 print(f"Error terminating thread: {e}")
-        
+
         # Clean up resources
         self.cleanup_resources()
         event.accept()
@@ -203,7 +205,7 @@ class SatelliteConfigGUI(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)  # Reduced overall spacing
         main_layout.setContentsMargins(10, 10, 10, 10)  # Reduced margins
-        
+
         # Add hardware selection widget at the top
         hardware_widget = QWidget()
         hardware_layout = QHBoxLayout(hardware_widget)
@@ -235,7 +237,7 @@ class SatelliteConfigGUI(QWidget):
         # Load configuration and create widgets
         self.load_config(initial_load=True)
         self.create_widgets()
-        
+
         # Set up the button layout with more vertical space before it
         main_layout.addSpacing(10)  # Add space before buttons
 
@@ -348,18 +350,18 @@ class SatelliteConfigGUI(QWidget):
             # Temporarily disable the button while stopping
             self.run_stop_button.setEnabled(False)
             print("Stopping")
-            
+
             # Make sure we have only one stopping attempt at a time
             if hasattr(self, '_stopping') and self._stopping:
                 print("Already attempting to stop, please wait...")
                 return
-                
+
             self._stopping = True
-                
+
             if hasattr(self, 'my_event'):
                 print("Setting stop event")
                 self.my_event.set()
-                
+
                 # Force termination of thread if it doesn't respond to the event
                 if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
                     # Give the thread a shorter time to respond to the event (500ms)
@@ -367,7 +369,7 @@ class SatelliteConfigGUI(QWidget):
                 else:
                     self._stopping = False
                     self.cleanup_resources()
-    
+
     def on_add_waffle(self):
         """
         Handler for the Add Waffle button.
@@ -375,27 +377,27 @@ class SatelliteConfigGUI(QWidget):
         """
         # First update config from GUI to ensure we have the latest values
         self.update_config_from_gui()
-        
+
         # Get the waffle amplitude from the config
         try:
             # Get the waffle amplitude from the AO section
             waffle_amplitude = float(self.config['AO']['waffle mode amplitude'])
-            
+
             # Apply the waffle pattern (function already imported at top of file)
             success = apply_waffle(aosystem=self.aosystem, waffle_amplitude=waffle_amplitude)
-            
+
             if success:
                 print(f"Successfully applied waffle pattern with amplitude {waffle_amplitude}")
             else:
                 print("Failed to apply waffle pattern")
-                
+
         except KeyError:
             print("Error: 'waffle mode amplitude' not found in config")
         except ValueError as e:
             print(f"Error parsing waffle amplitude: {e}")
         except Exception as e:
             print(f"Unexpected error applying waffle: {e}")
-    
+
     def on_remove_waffle(self):
         """
         Handler for the Remove Waffle button.
@@ -404,12 +406,12 @@ class SatelliteConfigGUI(QWidget):
         try:
             # Remove the waffle pattern (function already imported at top of file)
             success = remove_waffle(aosystem=self.aosystem)
-            
+
             if success:
                 print("Successfully removed waffle pattern")
             else:
                 print("Failed to remove waffle pattern")
-                
+
         except Exception as e:
             print(f"Unexpected error removing waffle: {e}")
 
@@ -421,7 +423,7 @@ class SatelliteConfigGUI(QWidget):
                 # Try to terminate the thread if it's still running
                 self.algorithm_thread.terminate()
                 self.algorithm_thread.wait(500)  # Wait a short time for termination
-                
+
                 # If still running after terminate, disconnect it and let it go
                 if self.algorithm_thread.isRunning():
                     print("Thread could not be terminated. Disconnecting it.")
@@ -433,14 +435,14 @@ class SatelliteConfigGUI(QWidget):
                 self.cleanup_resources()
         else:
             self.cleanup_resources()
-    
+
     def check_thread_finished(self):
         """Check if the thread has finished, and if not, wait for it"""
         if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
             print("Waiting for algorithm thread to finish...")
             # Wait with a timeout
             self.algorithm_thread.wait(1000)  # Wait up to 1 second
-            
+
             # If still running, use a non-blocking approach
             if self.algorithm_thread.isRunning():
                 print("Thread still running, will check again...")
@@ -451,32 +453,32 @@ class SatelliteConfigGUI(QWidget):
         else:
             print("Thread not running")
             self.cleanup_resources()
-    
+
     def cleanup_resources(self):
         """Clean up any resources that need to be explicitly closed"""
         # Reset the stopping flag if it exists
         if hasattr(self, '_stopping'):
             self._stopping = False
-            
+
         # Enable the Run button immediately
         self.run_stop_button.setEnabled(True)
-            
+
         # Close the plotter window if it exists
         if hasattr(self, 'plotter') and self.plotter is not None:
             try:
                 # Try to close the plot window
                 plt.close('all')  # Close all matplotlib windows
-                
+
                 # If the plotter has a close or cleanup method, call it
                 if hasattr(self.plotter, 'close'):
                     self.plotter.close()
                 elif hasattr(self.plotter, 'cleanup'):
                     self.plotter.cleanup()
-                
+
                 print("Plotter closed")
             except Exception as e:
                 print(f"Error closing plotter: {e}")
-            
+
             self.plotter = None
 
     def load_config(self, file_name=None, initial_load=False):
@@ -530,7 +532,7 @@ class SatelliteConfigGUI(QWidget):
         except (IOError, ConfigObjError) as e:
          print(f"Error loading configuration: {e}")
          if initial_load:
-             # If there's an error loading the initial configuration, 
+             # If there's an error loading the initial configuration,
              # create a basic config based on the defaults in the spec file
              print("Error loading default configuration. Creating config from spec file.")
              try:
@@ -595,9 +597,9 @@ class SatelliteConfigGUI(QWidget):
 
                  print("Created minimal fallback configuration")
 
-             self.update_gui_from_config() 
-    
-    
+             self.update_gui_from_config()
+
+
     ####
     def create_widgets(self):
         """Create widgets for each configuration section"""
@@ -607,7 +609,7 @@ class SatelliteConfigGUI(QWidget):
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
-        
+
         # Create widgets for each configuration section
         for section, items in self.config.items():
             section_frame = QFrame()
@@ -653,7 +655,7 @@ class SatelliteConfigGUI(QWidget):
 
                 expert_box.setContentLayout(expert_layout)
                 section_layout.addWidget(expert_box)
-                
+
             # Compact sections with limited options - no maximum height constraints
             if len(regular_options) <= 2 and len(expert_options) == 0:
                 # Use minimum height for sections with few options
@@ -680,7 +682,7 @@ class SatelliteConfigGUI(QWidget):
         input_widget.setToolTip(tooltip)
 
         return widget
-    
+
     def create_input_widget(self, section, key, value):
         """Create an appropriate input widget based on the configuration specification"""
         # Get the spec for this key
@@ -742,7 +744,7 @@ class SatelliteConfigGUI(QWidget):
             input_widget = QLineEdit(str(value))
             input_widget.setFixedHeight(20)
             return input_widget
-        
+
     def get_spec_for_key(self, key):
         """Get the specification for a given key from the config spec"""
         keys = key.split('.')
@@ -816,7 +818,7 @@ class SatelliteConfigGUI(QWidget):
             # This is our directory selection widget
             return widget.text_field.text()
         else:
-            return str(widget.text())  # Fallback for any other widget types    
+            return str(widget.text())  # Fallback for any other widget types
 
     def set_widget_value(self, widget, value):
         """Set the value of an input widget"""
@@ -838,7 +840,7 @@ class SatelliteConfigGUI(QWidget):
         if self.layout.count() == 0:
             self.create_widgets()
             return
-            
+
         # Update existing widgets
         for i in range(self.layout.count()):
             section_frame = self.layout.itemAt(i).widget()
@@ -890,7 +892,7 @@ class SatelliteConfigGUI(QWidget):
         """Run the satellite tracking algorithm with the current configuration"""
         # Update the configuration from the GUI
         self.update_config_from_gui()
-        
+
         # Print configuration for debugging
         print("Current configuration:")
         for section in self.config.sections:
@@ -898,13 +900,13 @@ class SatelliteConfigGUI(QWidget):
             for key, value in self.config[section].items():
                 print(f"    {key} = {value}")
             print()
-        
+
         # Create plotter if enabled
         if self.config['EXECUTION'].get('plot', 'True').lower() == 'true':
             self.plotter = LiveSquarePlotter(figsize=(300, 600))
         else:
             self.plotter = None
-            
+
         # Launch in thread using custom QThread class
         self.algorithm_thread = AlgorithmThread(
             camera=self.camera,
