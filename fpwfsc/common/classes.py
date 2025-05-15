@@ -64,7 +64,7 @@ class Aperture:
             self.aperture, self.pupil_diameter  = make_keck_aperture.get_aperture(aperturename=self.aperturename,
                                 pupil_grid=self.pupil_grid,
                                 rotation_angle_aperture=self.rotation_angle_aperture, 
-                                rotation_primary_deg = self.rotation_primary_deg)
+                                )
         return
 
     def display(self):

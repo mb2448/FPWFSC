@@ -2,8 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from hcipy import *
 
-#from . import support_functions as sf
-import support_functions as sf
+from . import support_functions as sf
+#import support_functions as sf
 
 def get_aperture(aperturename=None, pupil_grid=None,
                  rotation_angle_aperture=0, oversampling_factor=8, ): #rotation_primary_deg=0
@@ -31,15 +31,15 @@ def get_aperture(aperturename=None, pupil_grid=None,
 
 
     if aperturename == 'open':
-        aperture = evaluate_supersampled(circular_aperture(11.732), pupil_grid, 8)#2 * 5.573
+        aperture = evaluate_supersampled(make_circular_aperture(11.732), pupil_grid, 8)#2 * 5.573
 
         pupil_diameter = 11.732 # meter
 
     elif aperturename == 'keck':
 
-        keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
+        aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
         #aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
-        aperture = Field(aperture.ravel(), pupil_grid)
+        
 
         pupil_diameter_long  = 10.92 # meter
         pupil_diameter_short = 9.92 # meter
@@ -185,7 +185,7 @@ def make_keck_aperture(with_secondary=True, with_spiders=True, return_segments=F
     segment_positions = segment_positions.subset(segment_positions.x**2 + segment_positions.y**2>0)
 
     #Creating mirror segments:
-    segment = hexagonal_aperture(D_subaperture_l)
+    segment = make_hexagonal_aperture(D_subaperture_l)
 
     #Adding mirror segments:
     if return_segments:
@@ -197,7 +197,7 @@ def make_keck_aperture(with_secondary=True, with_spiders=True, return_segments=F
     spiders = 1
     spider_angles = np.linspace(0, 2*np.pi, 6, endpoint=False)+np.radians(30)
 
-    secondary_obscuration = circular_aperture(D_obscuration)
+    secondary_obscuration = make_circular_aperture(D_obscuration)
 
     def func(grid):
         res = segmented_aperture(grid)
@@ -263,7 +263,7 @@ def make_NIRC2_large_hexagonal_mask():
     segment_positions = segment_positions.subset(segment_positions.x**2 + segment_positions.y**2>0)
 
     #Creating mirror segments:
-    segment = hexagonal_aperture(D_subaperture_l)
+    segment = make_hexagonal_aperture(D_subaperture_l)
 
     #Adding mirror segments:
     segmented_aperture = make_segmented_aperture(segment, segment_positions)
@@ -272,7 +272,7 @@ def make_NIRC2_large_hexagonal_mask():
     spiders = 1
     spider_angles = np.linspace(0, 2*np.pi, 6, endpoint=False)+np.radians(30)
 
-    Secondary = hexagonal_aperture(D_secondary)#
+    Secondary = make_hexagonal_aperture(D_secondary)#
 
     def func(grid):
         res = segmented_aperture(grid)
@@ -307,9 +307,9 @@ def make_NIRC2_incircle_pupil_mask():
 
     spider_width = 66.73E-3 # meter
 
-    aperture = circular_aperture(diameter)
+    aperture = make_circular_aperture(diameter)
 
-    secondary_obscuration = circular_aperture(diameter_obscuration)
+    secondary_obscuration = make_circular_aperture(diameter_obscuration)
 
     #Adding Spiders
     spiders = 1
@@ -353,9 +353,9 @@ def make_NIRC2_lyot_stop():
     circumdiameter_hexagon_outer = (np.sqrt(2) + 1) * hexagonal_side_length
     circumdiameter_hexagon_inner = 2 * np.cos(np.radians(30)) * hexagonal_side_length#np.sqrt(circumdiameter_hexagon_outer**2 - hexagonal_side_length**2)
 
-    start_aperture = circular_aperture(circular_aperture_diameter)
+    start_aperture = make_circular_aperture(circular_aperture_diameter)
 
-    central_obscuration = circular_aperture(diameter_obscuration)
+    central_obscuration = make_circular_aperture(diameter_obscuration)
 
     # need to add this offset angle to give it the same rotation as the Keck aperture
     offset_angle = np.radians(90)
@@ -411,7 +411,7 @@ def make_NIRC2_lyot_stop():
             # updating the offset position by the rotation angle
             offset_new = [offset[0] * np.cos(offset_angle) - offset[1] * np.sin(offset_angle), offset[0] * np.sin(offset_angle) + offset[1] * np.cos(offset_angle)]
 
-            seg = regular_polygon_aperture(6, circumdiameter_hexagon_outer, angle=np.radians(30) + offset_angle, center=offset_new)(grid)
+            seg = make_regular_polygon_aperture(6, circumdiameter_hexagon_outer, angle=np.radians(30) + offset_angle, center=offset_new)(grid)
 
             res *= 1 - seg
 
@@ -425,59 +425,55 @@ if __name__ == '__main__':
     Nx= 1024 * 4
     pupil_grid = make_pupil_grid(Nx,10.93)
 
-    # supersampling_factor = 1
+    supersampling_factor = 1
 
-    # keck_aperture = evaluate_supersampled(make_keck_aperture(with_secondary=True, with_spiders=True, return_segments=False), pupil_grid, supersampling_factor)
+    keck_aperture = evaluate_supersampled(make_keck_aperture(with_secondary=True, with_spiders=True, return_segments=False), pupil_grid, supersampling_factor)
 
-    # NIRC2_incircle = evaluate_supersampled(make_NIRC2_incircle_pupil_mask(), pupil_grid, supersampling_factor)
+    NIRC2_incircle = evaluate_supersampled(make_NIRC2_incircle_pupil_mask(), pupil_grid, supersampling_factor)
 
-    # NIRC2_large_hex = evaluate_supersampled(make_NIRC2_large_hexagonal_mask(), pupil_grid, supersampling_factor)
+    NIRC2_large_hex = evaluate_supersampled(make_NIRC2_large_hexagonal_mask(), pupil_grid, supersampling_factor)
 
-    # NIRC2_Lyot_Stop = evaluate_supersampled(make_NIRC2_lyot_stop(), pupil_grid, supersampling_factor)
+    NIRC2_Lyot_Stop = evaluate_supersampled(make_NIRC2_lyot_stop(), pupil_grid, supersampling_factor)
 
-    # plt.figure()
-    # imshow_field(keck_aperture)
-    # plt.colorbar()
+    plt.figure()
+    imshow_field(keck_aperture)
+    plt.colorbar()
 
-    # plt.title('Keck aperture')
+    plt.title('Keck aperture')
 
-    # plt.figure()
-    # imshow_field(NIRC2_incircle)
-    # plt.colorbar()
+    plt.figure()
+    imshow_field(NIRC2_incircle)
+    plt.colorbar()
 
-    # plt.title('NIRC2 incircle mask, relative throughput = ' + str(np.round(np.sum(NIRC2_incircle) / np.sum(keck_aperture), 2)))
+    plt.title('NIRC2 incircle mask, relative throughput = ' + str(np.round(np.sum(NIRC2_incircle) / np.sum(keck_aperture), 2)))
 
-    # plt.figure()
-    # imshow_field(NIRC2_large_hex)
-    # plt.colorbar()
+    plt.figure()
+    imshow_field(NIRC2_large_hex)
+    plt.colorbar()
 
-    # plt.title('NIRC2 large hexagonal mask')
-    # '''
-    # plt.figure()
-    # imshow_field(keck_aperture * NIRC2_large_hex)
-    # plt.colorbar()
+    plt.title('NIRC2 large hexagonal mask')
+    '''
+    plt.figure()
+    imshow_field(keck_aperture * NIRC2_large_hex)
+    plt.colorbar()
 
-    # plt.title('Keck aperture * NIRC2 large hexagonal mask')
+    plt.title('Keck aperture * NIRC2 large hexagonal mask')
 
-    # plt.figure()
-    # imshow_field(keck_aperture * NIRC2_incircle)
-    # plt.colorbar()
+    plt.figure()
+    imshow_field(keck_aperture * NIRC2_incircle)
+    plt.colorbar()
 
-    # plt.title('Keck aperture * NIRC2 incircle mask')
-    # '''
-    # plt.figure()
-    # imshow_field(NIRC2_Lyot_Stop)
-    # plt.colorbar()
+    plt.title('Keck aperture * NIRC2 incircle mask')
+    '''
+    plt.figure()
+    imshow_field(NIRC2_Lyot_Stop)
+    plt.colorbar()
 
-    # plt.title('NIRC2 Lyot Stop, relative throughput = ' + str(np.round(np.sum(NIRC2_Lyot_Stop) / np.sum(keck_aperture), 2)))
+    plt.title('NIRC2 Lyot Stop, relative throughput = ' + str(np.round(np.sum(NIRC2_Lyot_Stop) / np.sum(keck_aperture), 2)))
 
-
-
-    # plt.show()
 
     test_aperture, _ = get_aperture(aperturename='keck+NIRC2_large_hexagonal_mask', pupil_grid=pupil_grid,
-                                 rotation_angle_aperture=15, oversampling_factor=1, )#rotation_primary_deg=0)
-
+                                 rotation_angle_aperture=15, oversampling_factor=1, )
     plt.figure()
     imshow_field(test_aperture)
     plt.colorbar()

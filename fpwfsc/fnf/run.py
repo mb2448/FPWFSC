@@ -198,8 +198,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # This need to be fixed so that it is consistent between simulation and actual instruments, 
         # the alias function should be made so that it can handle all instruments taking different parameters 
         #or maybe just write seperate script for different instrument? 
-        dm_microns = AOsystem.make_dm_command(microns)
-        AOsystem.set_dm_data(dm_microns)
+        #dm_microns = AOsystem.make_dm_command(microns)
+        AOsystem.set_dm_data(microns)#???
 
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
@@ -215,7 +215,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 VAR=VAR_measurements)
     t1 = time.time()
     print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
-    AOsystem.close_dm_stream()
+    #AOsystem.close_dm_stream()???
 
 if __name__ == "__main__":
     plotter = pf.LivePlotter()

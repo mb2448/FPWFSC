@@ -60,6 +60,7 @@ class ClosedAOSystemAlias:
         self.rotation_angle_dm = rotation_angle_dm
         self.flip_x = flip_x
         self.flip_y = flip_y
+  
 
     def set_dm_data(self, shape):
         """Updates DM centroid offsets
