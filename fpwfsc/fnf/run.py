@@ -13,6 +13,7 @@ from ..common import plotting_funcs as pf
 from ..common import classes as ff_c
 from ..common import fake_hardware as fhw
 from ..common import support_functions as sf
+import ipdb
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None):
@@ -178,15 +179,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             FnF.SystemModel = new_OpticalModel
             focalfield = new_OpticalModel.generate_psf_efield()
             focalimg = np.abs(focalfield.intensity)**2
-            plt.figure()
-            hcipy.imshow_field(np.log(focalimg))
-            plt.colorbar()
-            plt.title('focalimg '+str(i))
-            plt.savefig(f'C:/UHManoa/First/focalimg{i}.png')
-
+         
             
 
-
+        #ipdb.set_trace()
         img = Camera.take_image()
         data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
                                 refpsf=OpticalModel.ref_psf.shaped,
@@ -199,6 +195,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         # the alias function should be made so that it can handle all instruments taking different parameters 
         #or maybe just write seperate script for different instrument? 
         #dm_microns = AOsystem.make_dm_command(microns)
+        #ipdb.set_trace()
         AOsystem.set_dm_data(microns)#???
 
         # Saving metrics of strehl, airy ring variation

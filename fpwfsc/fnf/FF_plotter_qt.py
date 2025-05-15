@@ -4,6 +4,7 @@ from PyQt5 import QtWidgets, QtGui
 from PyQt5.QtCore import QTimer, Qt, pyqtSignal, pyqtSlot, QObject
 import pyqtgraph as pg
 
+
 class PlotterSignals(QObject):
     """
     Signal class for thread-safe communication with the plotter.
@@ -190,7 +191,8 @@ class LivePlotter(QtWidgets.QWidget):
                 padded = np.zeros(next_square)
                 padded[:len(data_array)] = data_array
                 return padded.reshape((n+1, n+1))
-            return data_array.reshape((n, n))
+            
+            return data_array.reshape((n, n)) #to make consistent with matplotlib
             
         # If array has more than 2 dimensions, take first 2D slice
         if data_array.ndim > 2:
@@ -287,6 +289,7 @@ class LivePlotter(QtWidgets.QWidget):
             # Update PSF display (log scale, similar to original)
             data_max = np.max(np.abs(data_2d))
             if data_max > 0:  # Avoid division by zero
+                
                 psf_data = np.log10(np.abs(data_2d) / data_max + 1e-8)
                 # Scale to 0-1 range for display
                 psf_min = np.min(psf_data)

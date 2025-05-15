@@ -15,5 +15,5 @@ import bench_hardware as hw
 
 if __name__ == "__main__":
     Camera = hw.NIRC2Alias()
-    AOSystem = hw.ClosedAOSystemAlias()
+    #AOSystem = hw.ClosedAOSystemAlias()
 
