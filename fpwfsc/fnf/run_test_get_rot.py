@@ -9,19 +9,26 @@ import time
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+import gui_helper as helper
+
 from ..common import plotting_funcs as pf
 from ..common import classes as ff_c
 from ..common import fake_hardware as fhw
 from ..common import support_functions as sf
 
-def run_fastandfurious_test(camera=None, aosystem=None, config=None, configspec=None,
-        my_deque=None, my_event=None, plotter=None):
-    if my_deque is None:
-        my_deque = deque()
+def run_fastandfurious_test():
+    FF_ini = 'FF_software.ini'
+    FF_spec = 'FF_software.spec'
+    settings = sf.validate_config(FF_ini, FF_spec)
 
-    if my_event is None:
-        my_event = threading.Event()
-    settings = sf.validate_config(config, configspec)
+    camera, aosystem = helper.load_instruments('NIRC2',
+                                                camargs={},
+                                                aoargs={'rotation_angle_dm':
+                                                                settings['MODELLING']['rotation angle dm (deg)'],
+                                                                'flip_x':
+                                                                settings['MODELLING']['flip_x'],
+                                                                'flip_y':
+                                                                settings['MODELLING']['flip_y']})
 
     #----------------------------------------------------------------------
     # Control Loop parameters
@@ -176,7 +183,7 @@ def run_fastandfurious_test(camera=None, aosystem=None, config=None, configspec=
                                 refpsf=OpticalModel.ref_psf.shaped,
                                 )
         
-        ipdb.set_trace()
+      
         plt.ion()
         fig, ax = plt.subplots(1)
         ax.imshow(np.log10(image_theory.shaped / image_theory.max()), vmin=-5)
