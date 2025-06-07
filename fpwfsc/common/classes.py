@@ -59,12 +59,19 @@ class Aperture:
             self.aperture = self.aperture.reshape(self.Npix_pup**2)
         else:
             #this is the Keck case for now
-            self.diameter = 12.0
+            self.diameter = 11.3
             self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.diameter)
             self.aperture, self.pupil_diameter  = make_keck_aperture.get_aperture(aperturename=self.aperturename,
                                 pupil_grid=self.pupil_grid,
                                 rotation_angle_aperture=self.rotation_angle_aperture, 
                                 )
+            # #fix this !
+            # self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.pupil_diameter1)
+            # self.aperture, self.pupil_diameter  = make_keck_aperture.get_aperture(aperturename=self.aperturename,
+            #                     pupil_grid=self.pupil_grid,
+            #                     rotation_angle_aperture=self.rotation_angle_aperture, 
+            #                     )
+            
         return
 
     def display(self):

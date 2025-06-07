@@ -283,14 +283,23 @@ class LivePlotter(QtWidgets.QWidget):
             
             # Ensure all data is properly shaped 2D
             data_2d = self._ensure_2d(data)
+            #transpose the data to match matplotlib and pyqtgraph display. 
+            data_transpose = data_2d.T
+
+            #consider flipping x and y for pupil and aperature for pyqt display?
             pupil_wf_2d = self._ensure_2d(pupil_wf)
+            pupil_wf_transpose = pupil_wf_2d.T
+
             aperture_2d = self._ensure_2d(aperture)
+            aperture_transpose = aperture_2d.T
+
+
             
             # Update PSF display (log scale, similar to original)
-            data_max = np.max(np.abs(data_2d))
+            data_max = np.max(np.abs(data_transpose))
             if data_max > 0:  # Avoid division by zero
                 
-                psf_data = np.log10(np.abs(data_2d) / data_max + 1e-8)
+                psf_data = np.log10(np.abs(data_transpose) / data_max + 1e-8)
                 # Scale to 0-1 range for display
                 psf_min = np.min(psf_data)
                 psf_max = np.max(psf_data)
@@ -302,7 +311,7 @@ class LivePlotter(QtWidgets.QWidget):
             
             # Update wavefront residuals
             # Mask the wavefront with the aperture
-            masked_wf = pupil_wf_2d * (aperture_2d > 0)
+            masked_wf = pupil_wf_transpose * (aperture_transpose > 0)
             max_res = np.max(np.abs(masked_wf))
             if max_res > 0:  # Avoid division by zero
                 # Scale to -1 to 1 range

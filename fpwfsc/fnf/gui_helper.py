@@ -1,6 +1,8 @@
 # gui_helper.py
 from ..common import bench_hardware as hw
-
+import sys
+sys.path.insert(0, '/usr/local/home/localdev/mcisse/data_pyao/')
+from guis.fast_and_furious import hardware
 valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires']
 
 config_info = {
@@ -160,7 +162,7 @@ def load_instruments(instrumentname, camargs={}, aoargs={}):
         return 'Sim','Sim'
     #XXX changed to alias function as the original one no longer exis in bench_hardware
     elif instrumentname == 'NIRC2':
-        return hw.NIRC2Alias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
+        return hardware.NIRC2(**camargs), hw.ClosedAOSystemAlias(**aoargs)
     elif instrumentname == 'OSIRIS':
         return hw.OSIRISAlias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
 

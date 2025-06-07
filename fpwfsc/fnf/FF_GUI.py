@@ -18,9 +18,22 @@ import FF_plotter_qt as pf
 from fpwfsc.fnf import gui_helper as helper
 from fpwfsc.fnf.run import run
 #from fpwfsc.common import plotting_funcs as pf
-def get_instrument_values():
-    return {'MODELLING':{'wavelength (m)':'3e-6',
-            'aperture':'NIRC2_large_hexagonal_mask'}}
+def get_instrument_values(camera):
+    #make a gui option for test time???
+    camera.get_parameters(test_time = 'Daytime')
+
+    return {'MODELLING':{
+    #self.camera.filter_name
+    'wavelength (m)':str(camera.wavelength*1e-6),
+    'aperture':str(camera.pupil_mask_name),
+    'pixel scale (mas/pix)':str(camera.pixel_scale)}}
+    #self.camera.camera_mode
+    #self.camera.xsize
+    #self.camera.ysize
+
+
+    #return {'MODELLING':{'wavelength (m)':'3e-6',
+    #        'aperture':'NIRC2_large_hexagonal_mask'}}
 
 class AlgorithmThread(QThread):
     update_plot = pyqtSignal(dict)
@@ -203,6 +216,8 @@ class ConfigEditorGUI(QWidget):
                                                                          self.config['MODELLING']['flip_x'],
                                                                          'flip_y':
                                                                          self.config['MODELLING']['flip_y']})
+            self.load_instrument_values()
+
             print(f"{selected_hardware} loaded successfully")
 
         except Exception as e:
@@ -224,7 +239,7 @@ class ConfigEditorGUI(QWidget):
 
     def load_instrument_values(self):
         print("Loading values from instrument")
-        instrument_values = get_instrument_values()
+        instrument_values = get_instrument_values(self.camera)
 
         for section, values in instrument_values.items():
             if section in self.config:

@@ -29,16 +29,20 @@ except ImportError:
 #         img_hdu = self._take_image()
 #         return img_hdu.data
 
-class NIRC2Alias:
+class NIRC2Alias():
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
     """
     def __init__(self):
-        self.NIRC2 = NIRC2()
-        self._take_image = self.NIRC2.take_image
+        self.camera = NIRC2()
+        #self.NIRC2.get_parameters()
+        self._take_image = self.camera.take_image
 
     def take_image(self):
         img_hdu = self._take_image()
         return img_hdu[0].data
+
+    def get_parameters(self,test_time = 'Daytime'):
+        self.camera.get_parameters(test_time = 'Daytime')
 
 class AOSystemAlias:
     def __init__(self):
@@ -102,8 +106,8 @@ class ClosedAOSystemAlias:
 
         # these are the updated centroid origins
         centroids = np.dot(infmat, dm_vec)
-        self.current_cog_file = self.AO.get_cog_filename()
-        self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
+        # self.current_cog_file = self.AO.get_cog_filename()
+        # self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
 
         new_centroids = self.cur_cog + centroids
 
@@ -111,7 +115,7 @@ class ClosedAOSystemAlias:
         fn = self.AO.save_cog('SAN_Centroids', new_centroids)
         self.AO.load_cog(fn)
         A = self.AO.open_cog(fn)
-        return A
+        return A, dm_volts
 
     def get_dm_data(self):
         """

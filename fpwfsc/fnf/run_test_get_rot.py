@@ -9,22 +9,26 @@ import time
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from astropy.io import fits
+from fpwfsc.fnf import gui_helper as helper
 
-from ..common import plotting_funcs as pf
-from ..common import classes as ff_c
-from ..common import fake_hardware as fhw
-from ..common import support_functions as sf
-import ipdb
+from fpwfsc.common import plotting_funcs as pf
+from fpwfsc.common import classes as ff_c
+from fpwfsc.common import fake_hardware as fhw
+from fpwfsc.common import support_functions as sf
 
-def run(camera=None, aosystem=None, config=None, configspec=None,
-        my_deque=None, my_event=None, plotter=None, ):
-    if my_deque is None:
-        my_deque = deque()
+def run_fastandfurious_test():
+    FF_ini = 'FF_software.ini'
+    FF_spec = 'FF_software.spec'
+    settings = sf.validate_config(FF_ini, FF_spec)
 
-    if my_event is None:
-        my_event = threading.Event()
-    settings = sf.validate_config(config, configspec)
+    camera, aosystem = helper.load_instruments('NIRC2',
+                                                camargs={},
+                                                aoargs={'rotation_angle_dm':
+                                                                settings['MODELLING']['rotation angle dm (deg)'],
+                                                                'flip_x':
+                                                                settings['MODELLING']['flip_x'],
+                                                                'flip_y':
+                                                                settings['MODELLING']['flip_y']})
 
     #----------------------------------------------------------------------
     # Control Loop parameters
@@ -127,19 +131,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         Camera = camera
         AOsystem = aosystem
     # generating the first reference image
-
-
-
-
-    bgds = sf.setup_bgd_dict('../bgds/')
-    print(bgds)
-
     data_raw = Camera.take_image()
-    data_raw = data_raw[0].data
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
                                           refpsf=OpticalModel.ref_psf.shaped,
-                                          bgds = bgds
                                           )
     # Take first image
     FnF.initialize_first_image(data_ref)
@@ -153,132 +148,95 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
-    # test_rot = np.arange(100)
-    # rotation_angle_threshold = 5
-    # rotation_angle_deg_pre = rotation_angle_aperture
+    test_rot = np.arange(100)
+    rotation_angle_threshold = 5
+    rotation_angle_deg_pre = rotation_angle_aperture
 
-   
+    #create zernike mode
+    mode_basis = hcipy.make_zernike_basis(5, 11.3, Aperture.pupil_grid, 5)
+    mode_basis = sf.orthonormalize_mode_basis(mode_basis, Aperture.aperture)
+    amplitude = 1.
 
+    dm_volt_to_amp_amplify = 3
 
-    for i in np.arange(Niter):
-        #The next two lines stop it if the user presses stop in the gui
-        if my_event.is_set():
-            return
-
-        SRA_measurements[i] = FnF.estimate_strehl()
-        my_deque.append(SRA_measurements)
+    #initial_cog = aosystem.get_dm_data()
 
 
-        #check if the change in primary mirror rotation has surpass the threshold required to regenerate the reference
-        # rotation_angle_deg_cur = test_rot[i]
-
+    for mode, i in zip(mode_basis, np.arange(len(mode_basis))):#np.arange(len(mode_basis))
         
-        
-        # if np.abs(rotation_angle_deg_pre-rotation_angle_deg_cur) > rotation_angle_threshold:
-        #     new_Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
-        #                      aperturename=chosen_aperture,
-        #                      rotation_angle_aperture=rotation_angle_deg_cur,
-        #                      )
+        # creating the phase that will be introduced
+        phase_rad = mode * amplitude
 
-        #     new_OpticalModel = ff_c.SystemModel(aperture=new_Aperture,
-        #                             Npix_foc=Npix_foc,
-        #                             mas_pix=mas_pix,
-        #                             wavelength=wavelength)
-            
-        #     rotation_angle_deg_pre = rotation_angle_deg_cur
+        # ipdb.set_trace()
+        microns = phase_rad * FnF.wavelength / (2 * np.pi) * 1e6
+        #move the dm and get the dm_microns map
+        _,dm_microns = AOsystem.set_dm_data(microns*dm_volt_to_amp_amplify )
 
-            
-        #     #Camera.opticalsystem=new_OpticalModel
-        #     #AOsystem.OpticalModel = new_OpticalModel
-            
-        #     FnF.SystemModel = new_OpticalModel
-        #     focalfield = new_OpticalModel.generate_psf_efield()
-        #     focalimg = np.abs(focalfield.intensity)**2
-         
-            
+    
 
-        #ipdb.set_trace()
-        img = Camera.take_image()
-        img = img[0].data
-        print(img)
-        data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
+        image = Camera.take_image()
+
+        pupil_wf = hcipy.Wavefront(Aperture.aperture * np.exp(1j * phase_rad),
+                             wavelength=FnF.wavelength)
+        focal_wf = OpticalModel.propagator(pupil_wf)
+
+        # getting the images by theory and practice
+        image_theory = focal_wf.power
+
+        image_bench = sf.reduce_images(image, xcen=xcen, ycen=ycen, npix=Npix_foc,
                                 refpsf=OpticalModel.ref_psf.shaped,
-                                bgds = bgds
                                 )
-        #update the loop with the new data
-        phase_DM = FnF.iterate(data)
-        #convert to usable DM units
-        microns = -3*phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+        
+      
+        # plt.ion()
+        # fig, ax = plt.subplots(1)
+        # ax.imshow(np.log10(image_theory.shaped / image_theory.max()), vmin=-5,origin='lower')
+        # plt.draw()
+        # plt.pause(0.02)
+        # for i in range(3):
+        #     ax.imshow(np.log10(image_theory.shaped / image_theory.max()), vmin=-3, alpha = 1,origin='lower')
+        #     plt.pause(1)
+        #     ax.clear()
+        #     ax.imshow(np.log10(np.abs(image_bench) / image_bench.max()), vmin=-3, alpha=1,origin='lower')
+        #     plt.pause(1)
+        #     ax.clear()
+        # plt.ioff()
+        # plt.close(fig)
+        # plt.figure(figsize=(8, 8))
 
+        plt.subplot(2, 2, 1)
+        hcipy.imshow_field(np.log10(image_theory / image_theory.max()), vmin=-3)
+        plt.colorbar()
+        plt.title('theory')
 
-        # save_img = True
-        # if save_img==True:
-        #     header = fits.Header()
-        #     header['Iter'] = i
-        #     header['Camera'] = camera
-        #     header['Aperture'] = chosen_aperture
-        #     header['Wavelength'] = wavelength
-        #     header['flip_x'] = flip_x
-        #     header['flip_y'] = flip_y
-        #     header['DM_angle'] = rotation_angle_dm
-        #     header['Gain'] = gain
-        #     header['xcen'] = xcen
-        #     header['ycen'] = ycen
+        plt.subplot(2, 2, 2)
+        plt.imshow(np.log10(np.abs(image_bench) / image_bench.max()), vmin=-3, origin='lower')
+        plt.colorbar()
+        plt.title('bench')
 
-        #     out_dir = 'NIRC2_test_img'
+        max_theory = np.max(np.abs(phase_rad))
 
-        #     hdu_raw.PrimaryHDU(data = img, header = header)
-        #     hdu_raw.writeto(f'{out_dir}/{chosen_aperture}_rawimg_{i:02d}.fits')
+        plt.subplot(2, 2, 3)
+        hcipy.imshow_field(phase_rad, cmap='bwr', vmin=-max_theory, vmax=max_theory)
+        plt.colorbar()
 
-        #     hdu_proc.PrimaryHDU(data = data, header = header)
-        #     hdu_proc.writeto(f'{out_dir}/{chosen_aperture}_procimg_{i:02d}.fits')
+        plt.title('theory')
 
+        max_bench = np.max(np.abs(dm_microns))
 
+        plt.subplot(2, 2, 4)
+        plt.imshow(dm_microns, origin='lower', cmap='bwr',
+                   vmin=-max_bench, vmax=max_bench)
 
+        plt.colorbar()
 
+        plt.title('Applied command')
 
-        #volts = 3*phase_DM * FnF.wavelength * 1e9 / 600
-        #microns = phase_DM * FnF.wavelength *1e-6 * 1e9/600
-        # This need to be fixed so that it is consistent between simulation and actual instruments, 
-        # the alias function should be made so that it can handle all instruments taking different parameters 
-        #or maybe just write seperate script for different instrument? 
-        #dm_microns = AOsystem.make_dm_command(microns)
-        #ipdb.set_trace()
-
-        # if i = 0:
-        #     AOsystem.set_dm_data(-1*microns)#???
-        #     microns_pre = microns
-        # else:
-        #     AOsystem.set_dm_data(microns_pre-1*microns)
-        #     microns_pre = microns
-        AOsystem.set_dm_data(microns)
-
-
-
-
-        # Saving metrics of strehl, airy ring variation
-        VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
-                                               mas_pix, wavelength,
-                                               Aperture.pupil_diameter)
-        print('Strehl:', SRA_measurements[i], ";  VAR: ", VAR_measurements[i])
-        if plotter is not None:
-            plotter.update(Niter=Niter,
-                                data=FnF.previous_image,
-                                pupil_wf=phase_DM,
-                                aperture=FnF.aperture,
-                                SRA=SRA_measurements,
-                                VAR=VAR_measurements)
-    t1 = time.time()
-    print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
-    #AOsystem.close_dm_stream()???
+        plt.show()
+        # converting the volt
+        
+        aosystem.AO.revert_cog()
+        
 
 if __name__ == "__main__":
-    plotter = pf.LivePlotter()
-    camera = "Sim"
-    aosystem = "Sim"
-
-    script_dir = Path(__file__).parent
-    config_path = script_dir/"FF_software_sim.ini"
-    spec_path   = script_dir/"FF_software.spec"
-    run(camera, aosystem, config=str(config_path),
-                          configspec=str(spec_path))
+    run_fastandfurious_test()
