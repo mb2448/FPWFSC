@@ -15,7 +15,6 @@ from ..common import plotting_funcs as pf
 from ..common import classes as ff_c
 from ..common import fake_hardware as fhw
 from ..common import support_functions as sf
-import ipdb
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None, ):
@@ -85,8 +84,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # Load the classes
     #----------------------------------------------------------------------
    
-
-
     Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
                              rotation_angle_aperture=rotation_angle_aperture)
@@ -135,7 +132,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     print(bgds)
 
     data_raw = Camera.take_image()
-    data_raw = data_raw[0].data
+    if data_raw.ndim != 2:
+        data_raw = data_raw[0]
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
                                           refpsf=OpticalModel.ref_psf.shaped,
@@ -153,11 +151,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
-    # test_rot = np.arange(100)
-    # rotation_angle_threshold = 5
-    # rotation_angle_deg_pre = rotation_angle_aperture
 
-   
+
+
+    hitchhiker_mode = True
+    if hitchhiker_mode==True:
+        Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
 
 
     for i in np.arange(Niter):
@@ -168,39 +167,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         SRA_measurements[i] = FnF.estimate_strehl()
         my_deque.append(SRA_measurements)
 
+        if hitchhiker_mode==True:
+            img= Hitch.wait_for_next_image()
+        else:
+            img = Camera.take_image()
 
-        #check if the change in primary mirror rotation has surpass the threshold required to regenerate the reference
-        # rotation_angle_deg_cur = test_rot[i]
+        if img.ndim != 2:
+            img = img[0]
 
-        
-        
-        # if np.abs(rotation_angle_deg_pre-rotation_angle_deg_cur) > rotation_angle_threshold:
-        #     new_Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
-        #                      aperturename=chosen_aperture,
-        #                      rotation_angle_aperture=rotation_angle_deg_cur,
-        #                      )
-
-        #     new_OpticalModel = ff_c.SystemModel(aperture=new_Aperture,
-        #                             Npix_foc=Npix_foc,
-        #                             mas_pix=mas_pix,
-        #                             wavelength=wavelength)
-            
-        #     rotation_angle_deg_pre = rotation_angle_deg_cur
-
-            
-        #     #Camera.opticalsystem=new_OpticalModel
-        #     #AOsystem.OpticalModel = new_OpticalModel
-            
-        #     FnF.SystemModel = new_OpticalModel
-        #     focalfield = new_OpticalModel.generate_psf_efield()
-        #     focalimg = np.abs(focalfield.intensity)**2
-         
-            
-
-        #ipdb.set_trace()
-        img = Camera.take_image()
-        img = img[0].data
-        print(img)
         data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
                                 refpsf=OpticalModel.ref_psf.shaped,
                                 bgds = bgds
@@ -208,30 +182,33 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
-        microns = -3*phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+        microns = -3 * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+
+        # print(np.shape(img))
+        # print(np.shape(data))
 
 
-        # save_img = True
-        # if save_img==True:
-        #     header = fits.Header()
-        #     header['Iter'] = i
-        #     header['Camera'] = camera
-        #     header['Aperture'] = chosen_aperture
-        #     header['Wavelength'] = wavelength
-        #     header['flip_x'] = flip_x
-        #     header['flip_y'] = flip_y
-        #     header['DM_angle'] = rotation_angle_dm
-        #     header['Gain'] = gain
-        #     header['xcen'] = xcen
-        #     header['ycen'] = ycen
+        save_img = False
+        if save_img==True:
+            header = fits.Header()
+            header['Iter'] = i
+            header['Camera'] = camera
+            header['Aperture'] = chosen_aperture
+            header['Wavelength'] = wavelength
+            header['flip_x'] = flip_x
+            header['flip_y'] = flip_y
+            header['DM_angle'] = rotation_angle_dm
+            header['Gain'] = gain
+            header['xcen'] = xcen
+            header['ycen'] = ycen
 
-        #     out_dir = 'NIRC2_test_img'
+            out_dir = 'NIRC2_test_img'
 
-        #     hdu_raw.PrimaryHDU(data = img, header = header)
-        #     hdu_raw.writeto(f'{out_dir}/{chosen_aperture}_rawimg_{i:02d}.fits')
+            hdu_raw = fits.PrimaryHDU(data = img, header = header)
+            hdu_raw.writeto(f'{out_dir}/{chosen_aperture}_rawimg_{i:02d}.fits', overwrite = True)
 
-        #     hdu_proc.PrimaryHDU(data = data, header = header)
-        #     hdu_proc.writeto(f'{out_dir}/{chosen_aperture}_procimg_{i:02d}.fits')
+            hdu_proc = fits.PrimaryHDU(data = data, header = header)
+            hdu_proc.writeto(f'{out_dir}/{chosen_aperture}_procimg_{i:02d}.fits',overwrite = True)
 
 
 

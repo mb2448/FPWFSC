@@ -20,21 +20,29 @@ from fpwfsc.fnf.run import run
 #from fpwfsc.common import plotting_funcs as pf
 def get_instrument_values(camera):
     #make a gui option for test time???
-    camera.get_parameters(test_time = 'Daytime')
 
-    return {'MODELLING':{
-    #self.camera.filter_name
-    'wavelength (m)':str(camera.wavelength*1e-6),
-    'aperture':str(camera.pupil_mask_name),
-    'pixel scale (mas/pix)':str(camera.pixel_scale)}}
-    #self.camera.camera_mode
-    #self.camera.xsize
-    #self.camera.ysize
+    if hasattr(camera, 'get_parameters') and callable(camera.get_parameters):
+        camera.get_parameters(test_time = 'Daytime')
+
+        return {'MODELLING':{
+        'wavelength (m)':str(camera.wavelength*1e-6),
+        'aperture':str(camera.pupil_mask_name),
+        'pixel scale (mas/pix)':str(camera.pixel_scale)}}
+        #self.camera.filter_name
+        #self.camera.camera_mode
+        #self.camera.xsize
+        #self.camera.ysize
 
 
-    #return {'MODELLING':{'wavelength (m)':'3e-6',
-    #        'aperture':'NIRC2_large_hexagonal_mask'}}
+        #return {'MODELLING':{'wavelength (m)':'3e-6',
+        #        'aperture':'NIRC2_large_hexagonal_mask'}}
 
+
+    else:
+        return None
+       
+        
+        
 class AlgorithmThread(QThread):
     update_plot = pyqtSignal(dict)
 
@@ -241,16 +249,19 @@ class ConfigEditorGUI(QWidget):
         print("Loading values from instrument")
         instrument_values = get_instrument_values(self.camera)
 
-        for section, values in instrument_values.items():
-            if section in self.config:
-                for key, value in values.items():
-                    if key in self.config[section]:
-                        if self.validate_config_value(section, key, value):
-                            self.config[section][key] = value
-                        else:
-                            print(f"Invalid value for {section}.{key}: {value}")
-        self.update_gui_from_config()
-
+        if instrument_values != None:
+            for section, values in instrument_values.items():
+                if section in self.config:
+                    for key, value in values.items():
+                        if key in self.config[section]:
+                            if self.validate_config_value(section, key, value):
+                                self.config[section][key] = value
+                            else:
+                                print(f"Invalid value for {section}.{key}: {value}")
+            self.update_gui_from_config()
+        else:
+            print("No instrument value available")
+            
     def validate_config_value(self, section, key, value):
         validator = Validator()
         test_config = ConfigObj(configspec=self.spec_file)
