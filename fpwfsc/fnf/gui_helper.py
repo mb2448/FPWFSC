@@ -2,8 +2,8 @@
 from ..common import bench_hardware as hw
 import sys
 sys.path.insert(0, '/usr/local/home/localdev/mcisse/data_pyao/')
-from guis.fast_and_furious import hardware
-valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires']
+#from guis.fast_and_furious import hardware
+valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires','OSIRIS']
 
 config_info = {
     "LOOP_SETTINGS": {

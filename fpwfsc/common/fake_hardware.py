@@ -9,7 +9,8 @@ from pathlib import Path
 from . import support_functions as sf
 from . import classes as ff_c
 from . import dm
-import ipdb
+
+
 
 comment = """
 [SIMULATION]
@@ -391,7 +392,7 @@ class FakeAOSystem:
     def set_dm_data(self, dm_microns):
         #in the sim, just undoes the microns command from subaru
         phase_DM= dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
-        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error-phase_DM)
+        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_DM)
         self.OpticalModel.generate_psf_efield()
         return
 
