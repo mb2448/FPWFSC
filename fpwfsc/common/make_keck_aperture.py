@@ -31,9 +31,9 @@ def get_aperture(aperturename=None, pupil_grid=None,
 
 
     if aperturename == 'open':
-        aperture = evaluate_supersampled(make_circular_aperture(11.732), pupil_grid, 8)#2 * 5.573
+        aperture = evaluate_supersampled(make_circular_aperture(10.9), pupil_grid, 8)#2 * 5.573  #old one: 11.732
 
-        pupil_diameter = 11.732 # meter
+        pupil_diameter = 10.9 # meter
 
     elif aperturename == 'keck':
 

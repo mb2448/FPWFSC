@@ -6,9 +6,9 @@ from . import support_functions as sf
 
 try:
 
-    sys.path.insert(0, '/usr/local/home/localdev/mcisse/data_pyao/')
+    sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
     #from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
-    from guis.fast_and_furious.hardware import NIRC2
+    from guis.fast_and_furious.hardware import NIRC2, KeckAO, OSIRIS
 
     import aosys.xinetics_deformable_mirror.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
@@ -17,17 +17,17 @@ try:
 except ImportError:
     warnings.warn("Failed to import hardware modules")
     
-# class OSIRISAlias:
-#     """OSIRIS Alias to make image aquisition compatible with FPWFSC API
-#     """
-#     def __init__(self):
-#         self.OSIRIS = OSIRIS()
-#         self._take_image = self.OSIRIS.take_image
+class OSIRISAlias:
+    """OSIRIS Alias to make image aquisition compatible with FPWFSC API
+    """
+    def __init__(self):
+        self.OSIRIS = OSIRIS()
+        self._take_image = self.OSIRIS.take_image
 
 
-#     def take_image(self):
-#         img_hdu = self._take_image()
-#         return img_hdu.data
+    def take_image(self):
+        img_hdu = self._take_image()
+        return img_hdu.data
 
 class NIRC2Alias():
     """NIRC2 Alias to make image aquisition compatible with FPWFSC API
@@ -48,8 +48,8 @@ class AOSystemAlias:
     def __init__(self):
         """Open-loop AO System Interface
         """
-        self.AO = xd.XineticsDeformableMirror(prefix='k2')
-        self.ttm = SHWFSFieldSteeringMirror(prefix='k2')
+        self.AO = xd.XineticsDeformableMirror()
+        self.ttm = SHWFSFieldSteeringMirror()
         self._closed = False
 
     def set_dm_data(self, shape, modify_existing=False):
@@ -231,176 +231,176 @@ class ClosedAOSystemAlias:
 #        image = self.nirc2.take_image()
 
 #        return image
-class KeckAO:
+# class KeckAO:
 
-    def __init__(self):
-        """
-        Basic description of the function.
-        """
+#     def __init__(self):
+#         """
+#         Basic description of the function.
+#         """
 
-        self.shwfs = SHWFS(prefix="k2")
-        self.xinetics = xd.XineticsDeformableMirror(prefix="k2")
-        self.rotator = Rotator(prefix="k2")
+#         self.shwfs = SHWFS(prefix="k2")
+#         self.xinetics = xd.XineticsDeformableMirror(prefix="k2")
+#         self.rotator = Rotator(prefix="k2")
 
-        self.default_cog = self.shwfs.get_default_centroid_origins_filename()
-        self.current_cog = self.shwfs.get_centroid_origins()
+#         self.default_cog = self.shwfs.get_default_centroid_origins_filename()
+#         self.current_cog = self.shwfs.get_centroid_origins()
 
-        self.save_cog_name = ""
-        self.load_cog_name = ""
-        self.cog_name = ""
-        self.ciog_data = ""
+#         self.save_cog_name = ""
+#         self.load_cog_name = ""
+#         self.cog_name = ""
+#         self.ciog_data = ""
 
-        self.dm_command = np.zeros(1)
+#         self.dm_command = np.zeros(1)
 
-    def get_rotator_mode(self):
-        """"
-        This function gets the mode of the rotator. Note: F&F currently only runs in vertical angle mode.
-        """
-        rotator_mode = self.rotator.get_mode()
-        return rotator_mode
+#     def get_rotator_mode(self):
+#         """"
+#         This function gets the mode of the rotator. Note: F&F currently only runs in vertical angle mode.
+#         """
+#         rotator_mode = self.rotator.get_mode()
+#         return rotator_mode
 
-    def get_rotator_angle(self):
-        """
-        Read and update the pupil angle of the rotator. This is needed as an input for the F&F algorithm model.
-        """
-        pupil_angle = self.rotator.get_pupil_angle()
+#     def get_rotator_angle(self):
+#         """
+#         Read and update the pupil angle of the rotator. This is needed as an input for the F&F algorithm model.
+#         """
+#         pupil_angle = self.rotator.get_pupil_angle()
 
-        return pupil_angle
+#         return pupil_angle
 
-    def revert_cog(self):
-        """
-        Revert the current cog file to the start of the night
-        """
-        # get the default centroid origins to reload
-        self.default_cog = self.shwfs.get_default_centroid_origins_filename()
-        self.shwfs.load_centroid_origins(self.default_cog)
+#     def revert_cog(self):
+#         """
+#         Revert the current cog file to the start of the night
+#         """
+#         # get the default centroid origins to reload
+#         self.default_cog = self.shwfs.get_default_centroid_origins_filename()
+#         self.shwfs.load_centroid_origins(self.default_cog)
 
-    def get_cog_filename(self):
-        """
-        Get the current centroid origin filename
-        """
-        self.cog_name = self.shwfs.get_current_centroid_origins_filename()
-        return self.cog_name
+#     def get_cog_filename(self):
+#         """
+#         Get the current centroid origin filename
+#         """
+#         self.cog_name = self.shwfs.get_current_centroid_origins_filename()
+#         return self.cog_name
 
-    def open_cog(self, cog_name, shape_requested = "vector"):
-        """
-        Open and read the give cog file, return an array
-        """
-        self.cog_data = self.shwfs.open_centroid_origins_file(cog_name, shape_requested=shape_requested)
-        return self.cog_data
+#     def open_cog(self, cog_name, shape_requested = "vector"):
+#         """
+#         Open and read the give cog file, return an array
+#         """
+#         self.cog_data = self.shwfs.open_centroid_origins_file(cog_name, shape_requested=shape_requested)
+#         return self.cog_data
 
-    def load_cog(self, load_cog_name):
-        """
-        Load a cog file given an input filename
-        """
-        self.load_cog_name = load_cog_name
-        self.shwfs.load_centroid_origins(self.load_cog_name)
+#     def load_cog(self, load_cog_name):
+#         """
+#         Load a cog file given an input filename
+#         """
+#         self.load_cog_name = load_cog_name
+#         self.shwfs.load_centroid_origins(self.load_cog_name)
 
-        return self.load_cog_name
+#         return self.load_cog_name
 
-    def save_cog(self, save_cog_name, cog = None, timestamp = True):
-        """
-        Save the current cog file with a generated filename
-        """
-        if cog is not None:
-            self.current_cog = cog
-        else:
-            self.current_cog = self.shwfs.get_centroid_origins()
-
-
-        save_filename = save_cog_name
-
-        saved_filename = self.shwfs.save_centroid_origins_file(self.current_cog, filename=save_filename, add_timestamp=timestamp)
-
-        return saved_filename
-
-    def open_influence_matrix(self):
-        return self.shwfs.open_influence_matrix('24.imx')
+#     def save_cog(self, save_cog_name, cog = None, timestamp = True):
+#         """
+#         Save the current cog file with a generated filename
+#         """
+#         if cog is not None:
+#             self.current_cog = cog
+#         else:
+#             self.current_cog = self.shwfs.get_centroid_origins()
 
 
-    def get_dm_actuator_map(self):
-        """
-        Pulls the binary DM actuator map and returns as an array
-        """
-        dm_actuator_map = self.xinetics.get_binary_actuators_map()
+#         save_filename = save_cog_name
 
-    def make_dm_command(self, phase, diameter, center, actuator_num, rotation_angle_dm = 0 , flip_x = False, flip_y = False):
-        """Converts the phase estimate to a DM command.
+#         saved_filename = self.shwfs.save_centroid_origins_file(self.current_cog, filename=save_filename, add_timestamp=timestamp)
 
-    This function converts the phase estimate to a DM command. This means
-    that the phase estimate is rotated to match the DM orientation. Then
-    it will be resampled to an array with the appropriate size (actuator_num x actuator_num)
-    and put on the active pupil on the DM. It will also take into account
-    the reflective nature of the DM and divide the command by 2.
+#         return saved_filename
 
-    Parameters
-    ----------
-    phase : Field
-        The phase estimate in volts.
-    diameter : integer
-        Diameter of active pupil on the DM in actuators.
-    center : [integer, integer]
-        Position of the center of the active pupil on the dm in actuators [x_pos, y_pos].
-    actuator_num : integer
-        The number of actuators along one axis of the DM.
-    rotation_angle_dm : float
-        Rotation angle of the DM in degrees.
-
-    Returns
-    ----------
-    dm_command : square numpy array
-        The DM command derived from the phase estimate.
-    '''
-    if rotation_angle_dm != 0:
-
-        grid = phase.grid
-
-        shape_phase = phase.shaped.shape
-
-        # rotating the resampled phase
-        phase = hcipy.Field(sf.cen_rot(phase.shaped, rotation_angle_dm, np.array(phase.shaped.shape) / 2).ravel(),
-        #phase.grid)
-    """
-    # first we resample the measured phase to the size of the pupil on the actuators
-        phase_resampled = sf.fourier_resample(phase, [diameter, diameter])
-
-        if rotation_angle_dm != 0:
-            grid = phase_resampled.grid
-
-            # rotating the resampled phase
-            phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, rotation_angle_dm,
-                                                     np.array([center[1], center[0]])).ravel(), grid)
-
-        if flip_x == True:
-            grid = phase_resampled.grid
-            phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 0).ravel(), grid)
-        if flip_y == True:
-            grid = phase_resampled.grid
-            phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 1).ravel(), grid)
-
-        # array with the final DM command
-        self.dm_command = np.zeros((actuator_num, actuator_num))
-
-        # the actuators on which we put the pupil
-        x_start = int(center[0] - diameter / 2)
-        x_end = int(x_start + diameter)
-
-        y_start = int(center[1] - diameter / 2)
-        y_end = int(y_start + diameter)
-
-        # filling the array with the actual command
-        self.dm_command[y_start:y_end, x_start:x_end] = phase_resampled.shaped
-
-        # testing if flipping the axis of the DM improves the result.
-        # all three options (y-, x-axis, both) were tried and did not improve the loop
-        # dm_command = dm_command[:,::-1]
-
-        # dividing by two because we have a reflection and OPD
-        self.dm_command /= 2
+#     def open_influence_matrix(self):
+#         return self.shwfs.open_influence_matrix('24.imx')
 
 
+#     def get_dm_actuator_map(self):
+#         """
+#         Pulls the binary DM actuator map and returns as an array
+#         """
+#         dm_actuator_map = self.xinetics.get_binary_actuators_map()
 
-        return self.dm_command
+#     def make_dm_command(self, phase, diameter, center, actuator_num, rotation_angle_dm = 0 , flip_x = False, flip_y = False):
+#         """Converts the phase estimate to a DM command.
+
+#     This function converts the phase estimate to a DM command. This means
+#     that the phase estimate is rotated to match the DM orientation. Then
+#     it will be resampled to an array with the appropriate size (actuator_num x actuator_num)
+#     and put on the active pupil on the DM. It will also take into account
+#     the reflective nature of the DM and divide the command by 2.
+
+#     Parameters
+#     ----------
+#     phase : Field
+#         The phase estimate in volts.
+#     diameter : integer
+#         Diameter of active pupil on the DM in actuators.
+#     center : [integer, integer]
+#         Position of the center of the active pupil on the dm in actuators [x_pos, y_pos].
+#     actuator_num : integer
+#         The number of actuators along one axis of the DM.
+#     rotation_angle_dm : float
+#         Rotation angle of the DM in degrees.
+
+#     Returns
+#     ----------
+#     dm_command : square numpy array
+#         The DM command derived from the phase estimate.
+#     '''
+#     if rotation_angle_dm != 0:
+
+#         grid = phase.grid
+
+#         shape_phase = phase.shaped.shape
+
+#         # rotating the resampled phase
+#         phase = hcipy.Field(sf.cen_rot(phase.shaped, rotation_angle_dm, np.array(phase.shaped.shape) / 2).ravel(),
+#         #phase.grid)
+#     """
+#     # first we resample the measured phase to the size of the pupil on the actuators
+#         phase_resampled = sf.fourier_resample(phase, [diameter, diameter])
+
+#         if rotation_angle_dm != 0:
+#             grid = phase_resampled.grid
+
+#             # rotating the resampled phase
+#             phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, rotation_angle_dm,
+#                                                      np.array([center[1], center[0]])).ravel(), grid)
+
+#         if flip_x == True:
+#             grid = phase_resampled.grid
+#             phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 0).ravel(), grid)
+#         if flip_y == True:
+#             grid = phase_resampled.grid
+#             phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 1).ravel(), grid)
+
+#         # array with the final DM command
+#         self.dm_command = np.zeros((actuator_num, actuator_num))
+
+#         # the actuators on which we put the pupil
+#         x_start = int(center[0] - diameter / 2)
+#         x_end = int(x_start + diameter)
+
+#         y_start = int(center[1] - diameter / 2)
+#         y_end = int(y_start + diameter)
+
+#         # filling the array with the actual command
+#         self.dm_command[y_start:y_end, x_start:x_end] = phase_resampled.shaped
+
+#         # testing if flipping the axis of the DM improves the result.
+#         # all three options (y-, x-axis, both) were tried and did not improve the loop
+#         # dm_command = dm_command[:,::-1]
+
+#         # dividing by two because we have a reflection and OPD
+#         self.dm_command /= 2
+
+
+
+#         return self.dm_command
 
 
 # class KeckAO:

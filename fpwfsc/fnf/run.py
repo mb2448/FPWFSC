@@ -123,7 +123,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         Camera = camera
         AOsystem = aosystem
+        #initialize the current cog file 
+        AOsystem.current_cog_file = AOsystem.AO.get_cog_filename()
+        AOsystem.cur_cog = AOsystem.AO.open_cog(AOsystem.current_cog_file, shape_requested = 'vector')
     # generating the first reference image
+
+
 
 
 
@@ -154,7 +159,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
-    hitchhiker_mode = True
+    hitchhiker_mode = False
     if hitchhiker_mode==True:
         Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
 
@@ -190,9 +195,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         save_img = False
         if save_img==True:
-            header = fits.Header()
+            header = fits.Header() 
             header['Iter'] = i
-            header['Camera'] = camera
+            #header['Cam'] = camera
             header['Aperture'] = chosen_aperture
             header['Wavelength'] = wavelength
             header['flip_x'] = flip_x
@@ -202,13 +207,13 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             header['xcen'] = xcen
             header['ycen'] = ycen
 
-            out_dir = 'NIRC2_test_img'
+            out_dir = 'OSIRIS_test_img'
 
             hdu_raw = fits.PrimaryHDU(data = img, header = header)
             hdu_raw.writeto(f'{out_dir}/{chosen_aperture}_rawimg_{i:02d}.fits', overwrite = True)
 
-            hdu_proc = fits.PrimaryHDU(data = data, header = header)
-            hdu_proc.writeto(f'{out_dir}/{chosen_aperture}_procimg_{i:02d}.fits',overwrite = True)
+            # hdu_proc = fits.PrimaryHDU(data = data, header = header)
+            # hdu_proc.writeto(f'{out_dir}/{chosen_aperture}_procimg_{i:02d}.fits',overwrite = True)
 
 
 

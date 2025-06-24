@@ -178,7 +178,7 @@ if __name__ == "__main__":
     # AOSystem = hw.AOSystemAlias()
     # # Camera, AOSystem = 'Sim', 'Sim'
     # run(camera=Camera, aosystem=AOSystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')
-    Camera = hw.NIRC2Alias()
+    Camera = hw.OSIRIS()
     AOSystem = hw.AOSystemAlias()
     # Camera, AOSystem = 'Sim', 'Sim'
     run(camera=Camera, aosystem=AOSystem, config='sn_config.ini', configspec='sn_config.spec')

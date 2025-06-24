@@ -1,8 +1,8 @@
 # gui_helper.py
 from ..common import bench_hardware as hw
 import sys
-sys.path.insert(0, '/usr/local/home/localdev/mcisse/data_pyao/')
-#from guis.fast_and_furious import hardware
+sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
+from guis.fast_and_furious import hardware
 valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires','OSIRIS']
 
 config_info = {
@@ -164,7 +164,7 @@ def load_instruments(instrumentname, camargs={}, aoargs={}):
     elif instrumentname == 'NIRC2':
         return hardware.NIRC2(**camargs), hw.ClosedAOSystemAlias(**aoargs)
     elif instrumentname == 'OSIRIS':
-        return hw.OSIRISAlias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
+        return hardware.OSIRIS(**camargs), hw.ClosedAOSystemAlias(**aoargs)
 
     elif instrumentname == 'Palila':
         return hw.Palila(**camargs), hw.SCEXAO(**aoargs)
