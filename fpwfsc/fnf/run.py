@@ -154,7 +154,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
-    hitchhiker_mode = True
+    hitchhiker_mode = False
     if hitchhiker_mode==True:
         Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
 
