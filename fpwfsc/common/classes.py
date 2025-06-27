@@ -209,7 +209,7 @@ class CoronagraphSystemModel:
         focal_wf
         """
         #XYZ somehwere here put in the flip
-        print("Flip put in here somewhere")
+        #print("Flip put in here somewhere")
         lyot_wf = self.FocalSpot.forward_tolyot(self.pupil_efield, include_fpm=self.include_fpm)
         lyot_wf.electric_field *= self.LyotStop.aperture
         focal_wf = self.propagator(lyot_wf)
@@ -288,7 +288,7 @@ class SystemModel:
         focal_wf
         """
         #XYZ somehwere here put in the flip
-        print("Flip put in here somewhere")
+        #print("Flip put in here somewhere")
         focal_wf = self.propagator(self.pupil_efield)
         return focal_wf
 

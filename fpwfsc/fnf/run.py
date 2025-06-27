@@ -8,6 +8,8 @@ from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
 from pathlib import Path
+import json
+import os
 
 from astropy.io import fits
 
@@ -15,6 +17,7 @@ from ..common import plotting_funcs as pf
 from ..common import classes as ff_c
 from ..common import fake_hardware as fhw
 from ..common import support_functions as sf
+from ..san import sn_functions as sn
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque=None, my_event=None, plotter=None, ):
@@ -24,6 +27,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if my_event is None:
         my_event = threading.Event()
     settings = sf.validate_config(config, configspec)
+    print('*************************************************************************')
+    print(type(config))
+    
 
     #----------------------------------------------------------------------
     # Control Loop parameters
@@ -129,7 +135,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
     bgds = sf.setup_bgd_dict('../bgds/')
-    print(bgds)
+    #print(bgds)
+    #XXX! Add this to the hardware file, self.get_nest_filename = self.nirc2.get_next_flename
+    #filename = Camera.get_next_filename()
 
     data_raw = Camera.take_image()
     if data_raw.ndim != 2:
@@ -153,10 +161,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
-
+    #initialization for optional things 
     hitchhiker_mode = False
     if hitchhiker_mode==True:
         Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
+
+    save_log = True
+    if save_log == True: 
+        logger = LogManager(base_log_dir="run_20250625_logs", config=settings)
 
 
     for i in np.arange(Niter):
@@ -168,8 +180,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque.append(SRA_measurements)
 
         if hitchhiker_mode==True:
+            #XXX for hitchhiker, we need to output the file name, shoild be in _read_fits, but other places are using the hitchiker so...
             img= Hitch.wait_for_next_image()
         else:
+            #filename = Camera.get_next_filename()
             img = Camera.take_image()
 
         if img.ndim != 2:
@@ -184,51 +198,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #convert to usable DM units
         microns = -3 * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
 
-        # print(np.shape(img))
-        # print(np.shape(data))
-
-
-        save_img = False
-        if save_img==True:
-            header = fits.Header()
-            header['Iter'] = i
-            header['Camera'] = camera
-            header['Aperture'] = chosen_aperture
-            header['Wavelength'] = wavelength
-            header['flip_x'] = flip_x
-            header['flip_y'] = flip_y
-            header['DM_angle'] = rotation_angle_dm
-            header['Gain'] = gain
-            header['xcen'] = xcen
-            header['ycen'] = ycen
-
-            out_dir = 'NIRC2_test_img'
-
-            hdu_raw = fits.PrimaryHDU(data = img, header = header)
-            hdu_raw.writeto(f'{out_dir}/{chosen_aperture}_rawimg_{i:02d}.fits', overwrite = True)
-
-            hdu_proc = fits.PrimaryHDU(data = data, header = header)
-            hdu_proc.writeto(f'{out_dir}/{chosen_aperture}_procimg_{i:02d}.fits',overwrite = True)
-
-
-
-
-
-        #volts = 3*phase_DM * FnF.wavelength * 1e9 / 600
-        #microns = phase_DM * FnF.wavelength *1e-6 * 1e9/600
-        # This need to be fixed so that it is consistent between simulation and actual instruments, 
-        # the alias function should be made so that it can handle all instruments taking different parameters 
-        #or maybe just write seperate script for different instrument? 
-        #dm_microns = AOsystem.make_dm_command(microns)
-        #ipdb.set_trace()
-
-        # if i = 0:
-        #     AOsystem.set_dm_data(-1*microns)#???
-        #     microns_pre = microns
-        # else:
-        #     AOsystem.set_dm_data(microns_pre-1*microns)
-        #     microns_pre = microns
-        AOsystem.set_dm_data(microns)
+        AO_cog, _ = AOsystem.set_dm_data(microns)
 
 
 
@@ -238,16 +208,103 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                                mas_pix, wavelength,
                                                Aperture.pupil_diameter)
         print('Strehl:', SRA_measurements[i], ";  VAR: ", VAR_measurements[i])
+
+        pix_dis,contrast_measurements = sn.contrastcurve_simple(data, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
+        mas_dis = pix_dis * mas_pix
+
         if plotter is not None:
             plotter.update(Niter=Niter,
                                 data=FnF.previous_image,
                                 pupil_wf=phase_DM,
                                 aperture=FnF.aperture,
                                 SRA=SRA_measurements,
-                                VAR=VAR_measurements)
+                                separation = mas_dis,
+                                contrast = contrast_measurements)
+
+        logger.save_iteration(i, 
+                       strehl=SRA_measurements[i],
+                       contrast_curve=contrast_measurements,
+                       separation=mas_dis,
+                       ref_psf=OpticalModel.ref_psf.shaped,
+                       phase_estimate=phase_DM.shaped,
+                       dm_command=AO_cog.shaped, ##not sure what the real one looks like
+                       raw_data=img,
+                       processed_data=data,
+                       raw_file=None,
+                       backgrounds = bgds)
+        
+
     t1 = time.time()
     print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
     #AOsystem.close_dm_stream()???
+
+
+class LogManager:
+    def __init__(self, base_log_dir="logs", config=None):
+        self.base_log_dir = base_log_dir
+        os.makedirs(self.base_log_dir, exist_ok=True)
+        
+        # Save config once if provided
+        if config:
+            config_path = os.path.join(self.base_log_dir, "config.json")
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+
+    def save_iteration(self, iter_num, *, 
+                       strehl=None,
+                       contrast_curve=None,
+                       separation=None,
+                       ref_psf=None,
+                       phase_estimate=None,
+                       dm_command=None,
+                       raw_data=None,
+                       processed_data=None,
+                       raw_file=None,
+                       backgrounds = None
+                       ):
+
+        iter_dir = os.path.join(self.base_log_dir, f"iter_{iter_num:03d}")
+        os.makedirs(iter_dir, exist_ok=True)
+
+        # Save metadata
+        meta = {
+            "iteration": int(iter_num),
+            "strehl_ratio": float(strehl) if strehl is not None else None,
+            "raw_file": raw_file,
+            "backgrounds": backgrounds
+            
+        }
+        with open(os.path.join(iter_dir, "metadata.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+
+        # Save contrast curve (1D)
+        if contrast_curve is not None and separation is not None:
+            fits.writeto(os.path.join(iter_dir, "contrast.fits"),
+                         np.array([separation, contrast_curve]),
+                         overwrite=True)
+
+        # Save reference PSF  
+        if phase_estimate is not None:
+            fits.writeto(os.path.join(iter_dir, "reference PSF.fits"),
+                         ref_psf, overwrite=True)
+
+
+        # Save 2D arrays
+        if phase_estimate is not None:
+            fits.writeto(os.path.join(iter_dir, "phase_estimate.fits"),
+                         phase_estimate, overwrite=True)
+
+        if dm_command is not None:
+            fits.writeto(os.path.join(iter_dir, "dm_command.fits"),
+                         dm_command, overwrite=True)
+
+        # Save images only if data is provided
+        if raw_data is not None:
+            fits.writeto(os.path.join(iter_dir, "raw.fits"), raw_data, overwrite=True)
+
+        if processed_data is not None:
+            fits.writeto(os.path.join(iter_dir, "processed.fits"), processed_data, overwrite=True)
+    
 
 if __name__ == "__main__":
     plotter = pf.LivePlotter()
