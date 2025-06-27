@@ -6,7 +6,7 @@ from . import support_functions as sf
 #import support_functions as sf
 
 def get_aperture(aperturename=None, pupil_grid=None,
-                 rotation_angle_aperture=0, oversampling_factor=8, ): #rotation_primary_deg=0
+                 rotation_angle_aperture=0, oversampling_factor=8, rotation_primary_deg=0): #rotation_primary_deg=0
     """A helper function to return an aperture, and rotate it
     to the appropriate angle.
 
@@ -434,7 +434,7 @@ if __name__ == '__main__':
     NIRC2_large_hex = evaluate_supersampled(make_NIRC2_large_hexagonal_mask(), pupil_grid, supersampling_factor)
 
     NIRC2_Lyot_Stop = evaluate_supersampled(make_NIRC2_lyot_stop(), pupil_grid, supersampling_factor)
-
+    '''
     plt.figure()
     imshow_field(keck_aperture)
     plt.colorbar()
@@ -452,7 +452,7 @@ if __name__ == '__main__':
     plt.colorbar()
 
     plt.title('NIRC2 large hexagonal mask')
-    '''
+    
     plt.figure()
     imshow_field(keck_aperture * NIRC2_large_hex)
     plt.colorbar()
@@ -464,16 +464,16 @@ if __name__ == '__main__':
     plt.colorbar()
 
     plt.title('Keck aperture * NIRC2 incircle mask')
-    '''
+    
     plt.figure()
     imshow_field(NIRC2_Lyot_Stop)
     plt.colorbar()
 
     plt.title('NIRC2 Lyot Stop, relative throughput = ' + str(np.round(np.sum(NIRC2_Lyot_Stop) / np.sum(keck_aperture), 2)))
-
+'''
 
     test_aperture, _ = get_aperture(aperturename='keck+NIRC2_large_hexagonal_mask', pupil_grid=pupil_grid,
-                                 rotation_angle_aperture=15, oversampling_factor=1, )
+                                 rotation_angle_aperture=0, oversampling_factor=1, rotation_primary_deg=35)
     plt.figure()
     imshow_field(test_aperture)
     plt.colorbar()

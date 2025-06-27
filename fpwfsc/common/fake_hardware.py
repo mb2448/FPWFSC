@@ -394,7 +394,8 @@ class FakeAOSystem:
         phase_DM= dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_DM)
         self.OpticalModel.generate_psf_efield()
-        return
+        #return as a place holder
+        return phase_DM, phase_DM
 
     def make_dm_command(self, microns):
         return microns
