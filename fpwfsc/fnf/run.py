@@ -129,7 +129,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         Camera = camera
         AOsystem = aosystem
+        #initialize the current cog file 
+        AOsystem.current_cog_file = AOsystem.AO.get_cog_filename()
+        AOsystem.cur_cog = AOsystem.AO.open_cog(AOsystem.current_cog_file, shape_requested = 'vector')
     # generating the first reference image
+
+
 
 
 
@@ -161,7 +166,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
+
     #initialization for optional things 
+
     hitchhiker_mode = False
     if hitchhiker_mode==True:
         Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
@@ -199,9 +206,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         microns = -3 * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
 
         AO_cog, _ = AOsystem.set_dm_data(microns)
-
-
-
 
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,

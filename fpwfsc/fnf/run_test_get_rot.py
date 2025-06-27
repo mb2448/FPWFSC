@@ -21,7 +21,7 @@ def run_fastandfurious_test():
     FF_spec = 'FF_software.spec'
     settings = sf.validate_config(FF_ini, FF_spec)
 
-    camera, aosystem = helper.load_instruments('NIRC2',
+    camera, aosystem = helper.load_instruments('OSIRIS',
                                                 camargs={},
                                                 aoargs={'rotation_angle_dm':
                                                                 settings['MODELLING']['rotation angle dm (deg)'],
@@ -153,7 +153,7 @@ def run_fastandfurious_test():
     rotation_angle_deg_pre = rotation_angle_aperture
 
     #create zernike mode
-    mode_basis = hcipy.make_zernike_basis(5, 11.3, Aperture.pupil_grid, 5)
+    mode_basis = hcipy.make_zernike_basis(4, 11.3, Aperture.pupil_grid, 7)
     mode_basis = sf.orthonormalize_mode_basis(mode_basis, Aperture.aperture)
     amplitude = 1.
 
