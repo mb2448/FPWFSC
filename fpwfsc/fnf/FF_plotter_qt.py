@@ -10,7 +10,7 @@ class PlotterSignals(QObject):
     Signal class for thread-safe communication with the plotter.
     This allows data to be safely passed from worker threads to the GUI.
     """
-    update_signal = pyqtSignal(object, object, object, object, object, object, object)
+    update_signal = pyqtSignal(object, object, object, object, object, object, object, object)
 
 
 class LivePlotter(QtWidgets.QWidget):
@@ -84,6 +84,8 @@ class LivePlotter(QtWidgets.QWidget):
 
         self.contrast_curve = pg.PlotDataItem(pen=pg.mkPen('r', width=2))
         self.contrast_plot.addItem(self.contrast_curve)
+        self.contrast_curve_ori = pg.PlotDataItem(pen=pg.mkPen('g', width=2))
+        self.contrast_plot.addItem(self.contrast_curve_ori)
         
         # Create colormaps
         # Jet colormap for PSF
@@ -220,7 +222,7 @@ class LivePlotter(QtWidgets.QWidget):
         if not self.closed:
             QtWidgets.QApplication.processEvents()
     
-    def update(self, Niter, data, pupil_wf, aperture, SRA, separation, contrast):
+    def update(self, Niter, data, pupil_wf, aperture, SRA, separation, contrast, contrast_ori):
         """
         Thread-safe update method. Emits a signal that's connected to _update_plots.
         This method can be safely called from any thread.
@@ -262,12 +264,13 @@ class LivePlotter(QtWidgets.QWidget):
         SRA_copy = np.array(SRA)
         separation_copy = np.array(separation)
         contrast_copy = np.array(contrast)
+        contrast_ori_copy = np.array(contrast_ori)
         
         # Emit the signal with the data to update the plots in the main thread
-        self.signals.update_signal.emit(Niter, data_copy, pupil_wf_copy, aperture_copy, SRA_copy, separation_copy, contrast_copy)
+        self.signals.update_signal.emit(Niter, data_copy, pupil_wf_copy, aperture_copy, SRA_copy, separation_copy, contrast_copy, contrast_ori_copy)
     
-    @pyqtSlot(object, object, object, object, object, object, object)
-    def _update_plots(self, Niter, data, pupil_wf, aperture, SRA, sep, contrast):
+    @pyqtSlot(object, object, object, object, object, object, object, object)
+    def _update_plots(self, Niter, data, pupil_wf, aperture, SRA, sep, contrast, contrast_ori):
         """
         Actual update method that runs in the GUI thread.
         This is called via the signal connection and is thread-safe.
@@ -337,6 +340,7 @@ class LivePlotter(QtWidgets.QWidget):
             
             # Update contrast plot
             self.contrast_curve.setData(sep, contrast)
+            self.contrast_curve_ori.setData(sep, contrast_ori)
             self.contrast_plot.setTitle(f"Contrast at Iter {Niter}")
                 
             # Force Y range reset on each update to ensure it's properly set

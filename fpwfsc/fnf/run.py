@@ -164,6 +164,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
+    pix_dis_ori,contrast_ori = sn.contrastcurve_simple(data_ref, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
+    
+
 
 
 
@@ -223,7 +226,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 aperture=FnF.aperture,
                                 SRA=SRA_measurements,
                                 separation = mas_dis,
-                                contrast = contrast_measurements)
+                                contrast = contrast_measurements,
+                                contrast_ori = contrast_ori)
 
         logger.save_iteration(i, 
                        strehl=SRA_measurements[i],
@@ -232,7 +236,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                        ref_psf=OpticalModel.ref_psf.shaped,
                        phase_estimate=phase_DM.shaped,
                        dm_command=AO_cog.shaped, ##not sure what the real one looks like
-                       raw_data=img,
+                       raw_data=None,#img,
                        processed_data=data,
                        raw_file=None,
                        backgrounds = bgds)
