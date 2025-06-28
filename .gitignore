@@ -1,6 +1,6 @@
 # FITS files
-*.fits
-*.fit
+#*.fits
+#*.fit
 *.gif
 
 # Byte-compiled / optimized / DLL files
