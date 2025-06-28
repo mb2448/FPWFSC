@@ -15,6 +15,7 @@ from fpwfsc.common import plotting_funcs as pf
 from fpwfsc.common import classes as ff_c
 from fpwfsc.common import fake_hardware as fhw
 from fpwfsc.common import support_functions as sf
+import random
 
 def run_fastandfurious_test():
     FF_ini = 'FF_software.ini'
@@ -153,9 +154,9 @@ def run_fastandfurious_test():
     rotation_angle_deg_pre = rotation_angle_aperture
 
     #create zernike mode
-    mode_basis = hcipy.make_zernike_basis(10, 11.3, Aperture.pupil_grid, 0)
+    mode_basis = hcipy.make_zernike_basis(10, 11.3, Aperture.pupil_grid,3)
     mode_basis = sf.orthonormalize_mode_basis(mode_basis, Aperture.aperture)
-    amplitude = 0.3
+    amplitude = 0.7
 
     dm_volt_to_amp_amplify = 3
 
@@ -194,7 +195,7 @@ def run_fastandfurious_test():
     max_theory = np.max(np.abs(add_mode))
 
     plt.subplot(2, 2, 3)
-    hcipy.imshow_field(phase_rad, cmap='bwr', vmin=-max_theory, vmax=max_theory)
+    hcipy.imshow_field(add_mode, cmap='bwr', vmin=-max_theory, vmax=max_theory)
     plt.colorbar()
 
     plt.title('theory')

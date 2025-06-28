@@ -178,7 +178,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     save_log = True
     if save_log == True: 
-        logger = LogManager(base_log_dir="run_20250625_logs", config=settings)
+        logger = LogManager(base_log_dir="Jun27_run5", config=settings)
 
 
     for i in np.arange(Niter):
@@ -235,7 +235,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                        separation=mas_dis,
                        ref_psf=OpticalModel.ref_psf.shaped,
                        phase_estimate=phase_DM.shaped,
-                       dm_command=AO_cog.shaped, ##not sure what the real one looks like
+                       dm_command=AO_cog, ##not sure what the real one looks like
                        raw_data=None,#img,
                        processed_data=data,
                        raw_file=None,
@@ -278,8 +278,8 @@ class LogManager:
         meta = {
             "iteration": int(iter_num),
             "strehl_ratio": float(strehl) if strehl is not None else None,
-            "raw_file": raw_file,
-            "backgrounds": backgrounds
+            "raw_file": str(raw_file),
+            "backgrounds": str(backgrounds)
             
         }
         with open(os.path.join(iter_dir, "metadata.json"), "w") as f:

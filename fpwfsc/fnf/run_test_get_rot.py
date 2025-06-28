@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+
 import sys
 import threading
 import numpy as np
@@ -6,7 +7,10 @@ from collections import deque
 import hcipy
 from configobj import ConfigObj
 import time
+
+
 import matplotlib.pyplot as plt
+
 from pathlib import Path
 
 from fpwfsc.fnf import gui_helper as helper
@@ -153,7 +157,7 @@ def run_fastandfurious_test():
     rotation_angle_deg_pre = rotation_angle_aperture
 
     #create zernike mode
-    mode_basis = hcipy.make_zernike_basis(4, 11.3, Aperture.pupil_grid, 7)
+    mode_basis = hcipy.make_zernike_basis(4, 11.3, Aperture.pupil_grid, 9)
     mode_basis = sf.orthonormalize_mode_basis(mode_basis, Aperture.aperture)
     amplitude = 1.
 
