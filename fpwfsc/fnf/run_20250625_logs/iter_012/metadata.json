@@ -1,0 +1,10 @@
+{
+  "iteration": 12,
+  "strehl_ratio": 0.9929309151592274,
+  "raw_file": null,
+  "backgrounds": {
+    "bkgd": null,
+    "masterflat": null,
+    "badpix": null
+  }
+}

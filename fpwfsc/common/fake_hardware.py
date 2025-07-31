@@ -394,7 +394,34 @@ class FakeAOSystem:
         phase_DM= dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_DM)
         self.OpticalModel.generate_psf_efield()
-        #return as a place holder
+
+
+
+        # rotation_angle_dm = 60
+        # flip_x = False
+        # flip_y = False
+        # center = [32,32]
+
+        # phase_resampled = sf.fourier_resample(dm_microns, [64, 64])
+        # if rotation_angle_dm != 0:
+        #     grid = phase_resampled.grid
+
+        #     # rotating the resampled phase
+        #     phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, rotation_angle_dm,
+        #                                              np.array([center[1], center[0]])).ravel(), grid)
+
+        # if flip_x == True:
+        #     grid = phase_resampled.grid
+        #     phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 0).ravel(), grid)
+        # if flip_y == True:
+        #     grid = phase_resampled.grid
+        #     phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 1).ravel(), grid)
+
+        # self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_resampled)
+        # self.OpticalModel.generate_psf_efield()
+
+
+
         return phase_DM, phase_DM
 
     def make_dm_command(self, microns):

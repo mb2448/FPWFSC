@@ -17,11 +17,11 @@ from fpwfsc.common import fake_hardware as fhw
 from fpwfsc.common import support_functions as sf
 
 def run_fastandfurious_test():
-    FF_ini = 'FF_software.ini'
+    FF_ini = 'FF_software_sim.ini'
     FF_spec = 'FF_software.spec'
     settings = sf.validate_config(FF_ini, FF_spec)
 
-    camera, aosystem = helper.load_instruments('OSIRIS',
+    camera, aosystem = helper.load_instruments('Sim',
                                                 camargs={},
                                                 aoargs={'rotation_angle_dm':
                                                                 settings['MODELLING']['rotation angle dm (deg)'],

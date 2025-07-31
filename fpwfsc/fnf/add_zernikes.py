@@ -15,6 +15,7 @@ from fpwfsc.common import plotting_funcs as pf
 from fpwfsc.common import classes as ff_c
 from fpwfsc.common import fake_hardware as fhw
 from fpwfsc.common import support_functions as sf
+import random
 
 def run_fastandfurious_test():
     FF_ini = 'FF_software.ini'
@@ -167,9 +168,9 @@ def run_fastandfurious_test():
     mode_basis[6] * random.random() + mode_basis[7] * random.random() + mode_basis[8] * random.random() +
     mode_basis[9] * random.random()
 )
-    microns = add_mode * FnF.wavelength / (2 * np.pi) * 1e6
-    _,dm_microns = AOsystem.set_dm_data(microns*dm_volt_to_amp_amplify )
-    image = Camera.take_image()
+    # microns = add_mode * FnF.wavelength / (2 * np.pi) * 1e6
+    # _,dm_microns = AOsystem.set_dm_data(microns*dm_volt_to_amp_amplify )
+    # image = Camera.take_image()
 
     pupil_wf = hcipy.Wavefront(Aperture.aperture * np.exp(1j * add_mode),
                              wavelength=FnF.wavelength)
@@ -177,19 +178,19 @@ def run_fastandfurious_test():
 
     image_theory = focal_wf.power
 
-    image_bench = sf.reduce_images(image, xcen=xcen, ycen=ycen, npix=Npix_foc,
-                                refpsf=OpticalModel.ref_psf.shaped,
-                                )
+    # image_bench = sf.reduce_images(image, xcen=xcen, ycen=ycen, npix=Npix_foc,
+    #                             refpsf=OpticalModel.ref_psf.shaped,
+    #                             )
     
     plt.subplot(2, 2, 1)
     hcipy.imshow_field(np.log10(image_theory / image_theory.max()), vmin=-3)
     plt.colorbar()
     plt.title('theory')
 
-    plt.subplot(2, 2, 2)
-    plt.imshow(np.log10(np.abs(image_bench) / image_bench.max()), vmin=-3, origin='lower')
-    plt.colorbar()
-    plt.title('bench')
+    # plt.subplot(2, 2, 2)
+    # plt.imshow(np.log10(np.abs(image_bench) / image_bench.max()), vmin=-3, origin='lower')
+    # plt.colorbar()
+    # plt.title('bench')
 
     max_theory = np.max(np.abs(add_mode))
 
@@ -201,9 +202,9 @@ def run_fastandfurious_test():
 
     max_bench = np.max(np.abs(dm_microns))
 
-    plt.subplot(2, 2, 4)
-    plt.imshow(dm_microns, origin='lower', cmap='bwr',
-                vmin=-max_bench, vmax=max_bench)
+    # plt.subplot(2, 2, 4)
+    # plt.imshow(dm_microns, origin='lower', cmap='bwr',
+    #             vmin=-max_bench, vmax=max_bench)
 
     plt.colorbar()
 

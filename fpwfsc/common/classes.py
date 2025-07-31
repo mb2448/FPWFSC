@@ -20,6 +20,11 @@ from . import vandamstrehl as vDs
 from . import make_subaru_aperture as msa
 from . import make_keck_aperture
 
+# import support_functions as sf
+# import vandamstrehl as vDs
+# import make_subaru_aperture as msa
+# import make_keck_aperture
+
 class Aperture:
     """A class to generate the aperture of the optical system.  This requires a
     separate function (that must be written) to precisely generate the pupil
