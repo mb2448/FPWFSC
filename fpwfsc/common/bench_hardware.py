@@ -3,14 +3,13 @@ import sys
 import warnings
 import hcipy
 import numpy as np
-from . import support_functions as sf
 
 try:
 
     sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
     from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
 
-    import aosys.xinetics_deformable_mirror.xinetics_deformable_mirror as xd
+    import aosys.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
     from aosys.shwfs_field_steering_mirror.shwfs_field_steering_mirror import SHWFSFieldSteeringMirror
     from aosys.rotator.rotator import Rotator
