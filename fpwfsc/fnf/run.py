@@ -8,21 +8,26 @@ from configobj import ConfigObj
 import time
 import matplotlib.pyplot as plt
 from pathlib import Path
+import json
+import os
+
+from astropy.io import fits
 
 from ..common import plotting_funcs as pf
 from ..common import classes as ff_c
 from ..common import fake_hardware as fhw
 from ..common import support_functions as sf
+from ..san import sn_functions as sn
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
-        my_deque=None, my_event=None, plotter=None):
+        my_deque=None, my_event=None, plotter=None, ):
     if my_deque is None:
         my_deque = deque()
 
     if my_event is None:
         my_event = threading.Event()
     settings = sf.validate_config(config, configspec)
-
+    
     #----------------------------------------------------------------------
     # Control Loop parameters
     #----------------------------------------------------------------------
@@ -70,6 +75,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #automatically sub the background in the camera frame
     #this is not used right now anywhere in this script
     auto_background     = settings['FF_SETTINGS']['auto_background']
+    hitchhiker_mode     = settings['FF_SETTINGS']['hitchhiker_mode']
+    hitchhiker_path     = settings['FF_SETTINGS']['hitchhiker_path']
+    save_log            = settings['FF_SETTINGS']['save_log']
+    log_path     = settings['FF_SETTINGS']['log_path']
 
     #----------------------------------------------------------------------
     # Simulation parameters
@@ -82,8 +91,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     # Load the classes
     #----------------------------------------------------------------------
    
-
-
     Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
                              rotation_angle_aperture=rotation_angle_aperture)
@@ -118,16 +125,36 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                   field_center_y=430)
 
         AOsystem = fhw.FakeAOSystem(OpticalModel, modebasis=FnF.mode_basis,
-                                    initial_rms_wfe=rms_wfe, seed=seed)
-                                    #rotation_angle_dm = rotation_angle_dm)
+                                    initial_rms_wfe=rms_wfe, seed=seed,
+                                    rotation_angle_dm = rotation_angle_dm,
+                                    flip_x = flip_x,
+                                    flip_y  = flip_y)
     else:
         Camera = camera
         AOsystem = aosystem
+        #initialize the current cog file 
+        AOsystem.current_cog_file = AOsystem.AO.get_cog_filename()
+        AOsystem.cur_cog = AOsystem.AO.open_cog(AOsystem.current_cog_file, shape_requested = 'vector')
     # generating the first reference image
+
+
+
+    if auto_background == True:
+        bgds =  None
+    else: 
+        bgds = sf.setup_bgd_dict('../bgds/')
+        
+
     data_raw = Camera.take_image()
+
+    #only take the fist imge if multiple image is in the stack
+    if data_raw.ndim != 2:
+        data_raw = data_raw[0]
+
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
                                           refpsf=OpticalModel.ref_psf.shaped,
+                                          bgds = bgds
                                           )
     # Take first image
     FnF.initialize_first_image(data_ref)
@@ -141,9 +168,17 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
-    test_rot = np.arange(100)
-    rotation_angle_threshold = 5
-    rotation_angle_deg_pre = rotation_angle_aperture
+    _,contrast_ori = sn.contrastcurve_simple(data_ref, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
+    
+
+    #initialization for optional things 
+    
+    if hitchhiker_mode==True:
+        Hitch = fhw.Hitchhiker(imagedir=hitchhiker_path)
+
+
+    if save_log == True: 
+        logger = LogManager(base_log_dir=log_path, config=settings)
 
 
     for i in np.arange(Niter):
@@ -154,68 +189,130 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         SRA_measurements[i] = FnF.estimate_strehl()
         my_deque.append(SRA_measurements)
 
+        if hitchhiker_mode==True:
+            img= Hitch.wait_for_next_image()
+        else:
+            img = Camera.take_image()
 
-        #check if the change in primary mirror rotation has surpass the threshold required to regenerate the reference
-        rotation_angle_deg_cur = test_rot[i]
-        
-        if np.abs(rotation_angle_deg_pre-rotation_angle_deg_cur) > rotation_angle_threshold:
-            new_Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
-                             aperturename=chosen_aperture,
-                             rotation_angle_aperture=rotation_angle_deg_cur,
-                             )
+        if img.ndim != 2:
+            img = img[0]
 
-            new_OpticalModel = ff_c.SystemModel(aperture=new_Aperture,
-                                    Npix_foc=Npix_foc,
-                                    mas_pix=mas_pix,
-                                    wavelength=wavelength)
-            
-            rotation_angle_deg_pre = rotation_angle_deg_cur
-
-            
-            #Camera.opticalsystem=new_OpticalModel
-            #AOsystem.OpticalModel = new_OpticalModel
-            
-            FnF.SystemModel = new_OpticalModel
-            focalfield = new_OpticalModel.generate_psf_efield()
-            focalimg = np.abs(focalfield.intensity)**2
-            plt.figure()
-            hcipy.imshow_field(np.log(focalimg))
-            plt.colorbar()
-            plt.title('focalimg '+str(i))
-            plt.savefig(f'C:/UHManoa/First/focalimg{i}.png')
-
-            
-
-
-        img = Camera.take_image()
         data = sf.reduce_images(img, xcen=xcen, ycen=ycen, npix=Npix_foc,
                                 refpsf=OpticalModel.ref_psf.shaped,
+                                bgds = bgds
                                 )
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
-        microns = phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
-        # This need to be fixed so that it is consistent between simulation and actual instruments, 
-        # the alias function should be made so that it can handle all instruments taking different parameters 
-        #or maybe just write seperate script for different instrument? 
-        #dm_microns = AOsystem.make_dm_command(microns)
-        AOsystem.set_dm_data(microns)#???
+        microns = -3 * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+
+        AO_cog, _ = AOsystem.set_dm_data(microns)
+
+
 
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
                                                mas_pix, wavelength,
                                                Aperture.pupil_diameter)
         print('Strehl:', SRA_measurements[i], ";  VAR: ", VAR_measurements[i])
+
+        pix_dis,contrast_measurements = sn.contrastcurve_simple(data, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
+        mas_dis = pix_dis * mas_pix
+
         if plotter is not None:
             plotter.update(Niter=Niter,
                                 data=FnF.previous_image,
                                 pupil_wf=phase_DM,
                                 aperture=FnF.aperture,
                                 SRA=SRA_measurements,
-                                VAR=VAR_measurements)
+                                separation = mas_dis,
+                                contrast = contrast_measurements,
+                                contrast_ori = contrast_ori)
+
+        logger.save_iteration(i, 
+                       strehl=SRA_measurements[i],
+                       contrast_curve=contrast_measurements,
+                       separation=mas_dis,
+                       ref_psf=OpticalModel.ref_psf.shaped,
+                       phase_estimate=phase_DM.shaped,
+                       dm_command=AO_cog.shaped, ##not sure what the real one looks like
+                       raw_data=None,#img,
+                       processed_data=data,
+                       raw_file=None,
+                       backgrounds = bgds)
+        
+
     t1 = time.time()
     print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
-    #AOsystem.close_dm_stream()???
+    
+
+
+class LogManager:
+    def __init__(self, base_log_dir="logs", config=None):
+        self.base_log_dir = base_log_dir
+        os.makedirs(self.base_log_dir, exist_ok=True)
+        
+        # Save config once if provided
+        if config:
+            config_path = os.path.join(self.base_log_dir, "config.json")
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+
+    def save_iteration(self, iter_num, *, 
+                       strehl=None,
+                       contrast_curve=None,
+                       separation=None,
+                       ref_psf=None,
+                       phase_estimate=None,
+                       dm_command=None,
+                       raw_data=None,
+                       processed_data=None,
+                       raw_file=None,
+                       backgrounds = None
+                       ):
+
+        iter_dir = os.path.join(self.base_log_dir, f"iter_{iter_num:03d}")
+        os.makedirs(iter_dir, exist_ok=True)
+
+        # Save metadata
+        meta = {
+            "iteration": int(iter_num),
+            "strehl_ratio": float(strehl) if strehl is not None else None,
+            "raw_file": raw_file,
+            "backgrounds": backgrounds
+            
+        }
+        with open(os.path.join(iter_dir, "metadata.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+
+        # Save contrast curve (1D)
+        if contrast_curve is not None and separation is not None:
+            fits.writeto(os.path.join(iter_dir, "contrast.fits"),
+                         np.array([separation, contrast_curve]),
+                         overwrite=True)
+
+        # Save reference PSF  
+        if phase_estimate is not None:
+            fits.writeto(os.path.join(iter_dir, "reference PSF.fits"),
+                         ref_psf, overwrite=True)
+
+
+        # Save 2D arrays
+        if phase_estimate is not None:
+            fits.writeto(os.path.join(iter_dir, "phase_estimate.fits"),
+                         phase_estimate, overwrite=True)
+
+        if dm_command is not None:
+            fits.writeto(os.path.join(iter_dir, "dm_command.fits"),
+                         dm_command, overwrite=True)
+
+        # Save images only if data is provided
+        if raw_data is not None:
+            fits.writeto(os.path.join(iter_dir, "raw.fits"), raw_data, overwrite=True)
+
+        if processed_data is not None:
+            fits.writeto(os.path.join(iter_dir, "processed.fits"), processed_data, overwrite=True)
+    
 
 if __name__ == "__main__":
     plotter = pf.LivePlotter()

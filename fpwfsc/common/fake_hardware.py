@@ -9,7 +9,8 @@ from pathlib import Path
 from . import support_functions as sf
 from . import classes as ff_c
 from . import dm
-import ipdb
+
+
 
 comment = """
 [SIMULATION]
@@ -376,24 +377,33 @@ class FakeAOSystem:
                        modebasis=None,
                        initial_rms_wfe=0,
                        rotation_angle_dm = 0,
+                       flip_x = False, 
+                       flip_y = False,
                        seed=None):
         if seed is not None:
             np.random.seed(seed)
-        print("Warning: rotation angle dm is not implemented yet in the simulator")
         self.OpticalModel = OpticalModel
         self.initial_phase_error = sf.generate_random_phase(rms_wfe=initial_rms_wfe,
                                                             mode_basis=modebasis,
                                                             pupil_grid=self.OpticalModel.Pupil.pupil_grid,
                                                             aperture=self.OpticalModel.Pupil.aperture)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
+        self.rotation_angle_dm = rotation_angle_dm
+        self.flip_x = flip_x
+        self.flip_y = flip_y
         self._closed = False
 
     def set_dm_data(self, dm_microns):
-        #in the sim, just undoes the microns command from subaru
-        phase_DM= dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
-        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error-phase_DM)
+
+        #insert fake DM flips and rotationl,   
+        phase_DM = sf.rotate_and_flip_field(dm_microns, angle=15, flipx=True, flipy=False)
+
+        #and correct it with the input rotation angle and flips
+        phase_DM = sf.rotate_and_flip_field(phase_DM, angle=self.rotation_angle_dm, flipx=self.flip_x, flipy=self.flip_y)
+        self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_DM)
         self.OpticalModel.generate_psf_efield()
-        return
+
+        return phase_DM, phase_DM
 
     def make_dm_command(self, microns):
         return microns
@@ -403,10 +413,12 @@ class FakeAOSystem:
 
 
 class FakeAODMSystem:
-    """A class that has the same API as the normal AO system class.
+    """
+    A class that has the same API as the normal AO system class.
     Accepts an optical system and modifies the pupil efield by reference
 
     Really just `FakeAOSystem,` but with an hcipy deformable mirror model
+    It is currently not being used
     """
     def __init__(self, OpticalModel,
                        modebasis=None,

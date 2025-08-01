@@ -18,10 +18,24 @@ import FF_plotter_qt as pf
 from fpwfsc.fnf import gui_helper as helper
 from fpwfsc.fnf.run import run
 #from fpwfsc.common import plotting_funcs as pf
-def get_instrument_values():
-    return {'MODELLING':{'wavelength (m)':'3e-6',
-            'aperture':'NIRC2_large_hexagonal_mask'}}
+def get_instrument_values(camera, test_time):
+    
+    if hasattr(camera, 'get_parameters') and callable(camera.get_parameters):
+        camera.get_parameters(test_time = test_time)
 
+        return {'MODELLING':{
+        'wavelength (m)':str(camera.wavelength*1e-6),
+        'aperture':str(camera.pupil_mask_name),
+        'pixel scale (mas/pix)':str(camera.pixel_scale)}}
+        #self.camera.filter_name
+        #self.camera.camera_mode
+        #self.camera.xsize
+        #self.camera.ysize
+
+    else:
+        return None
+       
+        
 class AlgorithmThread(QThread):
     update_plot = pyqtSignal(dict)
 
@@ -203,6 +217,8 @@ class ConfigEditorGUI(QWidget):
                                                                          self.config['MODELLING']['flip_x'],
                                                                          'flip_y':
                                                                          self.config['MODELLING']['flip_y']})
+            self.load_instrument_values()
+
             print(f"{selected_hardware} loaded successfully")
 
         except Exception as e:
@@ -224,18 +240,21 @@ class ConfigEditorGUI(QWidget):
 
     def load_instrument_values(self):
         print("Loading values from instrument")
-        instrument_values = get_instrument_values()
+        instrument_values = get_instrument_values(self.camera, test_time = self.config['MODELLING']['test time'])
 
-        for section, values in instrument_values.items():
-            if section in self.config:
-                for key, value in values.items():
-                    if key in self.config[section]:
-                        if self.validate_config_value(section, key, value):
-                            self.config[section][key] = value
-                        else:
-                            print(f"Invalid value for {section}.{key}: {value}")
-        self.update_gui_from_config()
-
+        if instrument_values != None:
+            for section, values in instrument_values.items():
+                if section in self.config:
+                    for key, value in values.items():
+                        if key in self.config[section]:
+                            if self.validate_config_value(section, key, value):
+                                self.config[section][key] = value
+                            else:
+                                print(f"Invalid value for {section}.{key}: {value}")
+            self.update_gui_from_config()
+        else:
+            print("No instrument value available")
+            
     def validate_config_value(self, section, key, value):
         validator = Validator()
         test_config = ConfigObj(configspec=self.spec_file)
@@ -401,30 +420,6 @@ class ConfigEditorGUI(QWidget):
         input_widget.setToolTip(tooltip)
 
         return widget
-    ###
-    #def create_input_widget(self, section, key, value):
-    #    # Create an appropriate input widget based on the configuration specification
-    #    spec = self.get_spec_for_key(f"{section}.{key}")
-
-    #    if spec:
-    #        if 'option(' in spec:
-    #            input_widget = QComboBox()
-    #            options = spec.split('option(')[1].split(')')[0].replace("'", "").split(',')
-    #            input_widget.addItems([opt.strip() for opt in options])
-    #            input_widget.setCurrentText(str(value).strip())
-    #        elif 'boolean' in spec:
-    #            input_widget = QComboBox()
-    #            input_widget.addItems(['True', 'False'])
-    #            input_widget.setCurrentText(str(value))
-    #        else:
-    #            input_widget = QLineEdit(str(value))
-    #    else:
-    #        input_widget = QLineEdit(str(value))
-
-    #    #input_widget.setMinimumHeight(20)  # Ensure minimum height for all input widgets
-    #    input_widget.setFixedHeight(20)  # Ensure minimum 20height for all input widgets
-    #    return input_widget
-    ###
     def create_input_widget(self, section, key, value):
         # Create an appropriate input widget based on the configuration specification
         # Check if this is a directory option

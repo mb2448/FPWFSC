@@ -9,7 +9,7 @@ class PlotterSignals(QObject):
     Signal class for thread-safe communication with the plotter.
     This allows data to be safely passed from worker threads to the GUI.
     """
-    update_signal = pyqtSignal(object, object, object, object, object, object)
+    update_signal = pyqtSignal(object, object, object, object, object, object, object, object)
 
 
 class LivePlotter(QtWidgets.QWidget):
@@ -58,15 +58,15 @@ class LivePlotter(QtWidgets.QWidget):
         layout.addWidget(self.strehl_plot, 1, 0)
         
         # Create the VAR plot (bottom right)
-        self.var_plot = pg.PlotWidget()
-        self.var_plot.setTitle("VAR")
-        self.var_plot.setLabel('left', 'VAR')
-        self.var_plot.setLabel('bottom', 'Iteration')
-        self.var_plot.showGrid(x=True, y=True)
-        self.var_plot.setLogMode(y=True)  # Log scale for y-axis
+        self.contrast_plot = pg.PlotWidget()
+        self.contrast_plot.setTitle("1 sigma pseudo contrast")
+        self.contrast_plot.setLabel('left', '1 Sigma Contrast')
+        self.contrast_plot.setLabel('bottom', 'Distance (mas)')
+        self.contrast_plot.showGrid(x=True, y=True)
+        self.contrast_plot.setLogMode(y=True)  # Log scale for y-axis
         # Explicitly set the y-range
-        self.var_plot.getViewBox().setYRange(np.log10(1e-4), np.log10(1), padding=0)
-        layout.addWidget(self.var_plot, 1, 1)
+        self.contrast_plot.getViewBox().setYRange(np.log10(1e-1),np.log10(1e5) , padding=0)
+        layout.addWidget(self.contrast_plot, 1, 1)
         
         # Initialize plot items
         self.psf_img = pg.ImageItem()
@@ -78,8 +78,13 @@ class LivePlotter(QtWidgets.QWidget):
         self.strehl_curve = pg.PlotDataItem(pen=pg.mkPen('g', width=2))
         self.strehl_plot.addItem(self.strehl_curve)
         
-        self.var_curve = pg.PlotDataItem(pen=pg.mkPen('r', width=2))
-        self.var_plot.addItem(self.var_curve)
+        # self.var_curve = pg.PlotDataItem(pen=pg.mkPen('r', width=2))
+        # self.var_plot.addItem(self.var_curve)
+
+        self.contrast_curve = pg.PlotDataItem(pen=pg.mkPen('r', width=2))
+        self.contrast_plot.addItem(self.contrast_curve)
+        self.contrast_curve_ori = pg.PlotDataItem(pen=pg.mkPen('g', width=2))
+        self.contrast_plot.addItem(self.contrast_curve_ori)
         
         # Create colormaps
         # Jet colormap for PSF
@@ -112,7 +117,7 @@ class LivePlotter(QtWidgets.QWidget):
         
         # Set up y-axis limits
         self.strehl_plot.setYRange(0, 1.1)
-        self.var_plot.setYRange(1e-4, 1)
+        self.contrast_plot.setYRange(1e-2, 3)
         
         # Set up a timer for periodic updates (process Qt events)
         self.timer = QTimer()
@@ -215,7 +220,7 @@ class LivePlotter(QtWidgets.QWidget):
         if not self.closed:
             QtWidgets.QApplication.processEvents()
     
-    def update(self, Niter, data, pupil_wf, aperture, SRA, VAR):
+    def update(self, Niter, data, pupil_wf, aperture, SRA, separation, contrast, contrast_ori):
         """
         Thread-safe update method. Emits a signal that's connected to _update_plots.
         This method can be safely called from any thread.
@@ -255,13 +260,15 @@ class LivePlotter(QtWidgets.QWidget):
             aperture_copy = None
             
         SRA_copy = np.array(SRA)
-        VAR_copy = np.array(VAR)
+        separation_copy = np.array(separation)
+        contrast_copy = np.array(contrast)
+        contrast_ori_copy = np.array(contrast_ori)
         
         # Emit the signal with the data to update the plots in the main thread
-        self.signals.update_signal.emit(Niter, data_copy, pupil_wf_copy, aperture_copy, SRA_copy, VAR_copy)
+        self.signals.update_signal.emit(Niter, data_copy, pupil_wf_copy, aperture_copy, SRA_copy, separation_copy, contrast_copy, contrast_ori_copy)
     
-    @pyqtSlot(object, object, object, object, object, object)
-    def _update_plots(self, Niter, data, pupil_wf, aperture, SRA, VAR):
+    @pyqtSlot(object, object, object, object, object, object, object, object)
+    def _update_plots(self, Niter, data, pupil_wf, aperture, SRA, sep, contrast, contrast_ori):
         """
         Actual update method that runs in the GUI thread.
         This is called via the signal connection and is thread-safe.
@@ -274,20 +281,30 @@ class LivePlotter(QtWidgets.QWidget):
         try:
             # Fixed x-range based on Niter
             self.strehl_plot.setXRange(0, Niter-1)
-            self.var_plot.setXRange(0, Niter-1)
+            
             
             # Get current iteration
             i = np.sum(~np.isnan(SRA))
             
             # Ensure all data is properly shaped 2D
             data_2d = self._ensure_2d(data)
+            #transpose the data to match matplotlib and pyqtgraph display. 
+            data_transpose = data_2d.T
+
+            #consider flipping x and y for pupil and aperature for pyqt display?
             pupil_wf_2d = self._ensure_2d(pupil_wf)
+            pupil_wf_transpose = pupil_wf_2d.T
+
             aperture_2d = self._ensure_2d(aperture)
+            aperture_transpose = aperture_2d.T
+
+
             
             # Update PSF display (log scale, similar to original)
-            data_max = np.max(np.abs(data_2d))
+            data_max = np.max(np.abs(data_transpose))
             if data_max > 0:  # Avoid division by zero
-                psf_data = np.log10(np.abs(data_2d) / data_max + 1e-8)
+                
+                psf_data = np.log10(np.abs(data_transpose) / data_max + 1e-8)
                 # Scale to 0-1 range for display
                 psf_min = np.min(psf_data)
                 psf_max = np.max(psf_data)
@@ -299,7 +316,7 @@ class LivePlotter(QtWidgets.QWidget):
             
             # Update wavefront residuals
             # Mask the wavefront with the aperture
-            masked_wf = pupil_wf_2d * (aperture_2d > 0)
+            masked_wf = pupil_wf_transpose * (aperture_transpose > 0)
             max_res = np.max(np.abs(masked_wf))
             if max_res > 0:  # Avoid division by zero
                 # Scale to -1 to 1 range
@@ -319,15 +336,13 @@ class LivePlotter(QtWidgets.QWidget):
                 current_strehl = valid_sra[-1] if len(valid_sra) > 0 else 0
                 self.strehl_plot.setTitle(f"Strehl Ratio = {current_strehl:.3f}")
             
-            # Update VAR plot
-            valid_var = VAR[valid_indices]
-            if len(valid_var) > 0:
-                self.var_curve.setData(iterations, valid_var)
-                current_var = valid_var[-1] if len(valid_var) > 0 else 0
-                self.var_plot.setTitle(f"VAR = {current_var:.3f}")
+            # Update contrast plot
+            self.contrast_curve.setData(sep, contrast)
+            self.contrast_curve_ori.setData(sep, contrast_ori)
+            self.contrast_plot.setTitle(f"Contrast at Iter {Niter}")
                 
-                # Force Y range reset on each update to ensure it's properly set
-                self.var_plot.getViewBox().setYRange(np.log10(1e-4), np.log10(1), padding=0)
+            # Force Y range reset on each update to ensure it's properly set
+            self.contrast_plot.getViewBox().setYRange(np.log10(1e-1),np.log10(1e5) , padding=0)
         
         except Exception as e:
             print(f"Error updating plots: {e}")

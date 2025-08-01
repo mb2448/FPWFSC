@@ -174,7 +174,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     return
 
 if __name__ == "__main__":
-    Camera = hw.NIRC2Alias()
+    # Camera = hw.NIRC2Alias()
+    # AOSystem = hw.AOSystemAlias()
+    # # Camera, AOSystem = 'Sim', 'Sim'
+    # run(camera=Camera, aosystem=AOSystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')
+    Camera = hw.OSIRIS()
     AOSystem = hw.AOSystemAlias()
     # Camera, AOSystem = 'Sim', 'Sim'
-    run(camera=Camera, aosystem=AOSystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')
+    run(camera=Camera, aosystem=AOSystem, config='sn_config.ini', configspec='sn_config.spec')

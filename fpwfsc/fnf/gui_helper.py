@@ -1,7 +1,9 @@
 # gui_helper.py
 from ..common import bench_hardware as hw
-
-valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires']
+import sys
+# sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
+# from guis.fast_and_furious import hardware
+valid_instruments = ['Sim', 'NIRC2', 'Palila', 'Vampires','OSIRIS']
 
 config_info = {
     "LOOP_SETTINGS": {
@@ -90,6 +92,10 @@ config_info = {
         "ref PSF oversampling factor": {
             "help": "Oversampling factor for the reference PSF",
             "expert": True
+        },
+        "test time": {
+            "help": "Daytime or nighttime observation",
+            "expert": True
         }
     },
     "FF_SETTINGS": {
@@ -118,6 +124,22 @@ config_info = {
         "auto_background": {
             "help": "Automatically determine background level",
             "expert": False
+        },
+        "hitchhiker_mode": {
+            "help": "Use science data for FnF",
+            "expert": False
+        },
+        "hitchhiker_path": {
+            "help": "Directory to look for new science data",
+            "expert": True
+        },
+        "save_log": {
+            "help": "Save all measuremnets",
+            "expert": False
+        },
+        "log_path": {
+            "help": "Directory o save the log",
+            "expert": True
         }
     },
     "IO": {
@@ -160,9 +182,9 @@ def load_instruments(instrumentname, camargs={}, aoargs={}):
         return 'Sim','Sim'
     #XXX changed to alias function as the original one no longer exis in bench_hardware
     elif instrumentname == 'NIRC2':
-        return hw.NIRC2Alias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
+        return hardware.NIRC2(**camargs), hw.ClosedAOSystemAlias(**aoargs)
     elif instrumentname == 'OSIRIS':
-        return hw.OSIRISAlias(**camargs), hw.ClosedAOSystemAlias(**aoargs)
+        return hardware.OSIRIS(**camargs), hw.ClosedAOSystemAlias(**aoargs)
 
     elif instrumentname == 'Palila':
         return hw.Palila(**camargs), hw.SCEXAO(**aoargs)
