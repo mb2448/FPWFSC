@@ -16,19 +16,12 @@ from fpwfsc.common import classes as ff_c
 from fpwfsc.common import fake_hardware as fhw
 from fpwfsc.common import support_functions as sf
 
-def run_fastandfurious_test():
-    FF_ini = 'FF_software_sim.ini'
-    FF_spec = 'FF_software.spec'
+def run_fastandfurious_test(camera='Sim', 
+                            aosystem='Sim', 
+                            FF_ini = 'FF_software_sim.ini', 
+                            FF_spec = 'FF_software.spec'):
+    
     settings = sf.validate_config(FF_ini, FF_spec)
-
-    camera, aosystem = helper.load_instruments('Sim',
-                                                camargs={},
-                                                aoargs={'rotation_angle_dm':
-                                                                settings['MODELLING']['rotation angle dm (deg)'],
-                                                                'flip_x':
-                                                                settings['MODELLING']['flip_x'],
-                                                                'flip_y':
-                                                                settings['MODELLING']['flip_y']})
 
     #----------------------------------------------------------------------
     # Control Loop parameters
@@ -125,8 +118,10 @@ def run_fastandfurious_test():
                                   field_center_y=430)
 
         AOsystem = fhw.FakeAOSystem(OpticalModel, modebasis=FnF.mode_basis,
-                                    initial_rms_wfe=rms_wfe, seed=seed)
-                                    #rotation_angle_dm = rotation_angle_dm)
+                                    initial_rms_wfe=rms_wfe, seed=seed,
+                                    rotation_angle_dm = rotation_angle_dm,
+                                    flip_x = flip_x,
+                                    flip_y  = flip_y)
     else:
         Camera = camera
         AOsystem = aosystem
@@ -221,7 +216,8 @@ def run_fastandfurious_test():
         plt.colorbar()
 
         plt.title('theory')
-
+        
+        dm_microns = dm_microns.reshape((64,64))
         max_bench = np.max(np.abs(dm_microns))
 
         plt.subplot(2, 2, 4)
@@ -235,8 +231,14 @@ def run_fastandfurious_test():
         plt.show()
         # converting the volt
         
-        aosystem.AO.revert_cog()
+        if aosystem == 'Sim':
+            AOsystem.OpticalModel.update_pupil_wavefront(AOsystem.initial_phase_error)
+        else:
+            AOsystem.AO.revert_cog()
         
 
 if __name__ == "__main__":
-    run_fastandfurious_test()
+    run_fastandfurious_test(camera='Sim', 
+                            aosystem='Sim', 
+                            FF_ini = 'FF_software_sim.ini', 
+                            FF_spec = 'FF_software.spec')

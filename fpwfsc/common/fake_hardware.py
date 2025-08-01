@@ -377,6 +377,8 @@ class FakeAOSystem:
                        modebasis=None,
                        initial_rms_wfe=0,
                        rotation_angle_dm = 0,
+                       flip_x = False, 
+                       flip_y = False,
                        seed=None):
         if seed is not None:
             np.random.seed(seed)
@@ -387,11 +389,20 @@ class FakeAOSystem:
                                                             pupil_grid=self.OpticalModel.Pupil.pupil_grid,
                                                             aperture=self.OpticalModel.Pupil.aperture)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error)
+        self.rotation_angle_dm = rotation_angle_dm
+        self.flip_x = flip_x
+        self.flip_y = flip_y
         self._closed = False
 
     def set_dm_data(self, dm_microns):
         #in the sim, just undoes the microns command from subaru
         phase_DM= dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
+
+        #insert fake DM flips and rotationl,   
+        phase_DM = sf.rotate_and_flip_field(phase_DM, angle=15, flipx=True, flipy=False)
+
+        #and correct it with the input rotation angle and flips
+        phase_DM = sf.rotate_and_flip_field(phase_DM, angle=self.rotation_angle_dm, flipx=self.flip_x, flipy=self.flip_y)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_DM)
         self.OpticalModel.generate_psf_efield()
 

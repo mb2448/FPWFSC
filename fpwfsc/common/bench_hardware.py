@@ -1,3 +1,4 @@
+#This file contains the wrapper or control function of telescope 
 import sys
 import warnings
 import hcipy
@@ -8,12 +9,13 @@ try:
 
     sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
     #from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
-    from guis.fast_and_furious.hardware import NIRC2, KeckAO, OSIRIS
+    from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
 
     import aosys.xinetics_deformable_mirror.xinetics_deformable_mirror as xd
     from aosys.shwfs.shwfs import SHWFS
     from aosys.shwfs_field_steering_mirror.shwfs_field_steering_mirror import SHWFSFieldSteeringMirror
     from aosys.rotator.rotator import Rotator
+    
 except ImportError:
     warnings.warn("Failed to import hardware modules")
     
@@ -30,7 +32,8 @@ class OSIRISAlias:
         return img_hdu.data
 
 class NIRC2Alias():
-    """NIRC2 Alias to make image aquisition compatible with FPWFSC API
+    """
+    NIRC2 Alias to make image aquisition compatible with FPWFSC API
     """
     def __init__(self):
         self.camera = NIRC2()
@@ -46,7 +49,8 @@ class NIRC2Alias():
 
 class AOSystemAlias:
     def __init__(self):
-        """Open-loop AO System Interface
+        """
+        Open-loop AO System Interface
         """
         self.AO = xd.XineticsDeformableMirror()
         self.ttm = SHWFSFieldSteeringMirror()
@@ -61,9 +65,9 @@ class AOSystemAlias:
 class ClosedAOSystemAlias:
     #Add rotation and flip to AO object, defne these parameters
     def __init__(self,rotation_angle_dm = 0, flip_x = False, flip_y = False):
-        """Closed-loop AO System Interface
         """
-
+        Closed-loop AO System Interface
+        """
         self.AO = KeckAO()
         self.dm = self.AO.xinetics
         self.ttm = SHWFS

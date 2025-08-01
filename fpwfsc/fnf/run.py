@@ -124,8 +124,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                   field_center_y=430)
 
         AOsystem = fhw.FakeAOSystem(OpticalModel, modebasis=FnF.mode_basis,
-                                    initial_rms_wfe=rms_wfe, seed=seed)
-                                    #rotation_angle_dm = rotation_angle_dm)
+                                    initial_rms_wfe=rms_wfe, seed=seed,
+                                    rotation_angle_dm = rotation_angle_dm,
+                                    flip_x = flip_x,
+                                    flip_y  = flip_y)
     else:
         Camera = camera
         AOsystem = aosystem
@@ -176,7 +178,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if hitchhiker_mode==True:
         Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
 
-    save_log = True
+    save_log = False
     if save_log == True: 
         logger = LogManager(base_log_dir="run_20250625_logs", config=settings)
 
@@ -210,6 +212,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         AO_cog, _ = AOsystem.set_dm_data(microns)
 
+        print('FF output')
+        print(np.shape(microns))
+        print(microns)
+        np.savetxt('microns.txt',microns, )
+
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
                                                mas_pix, wavelength,
@@ -229,17 +236,17 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 contrast = contrast_measurements,
                                 contrast_ori = contrast_ori)
 
-        logger.save_iteration(i, 
-                       strehl=SRA_measurements[i],
-                       contrast_curve=contrast_measurements,
-                       separation=mas_dis,
-                       ref_psf=OpticalModel.ref_psf.shaped,
-                       phase_estimate=phase_DM.shaped,
-                       dm_command=AO_cog.shaped, ##not sure what the real one looks like
-                       raw_data=None,#img,
-                       processed_data=data,
-                       raw_file=None,
-                       backgrounds = bgds)
+        # logger.save_iteration(i, 
+        #                strehl=SRA_measurements[i],
+        #                contrast_curve=contrast_measurements,
+        #                separation=mas_dis,
+        #                ref_psf=OpticalModel.ref_psf.shaped,
+        #                phase_estimate=phase_DM.shaped,
+        #                dm_command=AO_cog.shaped, ##not sure what the real one looks like
+        #                raw_data=None,#img,
+        #                processed_data=data,
+        #                raw_file=None,
+        #                backgrounds = bgds)
         
 
     t1 = time.time()
