@@ -27,10 +27,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if my_event is None:
         my_event = threading.Event()
     settings = sf.validate_config(config, configspec)
-    print('*************************************************************************')
-    print(type(config))
     
-
     #----------------------------------------------------------------------
     # Control Loop parameters
     #----------------------------------------------------------------------
@@ -78,6 +75,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #automatically sub the background in the camera frame
     #this is not used right now anywhere in this script
     auto_background     = settings['FF_SETTINGS']['auto_background']
+    hitchhiker_mode     = settings['FF_SETTINGS']['hitchhiker_mode']
+    hitchhiker_path     = settings['FF_SETTINGS']['hitchhiker_path']
+    save_log            = settings['FF_SETTINGS']['save_log']
+    log_path     = settings['FF_SETTINGS']['log_path']
 
     #----------------------------------------------------------------------
     # Simulation parameters
@@ -138,17 +139,18 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
-
-
-
-    bgds = sf.setup_bgd_dict('../bgds/')
-    #print(bgds)
-    #XXX! Add this to the hardware file, self.get_nest_filename = self.nirc2.get_next_flename
-    #filename = Camera.get_next_filename()
+    if auto_background == True:
+        bgds =  None
+    else: 
+        bgds = sf.setup_bgd_dict('../bgds/')
+        
 
     data_raw = Camera.take_image()
+
+    #only take the fist imge if multiple image is in the stack
     if data_raw.ndim != 2:
         data_raw = data_raw[0]
+
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
                                           refpsf=OpticalModel.ref_psf.shaped,
@@ -166,21 +168,17 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     VAR_measurements[VAR_measurements==0] = np.nan
     t0 = time.time()
 
-    pix_dis_ori,contrast_ori = sn.contrastcurve_simple(data_ref, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
+    _,contrast_ori = sn.contrastcurve_simple(data_ref, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
     
 
-
-
-
     #initialization for optional things 
-
-    hitchhiker_mode = False
+    
     if hitchhiker_mode==True:
-        Hitch = fhw.Hitchhiker(imagedir='Hitchhiker_img')
+        Hitch = fhw.Hitchhiker(imagedir=hitchhiker_path)
 
-    save_log = False
+
     if save_log == True: 
-        logger = LogManager(base_log_dir="run_20250625_logs", config=settings)
+        logger = LogManager(base_log_dir=log_path, config=settings)
 
 
     for i in np.arange(Niter):
@@ -192,10 +190,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         my_deque.append(SRA_measurements)
 
         if hitchhiker_mode==True:
-            #XXX for hitchhiker, we need to output the file name, shoild be in _read_fits, but other places are using the hitchiker so...
             img= Hitch.wait_for_next_image()
         else:
-            #filename = Camera.get_next_filename()
             img = Camera.take_image()
 
         if img.ndim != 2:
@@ -212,10 +208,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         AO_cog, _ = AOsystem.set_dm_data(microns)
 
-        print('FF output')
-        print(np.shape(microns))
-        print(microns)
-        np.savetxt('microns.txt',microns, )
+
 
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
@@ -236,22 +229,22 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 contrast = contrast_measurements,
                                 contrast_ori = contrast_ori)
 
-        # logger.save_iteration(i, 
-        #                strehl=SRA_measurements[i],
-        #                contrast_curve=contrast_measurements,
-        #                separation=mas_dis,
-        #                ref_psf=OpticalModel.ref_psf.shaped,
-        #                phase_estimate=phase_DM.shaped,
-        #                dm_command=AO_cog.shaped, ##not sure what the real one looks like
-        #                raw_data=None,#img,
-        #                processed_data=data,
-        #                raw_file=None,
-        #                backgrounds = bgds)
+        logger.save_iteration(i, 
+                       strehl=SRA_measurements[i],
+                       contrast_curve=contrast_measurements,
+                       separation=mas_dis,
+                       ref_psf=OpticalModel.ref_psf.shaped,
+                       phase_estimate=phase_DM.shaped,
+                       dm_command=AO_cog.shaped, ##not sure what the real one looks like
+                       raw_data=None,#img,
+                       processed_data=data,
+                       raw_file=None,
+                       backgrounds = bgds)
         
 
     t1 = time.time()
     print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
-    #AOsystem.close_dm_stream()???
+    
 
 
 class LogManager:

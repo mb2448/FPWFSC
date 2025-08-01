@@ -92,6 +92,10 @@ config_info = {
         "ref PSF oversampling factor": {
             "help": "Oversampling factor for the reference PSF",
             "expert": True
+        },
+        "test time": {
+            "help": "Daytime or nighttime observation",
+            "expert": True
         }
     },
     "FF_SETTINGS": {
@@ -120,6 +124,22 @@ config_info = {
         "auto_background": {
             "help": "Automatically determine background level",
             "expert": False
+        },
+        "hitchhiker_mode": {
+            "help": "Use science data for FnF",
+            "expert": False
+        },
+        "hitchhiker_path": {
+            "help": "Directory to look for new science data",
+            "expert": True
+        },
+        "save_log": {
+            "help": "Save all measuremnets",
+            "expert": False
+        },
+        "log_path": {
+            "help": "Directory o save the log",
+            "expert": True
         }
     },
     "IO": {

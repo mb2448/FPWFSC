@@ -21,6 +21,8 @@
     flip_x                        = boolean
     flip_y                        = boolean
     ref PSF oversampling factor   = integer(min=1)
+    test time                     = option('daytime', 'nighttime')
+
 
 [FF_SETTINGS]
     xcen                = integer
@@ -29,6 +31,10 @@
     SNR cutoff          = float
     epsilon             = float
     auto_background     = boolean
+    hitchhiker_mode     = boolean
+    hitchhiker_path     = string
+    save_log            = boolean
+    log_path            = string
 
 [IO]
     save path       = string

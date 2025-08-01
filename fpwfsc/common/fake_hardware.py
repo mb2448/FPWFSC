@@ -382,7 +382,6 @@ class FakeAOSystem:
                        seed=None):
         if seed is not None:
             np.random.seed(seed)
-        print("Warning: rotation angle dm is not implemented yet in the simulator")
         self.OpticalModel = OpticalModel
         self.initial_phase_error = sf.generate_random_phase(rms_wfe=initial_rms_wfe,
                                                             mode_basis=modebasis,
@@ -395,43 +394,14 @@ class FakeAOSystem:
         self._closed = False
 
     def set_dm_data(self, dm_microns):
-        #in the sim, just undoes the microns command from subaru
-        phase_DM= dm_microns / self.OpticalModel.wavelength * (2 * np.pi) / 1e6
 
         #insert fake DM flips and rotationl,   
-        phase_DM = sf.rotate_and_flip_field(phase_DM, angle=15, flipx=True, flipy=False)
+        phase_DM = sf.rotate_and_flip_field(dm_microns, angle=15, flipx=True, flipy=False)
 
         #and correct it with the input rotation angle and flips
         phase_DM = sf.rotate_and_flip_field(phase_DM, angle=self.rotation_angle_dm, flipx=self.flip_x, flipy=self.flip_y)
         self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_DM)
         self.OpticalModel.generate_psf_efield()
-
-
-
-        # rotation_angle_dm = 60
-        # flip_x = False
-        # flip_y = False
-        # center = [32,32]
-
-        # phase_resampled = sf.fourier_resample(dm_microns, [64, 64])
-        # if rotation_angle_dm != 0:
-        #     grid = phase_resampled.grid
-
-        #     # rotating the resampled phase
-        #     phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, rotation_angle_dm,
-        #                                              np.array([center[1], center[0]])).ravel(), grid)
-
-        # if flip_x == True:
-        #     grid = phase_resampled.grid
-        #     phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 0).ravel(), grid)
-        # if flip_y == True:
-        #     grid = phase_resampled.grid
-        #     phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 1).ravel(), grid)
-
-        # self.OpticalModel.update_pupil_wavefront(self.initial_phase_error+phase_resampled)
-        # self.OpticalModel.generate_psf_efield()
-
-
 
         return phase_DM, phase_DM
 
@@ -443,10 +413,12 @@ class FakeAOSystem:
 
 
 class FakeAODMSystem:
-    """A class that has the same API as the normal AO system class.
+    """
+    A class that has the same API as the normal AO system class.
     Accepts an optical system and modifies the pupil efield by reference
 
     Really just `FakeAOSystem,` but with an hcipy deformable mirror model
+    It is currently not being used
     """
     def __init__(self, OpticalModel,
                        modebasis=None,

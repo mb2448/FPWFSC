@@ -1,4 +1,4 @@
-#This file contains the wrapper or control function of telescope 
+
 import sys
 import warnings
 import hcipy
@@ -8,7 +8,6 @@ from . import support_functions as sf
 try:
 
     sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
-    #from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
     from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
 
     import aosys.xinetics_deformable_mirror.xinetics_deformable_mirror as xd
@@ -20,7 +19,8 @@ except ImportError:
     warnings.warn("Failed to import hardware modules")
     
 class OSIRISAlias:
-    """OSIRIS Alias to make image aquisition compatible with FPWFSC API
+    """
+    OSIRIS Alias to make image aquisition compatible with FPWFSC API
     """
     def __init__(self):
         self.OSIRIS = OSIRIS()
@@ -42,10 +42,8 @@ class NIRC2Alias():
 
     def take_image(self):
         img_hdu = self._take_image()
-        return img_hdu[0].data
+        return img_hdu.data
 
-    def get_parameters(self,test_time = 'Daytime'):
-        self.camera.get_parameters(test_time = 'Daytime')
 
 class AOSystemAlias:
     def __init__(self):
@@ -63,7 +61,6 @@ class AOSystemAlias:
         return self.AO.get_voltages()
 
 class ClosedAOSystemAlias:
-    #Add rotation and flip to AO object, defne these parameters
     def __init__(self,rotation_angle_dm = 0, flip_x = False, flip_y = False):
         """
         Closed-loop AO System Interface
@@ -71,6 +68,7 @@ class ClosedAOSystemAlias:
         self.AO = KeckAO()
         self.dm = self.AO.xinetics
         self.ttm = SHWFS
+
         self.current_cog_file = self.AO.get_cog_filename()
         self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
 
@@ -90,11 +88,11 @@ class ClosedAOSystemAlias:
         """
         Parameters
         ----------
-        new_centroids : array
+        shape : array
             array of centroid offsets to apply to the DM. 
         """
-
-        #add rotation and flips to DM command
+        # make_dm_command function converts the estimated phase to a DM command
+        # but do not apply chang anything physically yet
         dm_volts = self.AO.make_dm_command(shape,
                                           self.diameter_pupil_act,
                                           self.center_pupil_act,
@@ -108,18 +106,15 @@ class ClosedAOSystemAlias:
         dm_vec = dm_volts[mask]
         infmat = self.AO.open_influence_matrix()
 
-        # these are the updated centroid origins
+        #Add the centroid changes to the current shape of the DM
         centroids = np.dot(infmat, dm_vec)
-        # self.current_cog_file = self.AO.get_cog_filename()
-        # self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
-
         new_centroids = self.cur_cog + centroids
 
         # now we need to write the cog file and load the cog file
-        fn = self.AO.save_cog('SAN_Centroids', new_centroids)
-        self.AO.load_cog(fn)
-        A = self.AO.open_cog(fn)
-        return A, dm_volts
+        saved_filename = self.AO.save_cog('SAN_Centroids', new_centroids)
+        self.AO.load_cog(saved_filename)
+        cogfile_data = self.AO.open_cog(fn)
+        return cogfile_data, dm_volts
 
     def get_dm_data(self):
         """
@@ -132,9 +127,9 @@ class ClosedAOSystemAlias:
         """
 
         current_cog_file = self.AO.get_cog_filename()                                                                                             
-        current_shape = self.AO.open_cog(current_cog_file, shape_requested='vector')
+        cogfile_data = self.AO.open_cog(current_cog_file, shape_requested='vector')
 
-        return current_shape
+        return cogfile_data
 
     def convert_voltage_to_cog(self, shape):
         # condition shape to be a hcipy Field
@@ -159,6 +154,338 @@ class ClosedAOSystemAlias:
         centroids = np.dot(infmat, dm_vec)
 
         return centroids
+    
+
+class Vampires:
+    """
+    wrapper for vampires commands that already exist
+    """
+
+    def __init__(self):
+
+        self.vcam = shm("vcam1") ##
+
+
+        # self.filter_name = self.nirc2.get_filters_names()
+        # self.wavelength = self.nirc2.get_effective_wavelength()
+        # self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name())
+        # self.pixel_scale = self.nirc2.get_pixel_scale()
+        # self.camera_mode = self.nirc2.get_camera_mode()
+        # self.xsize = self.nirc2.get_roi_width()
+        # self.ysize = self.nirc2.get_roi_height()
+
+        # Get keywords from the VAMPIRES shm
+        shmkwds = self.vcam.get_keywords()
+        # Get current filter + dictionnary
+        self.filter_name = shmkwds["FILTER01"].strip()
+        self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
+        # Set current wavelength
+        self.wavelength = self.dict_v['WAVEAVE']*1e-9
+        self.pupil_mask_name = 'subaru'
+        self.pixel_scale = 5.9 # need to confirm with Miles
+        self.camera_mode = 'standard'
+        self.xsize = 536 # check with miles if we can do subwindow
+        self.ysize = 536
+
+        pass
+
+    def get_parameters(self, test_time):
+        """
+        Reads in the current NIRC2 values and sets them to appropriate variables
+        """
+
+        # self.filter_name = self.nirc2.get_filters_names()
+        # self.wavelength = self.nirc2.get_effective_wavelength()
+        # self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name(), test_time)
+        # self.pixel_scale = self.nirc2.get_pixel_scale()
+        # self.camera_mode = self.nirc2.get_camera_mode()
+        # self.xsize = self.nirc2.get_roi_width()
+        # self.ysize = self.nirc2.get_roi_height()
+                # Get keywords from the VAMPIRES shm
+        shmkwds = self.vcam.get_keywords()
+        # Get current filter + dictionnary
+        self.filter_name = shmkwds["FILTER01"].strip()
+        self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
+        # Set current wavelength
+        self.wavelength = self.dict_v['WAVEAVE']*1e-9
+        self.pupil_mask_name = 'subaru'
+        self.pixel_scale = 5.9 # need to confirm with Miles
+        self.camera_mode = 'standard'
+        self.xsize = 536 # check with miles if we can do subwindow
+        self.ysize = 536
+
+    def choose_mask(self, pmsmask, test_time="Daytime"):
+        """
+        Reads in the given NIRC2 mask name and converts it to a format readable by F&F code
+        """
+        mask_name = 'placeholder'
+
+        if test_time == "Daytime":
+            if pmsmask == 'open':
+                mask_name = 'open'
+            elif pmsmask == 'largehex':
+                mask_name = 'NIRC2_large_hexagonal_mask'
+            elif pmsmask == 'incircle  ':
+                mask_name = 'NIRC2_incircle_mask'
+            elif pmsmask == 'fixedhex':
+                mask_name = 'NIRC2_Lyot_Stop'
+            else:
+                print('mask name not in known keys')
+
+        elif test_time == "Nighttime":
+            if pmsmask == 'open  ':
+                mask_name = 'keck'
+            elif pmsmask == 'largehex  ':
+                mask_name = 'keck+NIRC2_large_hexagonal_mask'
+            elif pmsmask == 'incircle  ':
+                mask_name = 'keck+NIRC2_incircle_mask'
+            elif pmsmask == 'fixedhex  ':
+                mask_name = 'keck+NIRC2_Lyot_Stop'
+            else:
+                print('mask name not in known keys')
+
+        else:
+            print('mask name not in known keys')
+
+        return mask_name
+
+    def take_image(self, average = 1):
+        """
+        Initiate a NIRC2 image with the currently set parameters
+        """
+        if average == 1 :
+            image = self.vcam.get_data(True, True, timeout = 1.).astype(float)
+        else:
+            im = []
+            for i in range(50):
+                im.append(self.vcam.get_data(True, True, timeout = 1.).astype(float))
+            im = np.array(im)
+            image = np.mean(im, axis=0)
+
+
+
+
+        return image
+
+
+
+class Palila:
+    """
+    wrapper for vampires commands that already exist
+    """
+
+    def __init__(self):
+
+        self.palilacam = shm("palila") ##aver
+
+        # Fix later
+        # self.badpixmap_shm = shm("palila_badpixmap") ##
+        # self.badpixmap = self.badpixmap_shm.get_data(True, True, timeout = 1.).astype(float)
+        # self.palila_dark_shm = shm("palila_dark") ##
+        # self.palila_dark = self.palila_dark_shm.get_data(True, True, timeout = 1.).astype(float)
+
+        self.palila_dark = pf.open('/home/scexao/Documents/FnF/palila_dark.fits')[0].data
+
+
+        # self.filter_name = self.nirc2.get_filters_names()
+        # self.wavelength = self.nirc2.get_effective_wavelength()
+        # self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name())
+        # self.pixel_scale = self.nirc2.get_pixel_scale()
+        # self.camera_mode = self.nirc2.get_camera_mode()
+        # self.xsize = self.nirc2.get_roi_width()
+        # self.ysize = self.nirc2.get_roi_height()
+
+        # Get keywords from the VAMPIRES shm
+        shmkwds = self.palilacam.get_keywords()
+        # Get current filter + dictionnary
+        self.filter_name = shmkwds["FILTER01"].strip()
+        self.palila_filters = {
+            # 'OPEN':
+            'y-band':1020.0,
+            'H-band':1580.0,
+            'J-band':1250.0,
+            '1550nm, 25nm BW':1550.0,
+            '1550nm, 50nm BW':1550.0
+        }
+        # self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
+        # Set current wavelength
+        self.wavelength = self.palila_filters[self.filter_name]*1e-9
+        self.pupil_mask_name = 'subaru'
+        self.pixel_scale = 15.3 # need to confirm with Miles
+        self.camera_mode = 'standard'
+        self.xsize = 320 # check with miles if we can do subwindow
+        self.ysize = 256
+
+        pass
+
+
+
+    def get_parameters(self, test_time):
+        """
+        Reads in the current NIRC2 values and sets them to appropriate variables
+        """
+
+        # Get keywords from the VAMPIRES shm
+        shmkwds = self.palilacam.get_keywords()
+        # Get current filter + dictionnary
+        self.filter_name = shmkwds["FILTER01"].strip()
+        self.palila_filters = {
+            # 'OPEN':
+            'y-band':1020.0,
+            'H-band':1580.0,
+            'J-band':1250.0,
+            '1550nm, 25nm BW':1550.0,
+            '1550nm, 50nm BW':1550.0
+        }
+        # self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
+        # Set current wavelength
+        self.wavelength = self.palila_filters[self.filter_name]*1e-9
+        self.pupil_mask_name = 'subaru'
+        self.pixel_scale = 15.3 # need to confirm with Miles
+        self.camera_mode = 'standard'
+        self.xsize = 320 # check with miles if we can do subwindow
+        self.ysize = 256
+
+
+    def take_image(self, average = 50):
+        """
+        Initiate a NIRC2 image with the currently set parameters
+        """
+        if average == 1 :
+            image = self.palilacam.get_data(True, True, timeout = 1.).astype(float)
+            # image =- self.badpixmap
+            image -= self.palila_dark
+        else:
+            im = []
+            for i in range(50):
+                im.append(self.palilacam.get_data(True, True, timeout = 1.).astype(float))
+            im = np.array(im)
+            image = np.mean(im, axis=0)
+            # image =- self.badpixmap
+            image -= self.palila_dark
+
+
+        return image
+
+
+
+
+
+
+class SCEXAO:
+
+    def __init__(self):
+        """
+        Basic description of the function.
+        """
+
+        # self.shwfs = ShwfsCommands(prefix="k2")
+        # self.xinetics = XineticsDeformableMirrorCommands(prefix="k2")
+
+        # self.default_cog = self.shwfs.get_default_centroid_origins_filename()
+        # self.current_cog = self.shwfs.get_centroid_origins()
+
+
+
+        self.save_cog_name = ""
+        self.load_cog_name = ""
+
+        self.dm_command = np.zeros(1)
+
+        self.dm=shm("dm00disp04")
+
+        self.diameter = 44
+        self.center = [24,23]
+        self.actuator_num = [50,50]
+        # self.rotation_angle_dm = 6.25
+        self.rotation_angle_dm = 0.
+
+
+    def make_dm_command(self, phase):
+        """Converts the phase estimate to a DM command.
+
+        This function converts the phase estimate to a DM command. This means
+        that the phase estimate is rotated to match the DM orientation. Then
+        it will be resampled to an array with the appropriate size (actuator_num x actuator_num)
+        and put on the active pupil on the DM. It will also take into account
+        the reflective nature of the DM and divide the command by 2.
+
+        Parameters
+        ----------
+        phase : Field
+            The phase estimate in volts.
+        diameter : integer
+            Diameter of active pupil on the DM in actuators.
+        center : [integer, integer]
+            Position of the center of the active pupil on the dm in actuators [x_pos, y_pos].
+        actuator_num : integer
+            The number of actuators along one axis of the DM.
+        rotation_angle_dm : float
+            Rotation angle of the DM in degrees.
+
+        Returns
+        ----------
+        dm_command : square numpy array
+            The DM command derived from the phase estimate.
+        '''
+        if rotation_angle_dm != 0:
+
+            grid = phase.grid
+
+            shape_phase = phase.shaped.shape
+
+            # rotating the resampled phase
+            phase = hcipy.Field(sf.cen_rot(phase.shaped, rotation_angle_dm, np.array(phase.shaped.shape) / 2).ravel(),
+            #phase.grid)
+        """
+        # first we resample the measured phase to the size of the pupil on the actuators
+        phase_resampled = sf.fourier_resample_v2(phase, [self.diameter, self.diameter], output_diam=7.9)
+
+        #if rotation_angle_dm > 1e-4:
+        if 1 == 1:
+            grid = phase_resampled.grid
+
+            # rotating the resampled phase
+            phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, self.rotation_angle_dm,
+                                                     np.array([self.center[1], self.center[0]])).ravel(), grid)
+        else:
+            pass
+            #phase_resampled = phase_resampled.shaped
+        # array with the final DM command
+        self.dm_command = np.zeros(self.actuator_num)
+
+        # the actuators on which we put the pupil
+        x_start = int(self.center[0] - self.diameter / 2)
+        x_end = int(x_start + self.diameter)
+
+        y_start = int(self.center[1] - self.diameter / 2)
+        y_end = int(y_start + self.diameter)
+
+        # filling the array with the actual command
+        self.dm_command[y_start:y_end, x_start:x_end] = phase_resampled.shaped
+
+        # dividing by two because we have a reflection and OPD
+        self.dm_command /= 2
+
+        return self.dm_command
+
+    def set_dm_data(self, dmvolts):
+
+        self.dm.set_data(dmvolts.astype(np.float32))
+        time.sleep(0.01)
+
+        # -----------------------------------------------------------------------------
+        # Close shared memory
+        # -----------------------------------------------------------------------------
+
+        # self.dm.close()
+
+        pass
+
+    def close_dm_stream(self):
+
+        self.dm.close()
+
 
 # class NIRC2:
 #    """
@@ -534,8 +861,6 @@ class ClosedAOSystemAlias:
 #            # rotating the resampled phase
 #            phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, rotation_angle_dm,
 #                                                     np.array([center[1], center[0]])).ravel(), grid)
-           
-#      #XXX add flips, need to figure out if this is fliping the correct axis or not. 
 #        if flip_x == True:
 #            grid = phase_resampled.grid
 #            phase_resampled = hcipy.Field(np.flip(phase_resampled.shaped, axis = 0).ravel(), grid)
@@ -567,332 +892,3 @@ class ClosedAOSystemAlias:
 
 
 
-class Vampires:
-    """
-    wrapper for vampires commands that already exist
-    """
-
-    def __init__(self):
-
-        self.vcam = shm("vcam1") ##
-
-
-        # self.filter_name = self.nirc2.get_filters_names()
-        # self.wavelength = self.nirc2.get_effective_wavelength()
-        # self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name())
-        # self.pixel_scale = self.nirc2.get_pixel_scale()
-        # self.camera_mode = self.nirc2.get_camera_mode()
-        # self.xsize = self.nirc2.get_roi_width()
-        # self.ysize = self.nirc2.get_roi_height()
-
-        # Get keywords from the VAMPIRES shm
-        shmkwds = self.vcam.get_keywords()
-        # Get current filter + dictionnary
-        self.filter_name = shmkwds["FILTER01"].strip()
-        self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
-        # Set current wavelength
-        self.wavelength = self.dict_v['WAVEAVE']*1e-9
-        self.pupil_mask_name = 'subaru'
-        self.pixel_scale = 5.9 # need to confirm with Miles
-        self.camera_mode = 'standard'
-        self.xsize = 536 # check with miles if we can do subwindow
-        self.ysize = 536
-
-        pass
-
-    def get_parameters(self, test_time):
-        """
-        Reads in the current NIRC2 values and sets them to appropriate variables
-        """
-
-        # self.filter_name = self.nirc2.get_filters_names()
-        # self.wavelength = self.nirc2.get_effective_wavelength()
-        # self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name(), test_time)
-        # self.pixel_scale = self.nirc2.get_pixel_scale()
-        # self.camera_mode = self.nirc2.get_camera_mode()
-        # self.xsize = self.nirc2.get_roi_width()
-        # self.ysize = self.nirc2.get_roi_height()
-                # Get keywords from the VAMPIRES shm
-        shmkwds = self.vcam.get_keywords()
-        # Get current filter + dictionnary
-        self.filter_name = shmkwds["FILTER01"].strip()
-        self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
-        # Set current wavelength
-        self.wavelength = self.dict_v['WAVEAVE']*1e-9
-        self.pupil_mask_name = 'subaru'
-        self.pixel_scale = 5.9 # need to confirm with Miles
-        self.camera_mode = 'standard'
-        self.xsize = 536 # check with miles if we can do subwindow
-        self.ysize = 536
-
-    def choose_mask(self, pmsmask, test_time="Daytime"):
-        """
-        Reads in the given NIRC2 mask name and converts it to a format readable by F&F code
-        """
-        mask_name = 'placeholder'
-
-        if test_time == "Daytime":
-            if pmsmask == 'open':
-                mask_name = 'open'
-            elif pmsmask == 'largehex':
-                mask_name = 'NIRC2_large_hexagonal_mask'
-            elif pmsmask == 'incircle  ':
-                mask_name = 'NIRC2_incircle_mask'
-            elif pmsmask == 'fixedhex':
-                mask_name = 'NIRC2_Lyot_Stop'
-            else:
-                print('mask name not in known keys')
-
-        elif test_time == "Nighttime":
-            if pmsmask == 'open  ':
-                mask_name = 'keck'
-            elif pmsmask == 'largehex  ':
-                mask_name = 'keck+NIRC2_large_hexagonal_mask'
-            elif pmsmask == 'incircle  ':
-                mask_name = 'keck+NIRC2_incircle_mask'
-            elif pmsmask == 'fixedhex  ':
-                mask_name = 'keck+NIRC2_Lyot_Stop'
-            else:
-                print('mask name not in known keys')
-
-        else:
-            print('mask name not in known keys')
-
-        return mask_name
-
-    def take_image(self, average = 1):
-        """
-        Initiate a NIRC2 image with the currently set parameters
-        """
-        if average == 1 :
-            image = self.vcam.get_data(True, True, timeout = 1.).astype(float)
-        else:
-            im = []
-            for i in range(50):
-                im.append(self.vcam.get_data(True, True, timeout = 1.).astype(float))
-            im = np.array(im)
-            image = np.mean(im, axis=0)
-
-
-
-
-        return image
-
-
-
-class Palila:
-    """
-    wrapper for vampires commands that already exist
-    """
-
-    def __init__(self):
-
-        self.palilacam = shm("palila") ##aver
-
-        # Fix later
-        # self.badpixmap_shm = shm("palila_badpixmap") ##
-        # self.badpixmap = self.badpixmap_shm.get_data(True, True, timeout = 1.).astype(float)
-        # self.palila_dark_shm = shm("palila_dark") ##
-        # self.palila_dark = self.palila_dark_shm.get_data(True, True, timeout = 1.).astype(float)
-
-        self.palila_dark = pf.open('/home/scexao/Documents/FnF/palila_dark.fits')[0].data
-
-
-        # self.filter_name = self.nirc2.get_filters_names()
-        # self.wavelength = self.nirc2.get_effective_wavelength()
-        # self.pupil_mask_name = self.choose_mask(self.nirc2.get_pupil_mask_name())
-        # self.pixel_scale = self.nirc2.get_pixel_scale()
-        # self.camera_mode = self.nirc2.get_camera_mode()
-        # self.xsize = self.nirc2.get_roi_width()
-        # self.ysize = self.nirc2.get_roi_height()
-
-        # Get keywords from the VAMPIRES shm
-        shmkwds = self.palilacam.get_keywords()
-        # Get current filter + dictionnary
-        self.filter_name = shmkwds["FILTER01"].strip()
-        self.palila_filters = {
-            # 'OPEN':
-            'y-band':1020.0,
-            'H-band':1580.0,
-            'J-band':1250.0,
-            '1550nm, 25nm BW':1550.0,
-            '1550nm, 50nm BW':1550.0
-        }
-        # self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
-        # Set current wavelength
-        self.wavelength = self.palila_filters[self.filter_name]*1e-9
-        self.pupil_mask_name = 'subaru'
-        self.pixel_scale = 15.3 # need to confirm with Miles
-        self.camera_mode = 'standard'
-        self.xsize = 320 # check with miles if we can do subwindow
-        self.ysize = 256
-
-        pass
-
-
-
-    def get_parameters(self, test_time):
-        """
-        Reads in the current NIRC2 values and sets them to appropriate variables
-        """
-
-        # Get keywords from the VAMPIRES shm
-        shmkwds = self.palilacam.get_keywords()
-        # Get current filter + dictionnary
-        self.filter_name = shmkwds["FILTER01"].strip()
-        self.palila_filters = {
-            # 'OPEN':
-            'y-band':1020.0,
-            'H-band':1580.0,
-            'J-band':1250.0,
-            '1550nm, 25nm BW':1550.0,
-            '1550nm, 50nm BW':1550.0
-        }
-        # self.filter_v,self.dict_v = filters.get_filter_info_dict(self.filter_name)
-        # Set current wavelength
-        self.wavelength = self.palila_filters[self.filter_name]*1e-9
-        self.pupil_mask_name = 'subaru'
-        self.pixel_scale = 15.3 # need to confirm with Miles
-        self.camera_mode = 'standard'
-        self.xsize = 320 # check with miles if we can do subwindow
-        self.ysize = 256
-
-
-    def take_image(self, average = 50):
-        """
-        Initiate a NIRC2 image with the currently set parameters
-        """
-        if average == 1 :
-            image = self.palilacam.get_data(True, True, timeout = 1.).astype(float)
-            # image =- self.badpixmap
-            image -= self.palila_dark
-        else:
-            im = []
-            for i in range(50):
-                im.append(self.palilacam.get_data(True, True, timeout = 1.).astype(float))
-            im = np.array(im)
-            image = np.mean(im, axis=0)
-            # image =- self.badpixmap
-            image -= self.palila_dark
-
-
-        return image
-
-
-
-
-
-
-class SCEXAO:
-
-    def __init__(self):
-        """
-        Basic description of the function.
-        """
-
-        # self.shwfs = ShwfsCommands(prefix="k2")
-        # self.xinetics = XineticsDeformableMirrorCommands(prefix="k2")
-
-        # self.default_cog = self.shwfs.get_default_centroid_origins_filename()
-        # self.current_cog = self.shwfs.get_centroid_origins()
-
-
-
-        self.save_cog_name = ""
-        self.load_cog_name = ""
-
-        self.dm_command = np.zeros(1)
-
-        self.dm=shm("dm00disp04")
-
-        self.diameter = 44
-        self.center = [24,23]
-        self.actuator_num = [50,50]
-        # self.rotation_angle_dm = 6.25
-        self.rotation_angle_dm = 0.
-
-
-    def make_dm_command(self, phase):
-        """Converts the phase estimate to a DM command.
-
-        This function converts the phase estimate to a DM command. This means
-        that the phase estimate is rotated to match the DM orientation. Then
-        it will be resampled to an array with the appropriate size (actuator_num x actuator_num)
-        and put on the active pupil on the DM. It will also take into account
-        the reflective nature of the DM and divide the command by 2.
-
-        Parameters
-        ----------
-        phase : Field
-            The phase estimate in volts.
-        diameter : integer
-            Diameter of active pupil on the DM in actuators.
-        center : [integer, integer]
-            Position of the center of the active pupil on the dm in actuators [x_pos, y_pos].
-        actuator_num : integer
-            The number of actuators along one axis of the DM.
-        rotation_angle_dm : float
-            Rotation angle of the DM in degrees.
-
-        Returns
-        ----------
-        dm_command : square numpy array
-            The DM command derived from the phase estimate.
-        '''
-        if rotation_angle_dm != 0:
-
-            grid = phase.grid
-
-            shape_phase = phase.shaped.shape
-
-            # rotating the resampled phase
-            phase = hcipy.Field(sf.cen_rot(phase.shaped, rotation_angle_dm, np.array(phase.shaped.shape) / 2).ravel(),
-            #phase.grid)
-        """
-        # first we resample the measured phase to the size of the pupil on the actuators
-        phase_resampled = sf.fourier_resample_v2(phase, [self.diameter, self.diameter], output_diam=7.9)
-
-        #if rotation_angle_dm > 1e-4:
-        if 1 == 1:
-            grid = phase_resampled.grid
-
-            # rotating the resampled phase
-            phase_resampled = hcipy.Field(sf.cen_rot(phase_resampled.shaped, self.rotation_angle_dm,
-                                                     np.array([self.center[1], self.center[0]])).ravel(), grid)
-        else:
-            pass
-            #phase_resampled = phase_resampled.shaped
-        # array with the final DM command
-        self.dm_command = np.zeros(self.actuator_num)
-
-        # the actuators on which we put the pupil
-        x_start = int(self.center[0] - self.diameter / 2)
-        x_end = int(x_start + self.diameter)
-
-        y_start = int(self.center[1] - self.diameter / 2)
-        y_end = int(y_start + self.diameter)
-
-        # filling the array with the actual command
-        self.dm_command[y_start:y_end, x_start:x_end] = phase_resampled.shaped
-
-        # dividing by two because we have a reflection and OPD
-        self.dm_command /= 2
-
-        return self.dm_command
-
-    def set_dm_data(self, dmvolts):
-
-        self.dm.set_data(dmvolts.astype(np.float32))
-        time.sleep(0.01)
-
-        # -----------------------------------------------------------------------------
-        # Close shared memory
-        # -----------------------------------------------------------------------------
-
-        # self.dm.close()
-
-        pass
-
-    def close_dm_stream(self):
-
-        self.dm.close()

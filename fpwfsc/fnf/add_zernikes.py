@@ -1,6 +1,4 @@
 #!/usr/bin/env python
-import sys
-import threading
 import numpy as np
 from collections import deque
 import hcipy
@@ -17,19 +15,12 @@ from fpwfsc.common import fake_hardware as fhw
 from fpwfsc.common import support_functions as sf
 import random
 
-def run_fastandfurious_test():
-    FF_ini = 'FF_software.ini'
-    FF_spec = 'FF_software.spec'
-    settings = sf.validate_config(FF_ini, FF_spec)
+def run_fastandfurious_test(camera='Sim', 
+                            aosystem='Sim', 
+                            FF_ini = 'FF_software_sim.ini', 
+                            FF_spec = 'FF_software.spec'):
 
-    camera, aosystem = helper.load_instruments('OSIRIS',
-                                                camargs={},
-                                                aoargs={'rotation_angle_dm':
-                                                                settings['MODELLING']['rotation angle dm (deg)'],
-                                                                'flip_x':
-                                                                settings['MODELLING']['flip_x'],
-                                                                'flip_y':
-                                                                settings['MODELLING']['flip_y']})
+    settings = sf.validate_config(FF_ini, FF_spec)
 
     #----------------------------------------------------------------------
     # Control Loop parameters
@@ -126,41 +117,21 @@ def run_fastandfurious_test():
                                   field_center_y=430)
 
         AOsystem = fhw.FakeAOSystem(OpticalModel, modebasis=FnF.mode_basis,
-                                    initial_rms_wfe=rms_wfe, seed=seed)
-                                    #rotation_angle_dm = rotation_angle_dm)
+                                    initial_rms_wfe=rms_wfe, seed=seed,
+                                    rotation_angle_dm = rotation_angle_dm,
+                                    flip_x = flip_x,
+                                    flip_y  = flip_y)
     else:
         Camera = camera
         AOsystem = aosystem
-    # generating the first reference image
-    data_raw = Camera.take_image()
-    data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
-                                          npix=Npix_foc,
-                                          refpsf=OpticalModel.ref_psf.shaped,
-                                          )
-    # Take first image
-    FnF.initialize_first_image(data_ref)
-    #MAIN LOOP SETUP AND RUNNING
-    #----------------------------------------------------------------------
-
-    SRA_measurements = np.zeros(Niter)
-    VAR_measurements = np.zeros(Niter)
-
-    SRA_measurements[SRA_measurements==0] = np.nan
-    VAR_measurements[VAR_measurements==0] = np.nan
-    t0 = time.time()
-
-    test_rot = np.arange(100)
-    rotation_angle_threshold = 5
-    rotation_angle_deg_pre = rotation_angle_aperture
+    
 
     #create zernike mode
-    mode_basis = hcipy.make_zernike_basis(10, 11.3, Aperture.pupil_grid, 0)
+    mode_basis = hcipy.make_zernike_basis(10, 11.3, Aperture.pupil_grid, 1)
     mode_basis = sf.orthonormalize_mode_basis(mode_basis, Aperture.aperture)
     amplitude = 0.3
 
-    dm_volt_to_amp_amplify = 3
 
-    #initial_cog = aosystem.get_dm_data()
 
     add_mode = amplitude * (
     mode_basis[0] * random.random() + mode_basis[1] * random.random() + mode_basis[2] * random.random() +
@@ -168,9 +139,12 @@ def run_fastandfurious_test():
     mode_basis[6] * random.random() + mode_basis[7] * random.random() + mode_basis[8] * random.random() +
     mode_basis[9] * random.random()
 )
-    # microns = add_mode * FnF.wavelength / (2 * np.pi) * 1e6
-    # _,dm_microns = AOsystem.set_dm_data(microns*dm_volt_to_amp_amplify )
-    # image = Camera.take_image()
+    microns = add_mode * FnF.wavelength / (2 * np.pi) * 1e6
+    _,dm_microns = AOsystem.set_dm_data(microns)
+    image = Camera.take_image()
+    image_bench = sf.reduce_images(image, xcen=xcen, ycen=ycen, npix=Npix_foc,
+                                refpsf=OpticalModel.ref_psf.shaped,
+                                )
 
     pupil_wf = hcipy.Wavefront(Aperture.aperture * np.exp(1j * add_mode),
                              wavelength=FnF.wavelength)
@@ -182,40 +156,27 @@ def run_fastandfurious_test():
     #                             refpsf=OpticalModel.ref_psf.shaped,
     #                             )
     
-    plt.subplot(2, 2, 1)
+    plt.subplot(1, 2, 1)
     hcipy.imshow_field(np.log10(image_theory / image_theory.max()), vmin=-3)
     plt.colorbar()
     plt.title('theory')
 
-    # plt.subplot(2, 2, 2)
-    # plt.imshow(np.log10(np.abs(image_bench) / image_bench.max()), vmin=-3, origin='lower')
-    # plt.colorbar()
-    # plt.title('bench')
-
-    max_theory = np.max(np.abs(add_mode))
-
-    plt.subplot(2, 2, 3)
-    hcipy.imshow_field(phase_rad, cmap='bwr', vmin=-max_theory, vmax=max_theory)
+    plt.subplot(1, 2, 2)
+    plt.imshow(np.log10(np.abs(image_bench) / image_bench.max()), vmin=-3, origin='lower')
     plt.colorbar()
-
-    plt.title('theory')
-
-    max_bench = np.max(np.abs(dm_microns))
-
-    # plt.subplot(2, 2, 4)
-    # plt.imshow(dm_microns, origin='lower', cmap='bwr',
-    #             vmin=-max_bench, vmax=max_bench)
-
-    plt.colorbar()
-
-    plt.title('Applied command')
+    plt.title('bench')
+    plt.title('Applied ramdom zernikes command')
 
     plt.show()
-    # converting the volt
     
-    aosystem.AO.revert_cog()
-
-
+    
+    if aosystem == 'Sim':
+        AOsystem.OpticalModel.update_pupil_wavefront(AOsystem.initial_phase_error)
+    else:
+        AOsystem.AO.revert_cog()
     
 if __name__ == "__main__":
-    run_fastandfurious_test()
+    run_fastandfurious_test(camera='Sim', 
+                            aosystem='Sim', 
+                            FF_ini = 'FF_software_sim.ini', 
+                            FF_spec = 'FF_software.spec')

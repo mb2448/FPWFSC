@@ -37,7 +37,7 @@ class Aperture:
     aperturename : string
         The name of the aperture
     rotation_angle_aperture: float (deg)
-        The rotation angle in degrees of the pupil
+        The rotation angle in degrees of the entire pupil plane (contains all spiders, secondary mirror, etc.)
 
     Returns:
     ---------
@@ -45,12 +45,11 @@ class Aperture:
     """
 
     def __init__(self, Npix_pup=None,
-                 aperturename=None, rotation_angle_aperture=None, rotation_primary_deg=None):
+                 aperturename=None, rotation_angle_aperture=None):
         print("Initializing aperture")
         self.Npix_pup = Npix_pup
         self.aperturename = aperturename
         self.rotation_angle_aperture = rotation_angle_aperture
-        self.rotation_primary_deg = rotation_primary_deg
         if aperturename == 'subaru':
             self.diameter = 8.0
             self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.diameter)
@@ -70,13 +69,6 @@ class Aperture:
                                 pupil_grid=self.pupil_grid,
                                 rotation_angle_aperture=self.rotation_angle_aperture, 
                                 )
-            # #fix this !
-            # self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.pupil_diameter1)
-            # self.aperture, self.pupil_diameter  = make_keck_aperture.get_aperture(aperturename=self.aperturename,
-            #                     pupil_grid=self.pupil_grid,
-            #                     rotation_angle_aperture=self.rotation_angle_aperture, 
-            #                     )
-            
         return
 
     def display(self):
@@ -230,7 +222,7 @@ class SystemModel:
     Parameters
     ---------
     aperture : classes.aperture (above)
-        The system aperture
+        The system aperture of the pupil
     Npix_foc : int
         Number of pixels to generate model of psf on (does not need to be the same as the camera image size)
     mas_pix : float
@@ -265,10 +257,10 @@ class SystemModel:
         self.ref_pupil_field = hcipy.Wavefront(self.Pupil.aperture*1,
                                            wavelength=self.wavelength)
         #compute the FT of the aperture
-        self.a= self.propagator(self.ref_pupil_field)
+        self.ref_focal_field= self.propagator(self.ref_pupil_field)
         #compute the reference psf electric field and image
-        self.ref_psf_efield = self.a.electric_field
-        self.ref_psf   = self.a.power
+        self.ref_psf_efield = self.ref_focal_field.electric_field
+        self.ref_psf   = self.ref_focal_field.power
         #set the current pupil efield to the reference field
         #copy by value!
         self.pupil_efield = self.ref_pupil_field.copy()
@@ -279,7 +271,6 @@ class SystemModel:
         self.pupil_efield = hcipy.Wavefront(self.Pupil.aperture * \
                                                  np.exp(1j * applied_phase),
                                             wavelength=self.wavelength)
-        #self.pupil_efield.total_power = 1
         self.focal_efield = self.generate_psf_efield()
         return
 
@@ -292,8 +283,6 @@ class SystemModel:
         ----------
         focal_wf
         """
-        #XYZ somehwere here put in the flip
-        #print("Flip put in here somewhere")
         focal_wf = self.propagator(self.pupil_efield)
         return focal_wf
 
@@ -312,9 +301,9 @@ class FastandFurious:
         print("Initializing F&F")
         print("Importing optical system model parameters")
         #careful these are passed by reference!
-        ## correcting the Fraunhofer propagation for the math of F&F
-        ## we have to rotate the electric field by 90 degrees in the complex plane.
-        ## this is because the factor of 1/i that is added to Fraunhofer propagator after the Fourier transform.
+        # correcting the Fraunhofer propagation for the math of F&F
+        # we have to rotate the electric field by 90 degrees in the complex plane.
+        # this is because the factor of 1/i that is added to Fraunhofer propagator after the Fourier transform.
         self.ref_psf_efield = SystemModel.ref_psf_efield.copy() \
                               * np.exp(1j * np.pi / 2)
         self.ref_psf = SystemModel.ref_psf.copy()
@@ -400,7 +389,6 @@ class FastandFurious:
         return
 
     def iterate(self, raw_data):
-        #self.phi_i *= -1
         self.current_image = self.process_raw_image(raw_data)
         self.strehl_est = self.estimate_strehl()
         #calculate odd/even focal plane terms using focal data
@@ -448,7 +436,8 @@ class FastandFurious:
     def control_even_odd(self, oddpart=None, evenpart=None,
                          control_odd_modes=True,
                          control_even_modes=True):
-        """Reconstructs the full wavefront from odd and even parts
+        """
+        Reconstructs the full wavefront from odd and even parts
         solved for by F&F algorithm
 
         Parameters

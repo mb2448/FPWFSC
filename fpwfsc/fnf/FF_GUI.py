@@ -18,11 +18,10 @@ import FF_plotter_qt as pf
 from fpwfsc.fnf import gui_helper as helper
 from fpwfsc.fnf.run import run
 #from fpwfsc.common import plotting_funcs as pf
-def get_instrument_values(camera):
-    #make a gui option for test time???
-
+def get_instrument_values(camera, test_time):
+    
     if hasattr(camera, 'get_parameters') and callable(camera.get_parameters):
-        camera.get_parameters(test_time = 'Daytime')
+        camera.get_parameters(test_time = test_time)
 
         return {'MODELLING':{
         'wavelength (m)':str(camera.wavelength*1e-6),
@@ -33,15 +32,9 @@ def get_instrument_values(camera):
         #self.camera.xsize
         #self.camera.ysize
 
-
-        #return {'MODELLING':{'wavelength (m)':'3e-6',
-        #        'aperture':'NIRC2_large_hexagonal_mask'}}
-
-
     else:
         return None
        
-        
         
 class AlgorithmThread(QThread):
     update_plot = pyqtSignal(dict)
@@ -247,7 +240,7 @@ class ConfigEditorGUI(QWidget):
 
     def load_instrument_values(self):
         print("Loading values from instrument")
-        instrument_values = get_instrument_values(self.camera)
+        instrument_values = get_instrument_values(self.camera, test_time = self.config['MODELLING']['test time'])
 
         if instrument_values != None:
             for section, values in instrument_values.items():
@@ -427,30 +420,6 @@ class ConfigEditorGUI(QWidget):
         input_widget.setToolTip(tooltip)
 
         return widget
-    ###
-    #def create_input_widget(self, section, key, value):
-    #    # Create an appropriate input widget based on the configuration specification
-    #    spec = self.get_spec_for_key(f"{section}.{key}")
-
-    #    if spec:
-    #        if 'option(' in spec:
-    #            input_widget = QComboBox()
-    #            options = spec.split('option(')[1].split(')')[0].replace("'", "").split(',')
-    #            input_widget.addItems([opt.strip() for opt in options])
-    #            input_widget.setCurrentText(str(value).strip())
-    #        elif 'boolean' in spec:
-    #            input_widget = QComboBox()
-    #            input_widget.addItems(['True', 'False'])
-    #            input_widget.setCurrentText(str(value))
-    #        else:
-    #            input_widget = QLineEdit(str(value))
-    #    else:
-    #        input_widget = QLineEdit(str(value))
-
-    #    #input_widget.setMinimumHeight(20)  # Ensure minimum height for all input widgets
-    #    input_widget.setFixedHeight(20)  # Ensure minimum 20height for all input widgets
-    #    return input_widget
-    ###
     def create_input_widget(self, section, key, value):
         # Create an appropriate input widget based on the configuration specification
         # Check if this is a directory option
