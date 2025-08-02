@@ -180,7 +180,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if save_log == True: 
         logger = LogManager(base_log_dir=log_path, config=settings)
 
-
     for i in np.arange(Niter):
         #The next two lines stop it if the user presses stop in the gui
         if my_event.is_set():
@@ -228,8 +227,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 separation = mas_dis,
                                 contrast = contrast_measurements,
                                 contrast_ori = contrast_ori)
-
-        logger.save_iteration(i, 
+        print('savelog:', save_log) 
+        if save_log == True:
+            logger.save_iteration(i, 
                        strehl=SRA_measurements[i],
                        contrast_curve=contrast_measurements,
                        separation=mas_dis,
