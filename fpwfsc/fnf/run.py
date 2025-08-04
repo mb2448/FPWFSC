@@ -27,7 +27,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if my_event is None:
         my_event = threading.Event()
     settings = sf.validate_config(config, configspec)
-    
+
     #----------------------------------------------------------------------
     # Control Loop parameters
     #----------------------------------------------------------------------
@@ -90,7 +90,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #----------------------------------------------------------------------
     # Load the classes
     #----------------------------------------------------------------------
-   
+
     Aperture = ff_c.Aperture(Npix_pup=Npix_pup,
                              aperturename=chosen_aperture,
                              rotation_angle_aperture=rotation_angle_aperture)
@@ -99,7 +99,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                     Npix_foc=Npix_foc,
                                     mas_pix=mas_pix,
                                     wavelength=wavelength)
-    
+
 
     FnF = ff_c.FastandFurious(SystemModel=OpticalModel,
                               leak_factor=leak_factor,
@@ -132,7 +132,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     else:
         Camera = camera
         AOsystem = aosystem
-        #initialize the current cog file 
+        #initialize the current cog file
         AOsystem.current_cog_file = AOsystem.AO.get_cog_filename()
         AOsystem.cur_cog = AOsystem.AO.open_cog(AOsystem.current_cog_file, shape_requested = 'vector')
     # generating the first reference image
@@ -141,9 +141,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     if auto_background == True:
         bgds =  None
-    else: 
+    else:
         bgds = sf.setup_bgd_dict('../bgds/')
-        
+
 
     data_raw = Camera.take_image()
 
@@ -169,16 +169,16 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     t0 = time.time()
 
     _,contrast_ori = sn.contrastcurve_simple(data_ref, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
-    
 
-    #initialization for optional things 
-    
+
+    #initialization for optional things
+
     if hitchhiker_mode==True:
         Hitch = fhw.Hitchhiker(imagedir=hitchhiker_path)
 
 
-    if save_log == True: 
-        logger = LogManager(base_log_dir=log_path, config=settings)
+    if save_log == True:
+        logger = sf.LogManager(base_log_dir=log_path, config=settings)
 
     for i in np.arange(Niter):
         #The next two lines stop it if the user presses stop in the gui
@@ -227,9 +227,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                 separation = mas_dis,
                                 contrast = contrast_measurements,
                                 contrast_ori = contrast_ori)
-        print('savelog:', save_log) 
+        print('savelog:', save_log)
         if save_log == True:
-            logger.save_iteration(i, 
+            logger.save_iteration(i,
                        strehl=SRA_measurements[i],
                        contrast_curve=contrast_measurements,
                        separation=mas_dis,
@@ -240,79 +240,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                        processed_data=data,
                        raw_file=None,
                        backgrounds = bgds)
-        
+
 
     t1 = time.time()
     print(str(Niter), ' iterations completed in: ', t1-t0, ' seconds')
-    
-
-
-class LogManager:
-    def __init__(self, base_log_dir="logs", config=None):
-        self.base_log_dir = base_log_dir
-        os.makedirs(self.base_log_dir, exist_ok=True)
-        
-        # Save config once if provided
-        if config:
-            config_path = os.path.join(self.base_log_dir, "config.json")
-            with open(config_path, "w") as f:
-                json.dump(config, f, indent=2)
-
-    def save_iteration(self, iter_num, *, 
-                       strehl=None,
-                       contrast_curve=None,
-                       separation=None,
-                       ref_psf=None,
-                       phase_estimate=None,
-                       dm_command=None,
-                       raw_data=None,
-                       processed_data=None,
-                       raw_file=None,
-                       backgrounds = None
-                       ):
-
-        iter_dir = os.path.join(self.base_log_dir, f"iter_{iter_num:03d}")
-        os.makedirs(iter_dir, exist_ok=True)
-
-        # Save metadata
-        meta = {
-            "iteration": int(iter_num),
-            "strehl_ratio": float(strehl) if strehl is not None else None,
-            "raw_file": raw_file,
-            "backgrounds": backgrounds
-            
-        }
-        with open(os.path.join(iter_dir, "metadata.json"), "w") as f:
-            json.dump(meta, f, indent=2)
-
-        # Save contrast curve (1D)
-        if contrast_curve is not None and separation is not None:
-            fits.writeto(os.path.join(iter_dir, "contrast.fits"),
-                         np.array([separation, contrast_curve]),
-                         overwrite=True)
-
-        # Save reference PSF  
-        if phase_estimate is not None:
-            fits.writeto(os.path.join(iter_dir, "reference PSF.fits"),
-                         ref_psf, overwrite=True)
-
-
-        # Save 2D arrays
-        if phase_estimate is not None:
-            fits.writeto(os.path.join(iter_dir, "phase_estimate.fits"),
-                         phase_estimate, overwrite=True)
-
-        if dm_command is not None:
-            fits.writeto(os.path.join(iter_dir, "dm_command.fits"),
-                         dm_command, overwrite=True)
-
-        # Save images only if data is provided
-        if raw_data is not None:
-            fits.writeto(os.path.join(iter_dir, "raw.fits"), raw_data, overwrite=True)
-
-        if processed_data is not None:
-            fits.writeto(os.path.join(iter_dir, "processed.fits"), processed_data, overwrite=True)
-    
 
 if __name__ == "__main__":
     plotter = pf.LivePlotter()

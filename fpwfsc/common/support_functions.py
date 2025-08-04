@@ -15,9 +15,74 @@ import matplotlib.pyplot as plt
 import astropy.io.fits as fits
 
 
-# NOTE: These flips are used for the simulation
-#def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None, flipx=False, flipy=False):
-# NOTE: These flips are used when running with NIRC2
+class LogManager:
+    def __init__(self, base_log_dir="logs", config=None):
+        self.base_log_dir = base_log_dir
+        os.makedirs(self.base_log_dir, exist_ok=True)
+
+        # Save config once if provided
+        if config:
+            config_path = os.path.join(self.base_log_dir, "config.json")
+            with open(config_path, "w") as f:
+                json.dump(config, f, indent=2)
+
+    def save_iteration(self, iter_num, *,
+                       strehl=None,
+                       contrast_curve=None,
+                       separation=None,
+                       ref_psf=None,
+                       phase_estimate=None,
+                       dm_command=None,
+                       raw_data=None,
+                       processed_data=None,
+                       raw_file=None,
+                       backgrounds = None
+                       ):
+
+        iter_dir = os.path.join(self.base_log_dir, f"iter_{iter_num:03d}")
+        os.makedirs(iter_dir, exist_ok=True)
+
+        # Save metadata
+        meta = {
+            "iteration": int(iter_num),
+            "strehl_ratio": float(strehl) if strehl is not None else None,
+            "raw_file": raw_file,
+            "backgrounds": backgrounds
+
+        }
+        with open(os.path.join(iter_dir, "metadata.json"), "w") as f:
+            json.dump(meta, f, indent=2)
+
+        # Save contrast curve (1D)
+        if contrast_curve is not None and separation is not None:
+            fits.writeto(os.path.join(iter_dir, "contrast.fits"),
+                         np.array([separation, contrast_curve]),
+                         overwrite=True)
+
+        # Save reference PSF
+        if phase_estimate is not None:
+            fits.writeto(os.path.join(iter_dir, "reference PSF.fits"),
+                         ref_psf, overwrite=True)
+
+
+        # Save 2D arrays
+        if phase_estimate is not None:
+            fits.writeto(os.path.join(iter_dir, "phase_estimate.fits"),
+                         phase_estimate, overwrite=True)
+
+        if dm_command is not None:
+            fits.writeto(os.path.join(iter_dir, "dm_command.fits"),
+                         dm_command, overwrite=True)
+
+        # Save images only if data is provided
+        if raw_data is not None:
+            fits.writeto(os.path.join(iter_dir, "raw.fits"), raw_data, overwrite=True)
+
+        if processed_data is not None:
+            fits.writeto(os.path.join(iter_dir, "processed.fits"), processed_data, overwrite=True)
+
+
+
 def reduce_images(data, npix=None, refpsf=None, xcen=None, ycen=None, bgds=None, flipx=False, flipy=False, rotation_angle_deg=0):
     """This function is modified from take_images() to only reduce
     a given output with the following steps:
