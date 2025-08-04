@@ -4,7 +4,7 @@ import numpy as np
 from scipy.ndimage import affine_transform, median_filter
 from skimage.registration import phase_cross_correlation
 from scipy.ndimage import shift
-from scipy.optimize import curve_fit  
+from scipy.optimize import curve_fit
 import json
 import io
 from configobj import flatten_errors, ConfigObj
@@ -13,7 +13,6 @@ import warnings
 import hcipy
 import matplotlib.pyplot as plt
 import astropy.io.fits as fits
-import ipdb
 
 
 # NOTE: These flips are used for the simulation
@@ -173,11 +172,11 @@ def take_images(detector=None, n_images=1, npix=None,
     final_image = np.sum(data_cube, axis=0)
     return final_image
 
-def locate_badpix(data, sigmaclip = 5, plot=True): 
+def locate_badpix(data, sigmaclip = 5, plot=True):
     ''' -----------------------------------------------------------------------
     Locates bad pixels by fitting a gaussian distribution to the image
     intensity and then cutting outliers at the level of 'sigmaclip'
-    
+
     XYZ -- this function needs to be rewritten to be cleaner
     ----------------------------------------------------------------------- '''
     # Create a vector of values borned by the min and max of the provided data
@@ -200,60 +199,60 @@ def locate_badpix(data, sigmaclip = 5, plot=True):
     # Compute the brighntness limits of the point to keep
     cliphigh  = mean + sigmaclip*np.abs(stddev)
     cliplow   = mean - sigmaclip*np.abs(stddev)
-    # Generate the bad pixel map 
+    # Generate the bad pixel map
     bpmask = np.round(data > cliphigh) + np.round(data < cliplow)
     # Plot the histogram
     if plot:
         # Create figure
         plt.figure(figsize=(5, 3))
-        
+
         # Add a small offset to avoid log(0) issues
         epsilon = 1e-10
         y_plot = yvals + epsilon
         y_fit = gaussfunc(xvals[:-1], *popt) + epsilon
-        
+
         # Plot the histogram with log scale
         plt.semilogy(xvals[:-1], y_plot, 'k.', label='Pixel intensity histogram', alpha=0.5)
-        
+
         # Overplot Gaussian fit on the data
-        plt.semilogy(xvals[:-1], y_fit, 'r-', 
+        plt.semilogy(xvals[:-1], y_fit, 'r-',
                    label=f'Gaussian fit (μ={mean:.2f}, σ={stddev:.2f})', alpha=0.5)
-        
+
         # Add labels
         plt.xlabel('Pixel intensity')
         plt.ylabel('Normalized frequency (log scale)')
         plt.legend()
-        
+
         # Set y-axis limits to focus on relevant range
         # Find the maximum value in the histogram (excluding outliers)
         y_max = max(np.max(y_plot), 0.1)
         plt.ylim(epsilon, y_max * 1.5)
-        
+
         # Prepare the title of the figure
         title = f'Bad Pixel Detection (σ-clip = {sigmaclip})'
         title += '\nPixels outside shaded area are considered bad'
-        
+
         # Add the title
         plt.title(title)
-        
+
         # Highlight pixels considered as good pixels
-        plt.axvspan(cliplow, cliphigh, alpha=0.2, color='grey', 
+        plt.axvspan(cliplow, cliphigh, alpha=0.2, color='grey',
                   label=f'Good pixel range: [{cliplow:.2f}, {cliphigh:.2f}]')
-        
+
         # Add vertical lines at clip boundaries
         plt.axvline(x=cliplow, color='red', linestyle='--', alpha=0.7)
         plt.axvline(x=cliphigh, color='red', linestyle='--', alpha=0.7)
-        
+
         # Add text showing percentage of bad pixels
         bad_pixel_percentage = 100 * np.sum(bpmask) / bpmask.size
-        plt.figtext(0.5, 0.01, f'Bad pixels: {bad_pixel_percentage:.2f}% of image', 
+        plt.figtext(0.5, 0.01, f'Bad pixels: {bad_pixel_percentage:.2f}% of image',
                   ha='center', fontsize=10)
-        
+
         # Show the figure
         plt.grid(True, which="both", ls="-", alpha=0.2)
         plt.tight_layout()
-        plt.show() 
-    
+        plt.show()
+
     return np.array(bpmask, dtype=np.float32)
 
 def removebadpix(data, mask, kern = 5):
@@ -333,7 +332,7 @@ class MyValidator(Validator):
     def _float_or_none(self, value, *args):
     # Remove the debugging breakpoint
     # ipdb.set_trace()
-    
+
         # Handle the case when value is a list (which appears to be happening)
         if isinstance(value, list):
             # If it's a list containing option specifications, return None
@@ -345,7 +344,7 @@ class MyValidator(Validator):
                 return float(value[0])
             except (ValueError, IndexError):
                 raise ValidateError("Expected float or 'None', got list: {}".format(value))
-    
+
         # Original logic for string values
         if value in ('None', ''):
             return None
@@ -354,7 +353,7 @@ class MyValidator(Validator):
         except ValueError:
             raise ValidateError("Expected float or 'None'")
 
-    
+
     def _integer_or_none(self, value, *args):
         # Handle the case when value is a list
         if isinstance(value, list):
@@ -374,7 +373,7 @@ class MyValidator(Validator):
             return int(value)
         except ValueError:
             raise ValidateError("Expected int or 'None'")
-    
+
     def _string_or_none(self, value, *args):
         # Handle the case when value is a list
         if isinstance(value, list):
@@ -392,18 +391,18 @@ class MyValidator(Validator):
             return None
         try:
             return str(value)
-        
+
         except ValueError:
             raise ValidateError("Expected string or 'None'")
-    
+
     def _option_or_none(self, value, *args):
         """Validates that a value is either None or one of the specified options"""
         if value in ('None', '', None):
             return None
-            
+
         # Convert the args to strings for comparison
         args = [str(arg) for arg in args]
-        
+
         if str(value) in args:
             return value
         else:
@@ -413,7 +412,7 @@ class MyValidator(Validator):
 def validate_config(config_input, configspec=None):
     """A helper function that checks a config input for errors against
     the configspec file. Accepts both filenames and dictionaries.
-    
+
     Parameters
     ---------
     config_input - string or dict
@@ -428,9 +427,9 @@ def validate_config(config_input, configspec=None):
     config = ConfigObj(config_input, configspec=configspec)
     val = MyValidator()
     res = config.validate(val, preserve_errors=True)
-    
+
     input_type = "Config file" if isinstance(config_input, str) else "Config dictionary"
-    
+
     if res is True:
         print(f"{input_type} PASSED VALIDATION CHECK")
         return config
@@ -986,18 +985,18 @@ def gaussfunc(x, mu, sig):
 def setup_bgd_dict(directory_path):
     """
     Load specific FITS files from a directory and return their data in a dictionary.
-    
+
     Parameters:
     -----------
     directory_path : str
         Path to the directory containing the FITS files
-    
+
     Returns:
     --------
     dict
         Dictionary containing the data from the FITS files with keys:
         'bkgd', 'masterflat', and 'badpix'
-    
+
     Raises:
     -------
     FileNotFoundError
@@ -1009,18 +1008,18 @@ def setup_bgd_dict(directory_path):
         'masterflat': 'masterflat.fits',
         'badpix': 'badpix.fits'
     }
-    
+
     # Dictionary to store the data
     data_dict = {}
-    
+
     # Check if directory exists
     if not os.path.isdir(directory_path):
         raise NotADirectoryError(f"The directory {directory_path} does not exist")
-    
+
     # Process each file
     for key, filename in required_files.items():
         file_path = os.path.join(directory_path, filename)
-        
+
         # Check if file exists
         if not os.path.isfile(file_path):
             print(f"Warning: Required file {filename} not found in {directory_path}. Setting to None.")
@@ -1030,5 +1029,5 @@ def setup_bgd_dict(directory_path):
             with fits.open(file_path) as hdul:
                 # Assuming the data is in the primary HDU (index 0)
                 data_dict[key] = hdul[0].data
-    
+
     return data_dict
