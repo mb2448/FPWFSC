@@ -160,12 +160,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     FnF.initialize_first_image(data_ref)
     #MAIN LOOP SETUP AND RUNNING
     #----------------------------------------------------------------------
-
     SRA_measurements = np.zeros(Niter)
-    VAR_measurements = np.zeros(Niter)
-
     SRA_measurements[SRA_measurements==0] = np.nan
-    VAR_measurements[VAR_measurements==0] = np.nan
+
     t0 = time.time()
 
     _,contrast_ori = sn.contrastcurve_simple(data_ref, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
@@ -209,11 +206,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
-        # Saving metrics of strehl, airy ring variation
-        VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,
-                                               mas_pix, wavelength,
-                                               Aperture.pupil_diameter)
-        print('Strehl:', SRA_measurements[i], ";  VAR: ", VAR_measurements[i])
+        # Saving metrics of strehl, contrast
+        print('Strehl:', SRA_measurements[i])
 
         pix_dis,contrast_measurements = sn.contrastcurve_simple(data, cx=None, cy = None, sigmalevel = 1, robust=True, region =None, maxrad = Npix_foc/2-1)
         mas_dis = pix_dis * mas_pix
