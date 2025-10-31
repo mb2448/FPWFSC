@@ -2,12 +2,13 @@
 *.fits
 *.fit
 *.gif
+*.bmp
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
+*.swp
 # C extensions
 *.so
 
@@ -176,3 +177,6 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+.DS_Store
+**/.DS_Store
