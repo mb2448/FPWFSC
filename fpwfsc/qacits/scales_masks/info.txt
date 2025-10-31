@@ -1,0 +1,16 @@
+Hi Mike,
+
+An undergraduate student in our group (Arjun Kumar, cc'd) has converted the SolidWorks models for the Lyot masks into bitmaps and numpy arrays, which are attached here.  There are 3 Lyot masks that mask the Keck pupil for 1%, 2% and 3% nutations.  The scales of the arrays are 6.641 microns per pixel at the Lyot plane and 10.652 mm per pixel at the Keck primary.  The plate scale of the IFS is 0.02" per spaxel for all modes.  Let us know if we should put these into a different format.
+
+For bandpasses, there are currently 6 bandpasses used by the SCALES IFS.  Below are the as-built filter half-max points.  Is that sufficient?  Or do you need an exact profile?  The filters are basically perfect flat-tops.  The only thing in the instrument with any sort of chromatic transmission profile is the detector QE curve, but it's low order.  The sky transmission is probably the dominant effect.
+
+K (1.948 - 2.449 µm)
+L (2.871 - 4.171 µm)
+KL (2.000 - 4.016 µm)
+Ls (3.116-3.516 µm)
+M (4.466 - 5.36 µm)
+KLM (1.998 - 5.36 µm)
+
+Best,
+-Andy
+
