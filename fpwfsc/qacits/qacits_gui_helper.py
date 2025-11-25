@@ -1,7 +1,7 @@
 # satellite_gui_helper.py
 
 # Define valid instruments
-valid_instruments = ['Sim']
+valid_instruments = ['Sim', 'NIRC2']
 
 # Configuration information dictionary
 config_info = {
@@ -46,7 +46,7 @@ config_info = {
             "expert": True
         },
         "outer radius": {
-            "help": "outer radius of `quad cell` in pixels", 
+            "help": "outer radius of `quad cell` in pixels",
             "expert": True
         },
 

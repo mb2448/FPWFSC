@@ -10,7 +10,6 @@
 #
 #Bos2021
 #Bos, Steven P., et al. "Fast and furious focal-plane wavefront sensing at WM Keck Observatory." Techniques and Instrumentation for Detection of Exoplanets X. Vol. 11823. SPIE, 2021.
-import ipdb
 import numpy as np
 import hcipy
 import matplotlib.pyplot as plt
@@ -19,11 +18,6 @@ from . import support_functions as sf
 from . import vandamstrehl as vDs
 from . import make_subaru_aperture as msa
 from . import make_keck_aperture
-
-# import support_functions as sf
-# import vandamstrehl as vDs
-# import make_subaru_aperture as msa
-# import make_keck_aperture
 
 class Aperture:
     """A class to generate the aperture of the optical system.  This requires a
@@ -51,6 +45,7 @@ class Aperture:
         self.aperturename = aperturename
         self.rotation_angle_aperture = rotation_angle_aperture
         if aperturename == 'subaru':
+            #unlike Keck, the Subaru case contains one pupil for all instruments
             self.diameter = 8.0
             self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.diameter)
             self.aperture, self.pupil_diameter = msa.generate_pupil(n = self.Npix_pup, outer = 1, grid = self.pupil_grid,
@@ -61,13 +56,15 @@ class Aperture:
                                                                     spiders = True,
                                                                     actuators = True)
             self.aperture = self.aperture.reshape(self.Npix_pup**2)
+
         else:
-            #this is the Keck case for now
+            #this is the Keck case for now, contains all Keck aperture masks for NIRC2,
+            #OSIRIS, and SCALES
             self.diameter = 11.3
             self.pupil_grid = hcipy.make_pupil_grid(Npix_pup, diameter=self.diameter)
             self.aperture, self.pupil_diameter  = make_keck_aperture.get_aperture(aperturename=self.aperturename,
                                 pupil_grid=self.pupil_grid,
-                                rotation_angle_aperture=self.rotation_angle_aperture, 
+                                rotation_angle_aperture=self.rotation_angle_aperture,
                                 )
         return
 
@@ -76,6 +73,60 @@ class Aperture:
         hcipy.imshow_field(self.aperture)
         plt.show()
         return self.aperture
+
+# Add this class to classes.py alongside LyotCoronagraph
+
+class VortexCoronagraph:
+    def __init__(self, Npix_foc=None, charge=2, mas_pix=None, pupil_grid=None):
+        """
+        Parameters
+        ----------
+        Npix_foc : int
+            size of focal plane array along side dimension
+        charge : int
+            Vortex topological charge
+        mas_pix : float
+            Pixelscale in miliarcseconds
+        pupil_grid : hcipy.PupilGrid
+            Pupil grid the wavefront is defined on
+        """
+        self.Npix_foc = Npix_foc
+        self.charge = charge
+        self.mas_pix = mas_pix
+        self.rad_pix = np.radians(self.mas_pix / 1000. / 3600.)
+        self.pupil_grid = pupil_grid
+
+        # Create focal grid
+        self.focal_grid = hcipy.make_uniform_grid(
+            [self.Npix_foc, self.Npix_foc],
+            [self.Npix_foc*self.rad_pix, self.Npix_foc*self.rad_pix])
+
+        # Create vortex phase mask manually
+        x = self.focal_grid.x
+        y = self.focal_grid.y
+        theta = np.arctan2(y, x)
+
+        # Create vortex phase pattern: exp(i * charge * theta)
+        self.vortex_phase_mask = np.exp(1j * self.charge * theta)
+
+    def forward_tolyot(self, input_wavefront, include_fpm=True):
+        prop = hcipy.FraunhoferPropagator(self.pupil_grid, self.focal_grid)
+        focal = prop.forward(input_wavefront)
+
+        if include_fpm:
+            # Apply vortex phase mask
+            focal.electric_field *= self.vortex_phase_mask
+
+        lyot_efield = prop.backward(focal)
+        return lyot_efield
+
+    def display(self):
+        """plots the vortex phase mask"""
+        hcipy.imshow_field(np.angle(self.vortex_phase_mask))
+        plt.colorbar()
+        plt.title('Vortex Phase Mask')
+        plt.show()
+        return self.vortex_phase_mask
 
 
 class LyotCoronagraph:

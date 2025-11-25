@@ -63,7 +63,10 @@ class AlgorithmThread(QThread):
                          my_event=self.my_event,
                          plotter=self.plotter)
         except Exception as e:
+            import traceback
             print(f"Error in algorithm thread: {str(e)}")
+            print("Full traceback:")
+            traceback.print_exc()  # This will show the exact line
         finally:
             # Make sure we restore the original update function
             if self.plotter is not None and self.original_update is not None:

@@ -186,6 +186,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #pixcontrol = np.random.random(2)-0.5
         pixcontrol = Controller.iterate(np.array([xo, yo]))
         control = pixcontrol*tt_gain
+
+        # Print status showing iteration, setpoint, measured centers, error, and control
+        printstatus(iteration=i,
+                    setpoint=setpoint,
+                    center=np.array([yo, xo]),  # Note: printstatus expects [y, x] order
+                    pixcontrol=pixcontrol,
+                    control=control)
+        
         tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = control[0], tilt_y=control[1],
                                           dm_rotation=tt_rot_deg, flipx=False)
         current_shape = AOSystem.get_dm_data()

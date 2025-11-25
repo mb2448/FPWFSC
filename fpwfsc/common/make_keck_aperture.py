@@ -1,12 +1,12 @@
 import numpy as np
+from pathlib import Path
 import matplotlib.pyplot as plt
 from hcipy import *
 
 from . import support_functions as sf
-#import support_functions as sf
 
 def get_aperture(aperturename=None, pupil_grid=None,
-                 rotation_angle_aperture=0, oversampling_factor=8, rotation_primary_deg=0): 
+                 rotation_angle_aperture=0, oversampling_factor=8, rotation_primary_deg=0):
     """A helper function to return an aperture, and rotate it
     to the appropriate angle.
 
@@ -87,7 +87,7 @@ def get_aperture(aperturename=None, pupil_grid=None,
         pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
 
 
-    # the two apertures below are IFS masks    
+    # the two apertures below are IFS masks
     elif aperturename == 'keck+OSIRIS_20_mas':
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
@@ -97,10 +97,9 @@ def get_aperture(aperturename=None, pupil_grid=None,
         pupil_diameter_long  = 10.92 # meter
         pupil_diameter_short = 9.92 # meter
         pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
-        
+
     elif aperturename == 'keck+OSIRIS_35_50_mas':
         keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
-        #keck_aperture = sf.cen_rot(keck_aperture.shaped, rotation_primary_deg, pupil_grid.shape/2)
         keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
         osi35 = evaluate_supersampled(circular_aperture(10.), pupil_grid, oversampling_factor)
         aperture      = keck_aperture * osi35
@@ -108,8 +107,67 @@ def get_aperture(aperturename=None, pupil_grid=None,
         pupil_diameter_long  = 10. # meter
         pupil_diameter_short = 9.92 # meter
         pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
-  
-    
+
+    #SCALES LYOT STOPS
+    elif aperturename == 'SCALES_1percent_Lyot_Stop':
+        scales = evaluate_supersampled(make_SCALES_1percent_lyot_stop(),
+                                      pupil_grid, oversampling_factor)
+
+        aperture             = scales
+        pupil_diameter_long  = 10.5 # meter
+        pupil_diameter_short = 9.46 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+
+    elif aperturename == 'keck+SCALES_1percent_Lyot_Stop':
+        keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
+        keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
+        scales = evaluate_supersampled(make_SCALES_1percent_lyot_stop(),
+                                      pupil_grid, oversampling_factor)
+
+        aperture             = keck_aperture * scales
+        pupil_diameter_long  = 10.5 # meter
+        pupil_diameter_short = 9.46 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+
+    elif aperturename == 'SCALES_2percent_Lyot_Stop':
+        scales = evaluate_supersampled(make_SCALES_2percent_lyot_stop(),
+                                      pupil_grid, oversampling_factor)
+
+        aperture             = scales
+        pupil_diameter_long  = 10.5 # meter
+        pupil_diameter_short = 9.46 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+
+    elif aperturename == 'keck+SCALES_2percent_Lyot_Stop':
+        keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
+        keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
+        scales = evaluate_supersampled(make_SCALES_2percent_lyot_stop(),
+                                      pupil_grid, oversampling_factor)
+
+        aperture             = keck_aperture * scales
+        pupil_diameter_long  = 10.5 # meter
+        pupil_diameter_short = 9.46 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+
+    elif aperturename == 'SCALES_3percent_Lyot_Stop':
+        scales = evaluate_supersampled(make_SCALES_3percent_lyot_stop(),
+                                      pupil_grid, oversampling_factor)
+
+        aperture             = scales
+        pupil_diameter_long  = 10.5 # meter
+        pupil_diameter_short = 9.46 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
+
+    elif aperturename == 'keck+SCALES_3percent_Lyot_Stop':
+        keck_aperture = evaluate_supersampled(make_keck_aperture(), pupil_grid, oversampling_factor)
+        keck_aperture = Field(keck_aperture.ravel(), pupil_grid)
+        scales = evaluate_supersampled(make_SCALES_3percent_lyot_stop(),
+                                      pupil_grid, oversampling_factor)
+
+        aperture             = keck_aperture * scales
+        pupil_diameter_long  = 10.5 # meter
+        pupil_diameter_short = 9.46 # meter
+        pupil_diameter = (pupil_diameter_long + pupil_diameter_short) / 2
 
     else:
         raise ValueError('No valid aperture chosen!')
@@ -408,6 +466,101 @@ def make_NIRC2_lyot_stop():
 
     return func
 
+def make_bitmap_pupil_mask(bitmap_array, physical_diameter=None):
+    '''
+    Creates a pupil mask function from a binary bitmap array
+
+    Parameters
+    ----------
+    bitmap_array : numpy.ndarray
+        2D binary array (0s and 1s) representing the pupil mask
+    physical_diameter : float, optional
+        Physical diameter in meters that the bitmap represents
+        If None, will be scaled to match the grid diameter
+
+    Returns
+    -------
+    func : function
+        Function that takes a grid and returns a Field with the pupil mask
+    '''
+    from scipy.interpolate import RegularGridInterpolator
+
+    # Create coordinate arrays for the bitmap
+    ny, nx = bitmap_array.shape
+    y_coords = np.linspace(-1, 1, ny)  # Normalized coordinates
+    x_coords = np.linspace(-1, 1, nx)
+
+    # Create interpolator (nearest neighbor to preserve binary nature)
+    interpolator = RegularGridInterpolator(
+        (y_coords, x_coords),
+        bitmap_array.astype(float),
+        method='nearest',
+        bounds_error=False,
+        fill_value=0
+    )
+
+    def func(grid):
+        # Get grid coordinates
+        if hasattr(grid, 'x') and hasattr(grid, 'y'):
+            x_grid, y_grid = grid.x, grid.y
+        else:
+            # For pupil grids, might need to extract differently
+            coords = grid.coords
+            x_grid, y_grid = coords[0], coords[1]
+
+        # Scale grid coordinates to match bitmap coordinate system
+        if physical_diameter is not None:
+            # Scale based on physical diameter
+            max_coord = physical_diameter / 2
+            x_norm = x_grid / max_coord
+            y_norm = y_grid / max_coord
+        else:
+            # Auto-scale to grid extent
+            max_coord = max(np.abs(x_grid).max(), np.abs(y_grid).max())
+            x_norm = x_grid / max_coord
+            y_norm = y_grid / max_coord
+
+        # Evaluate interpolator
+        points = np.column_stack([y_norm.ravel(), x_norm.ravel()])
+        mask_values = interpolator(points).reshape(x_grid.shape)
+
+        return Field(mask_values, grid)
+
+    return func
+
+def make_SCALES_1percent_lyot_stop():
+    """The SCALES 1% nutation Lyot stop, mapped to primary.
+    From Andy: the scales of the arrays are 6.641 microns per pixel
+    at the Lyot plane and 10.652 mm per pixel at the Keck primary.
+    The plate scale of the IFS is 0.02" per spaxel for all modes"""
+
+    module_dir = Path(__file__).parent
+    filepath = module_dir / 'LS1percent.npy'
+    data = 1 - np.load(filepath)
+    mask = make_bitmap_pupil_mask(data, physical_diameter = data.shape[0]*10.652e-3)
+    return mask
+
+def make_SCALES_2percent_lyot_stop():
+    """The SCALES 2% nutation Lyot stop, mapped to primary.
+    From Andy: the scales of the arrays are 6.641 microns per pixel
+    at the Lyot plane and 10.652 mm per pixel at the Keck primary.
+    The plate scale of the IFS is 0.02" per spaxel for all modes"""
+    module_dir = Path(__file__).parent
+    filepath = module_dir / 'LS2percent.npy'
+    data = 1 - np.load(filepath)
+    mask = make_bitmap_pupil_mask(data, physical_diameter = data.shape[0]*10.652e-3)
+    return mask
+
+def make_SCALES_3percent_lyot_stop():
+    """The SCALES 3% nutation Lyot stop, mapped to primary.
+    From Andy: the scales of the arrays are 6.641 microns per pixel
+    at the Lyot plane and 10.652 mm per pixel at the Keck primary.
+    The plate scale of the IFS is 0.02" per spaxel for all modes"""
+    module_dir = Path(__file__).parent
+    filepath = module_dir / 'LS3percent.npy'
+    data = 1 - np.load(filepath)
+    mask = make_bitmap_pupil_mask(data, physical_diameter = data.shape[0]*10.652e-3)
+    return mask
 
 if __name__ == '__main__':
 
@@ -423,7 +576,11 @@ if __name__ == '__main__':
     NIRC2_large_hex = evaluate_supersampled(make_NIRC2_large_hexagonal_mask(), pupil_grid, supersampling_factor)
 
     NIRC2_Lyot_Stop = evaluate_supersampled(make_NIRC2_lyot_stop(), pupil_grid, supersampling_factor)
-    
+
+    SCALES_Lyot_stop1 = evaluate_supersampled(make_SCALES_1percent_lyot_stop(), pupil_grid, supersampling_factor)
+    SCALES_Lyot_stop2 = evaluate_supersampled(make_SCALES_2percent_lyot_stop(), pupil_grid, supersampling_factor)
+    SCALES_Lyot_stop3 = evaluate_supersampled(make_SCALES_3percent_lyot_stop(), pupil_grid, supersampling_factor)
+
     plt.figure()
     imshow_field(keck_aperture)
     plt.colorbar()
@@ -438,7 +595,7 @@ if __name__ == '__main__':
     imshow_field(NIRC2_large_hex)
     plt.colorbar()
     plt.title('NIRC2 large hexagonal mask')
-    
+
     plt.figure()
     imshow_field(keck_aperture * NIRC2_large_hex)
     plt.colorbar()
@@ -448,11 +605,24 @@ if __name__ == '__main__':
     imshow_field(keck_aperture * NIRC2_incircle)
     plt.colorbar()
     plt.title('Keck aperture * NIRC2 incircle mask')
-    
+
     plt.figure()
     imshow_field(NIRC2_Lyot_Stop)
     plt.colorbar()
     plt.title('NIRC2 Lyot Stop, relative throughput = ' + str(np.round(np.sum(NIRC2_Lyot_Stop) / np.sum(keck_aperture), 2)))
 
+    plt.figure()
+    imshow_field(SCALES_Lyot_stop1)
+    plt.colorbar()
+    plt.title('Scales Lyot stop 1%')
 
+    plt.figure()
+    imshow_field(SCALES_Lyot_stop2)
+    plt.colorbar()
+    plt.title('Scales Lyot stop 2%')
+
+    plt.figure()
+    imshow_field(SCALES_Lyot_stop3)
+    plt.colorbar()
+    plt.title('Scales Lyot stop 3%')
     plt.show()

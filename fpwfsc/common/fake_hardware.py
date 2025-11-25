@@ -113,6 +113,11 @@ class Hitchhiker:
 
         if not self.watch_dir.exists():
             raise FileNotFoundError(f"Directory {self.watch_dir} does not exist.")
+        
+        # Mark all existing files as "seen" so we only wait for NEW files
+        for f in self.watch_dir.iterdir():
+            if f.suffix.lower() in self.suffixes:
+                self.seen_files.add(f)
 
     def wait_for_next_image(self, timeout=None):
         """
@@ -198,7 +203,6 @@ class FakeCoronagraphOpticalSystem:
         self.aperturename = optical_params['APERTURE']['aperture']
         self.rotation_angle_aperture = optical_params['APERTURE']['rotation angle aperture (deg)']
 
-        self.coronagraph_IWA_mas = optical_params['CORONAGRAPH_MASK']['IWA_mas']
 
         self.lyotstopmask = optical_params['LYOT_STOP']['lyot stop']
         self.rotation_angle_lyot = optical_params['LYOT_STOP']['rotation angle lyot (deg)']
@@ -207,16 +211,33 @@ class FakeCoronagraphOpticalSystem:
         self.TelescopeAperture = ff_c.Aperture(Npix_pup=self.Npix_pup,
                                                aperturename=self.aperturename,
                                                rotation_angle_aperture=self.rotation_angle_aperture)
-        self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc,
-                                                      IWA_mas=self.coronagraph_IWA_mas,
-                                                      mas_pix=self.pixscale,
-                                                      pupil_grid=self.TelescopeAperture.pupil_grid)
-        self.LyotStop          = ff_c.Aperture(Npix_pup=self.Npix_pup,
-                                               aperturename=self.lyotstopmask,
-                                              rotation_angle_aperture = self.rotation_angle_lyot)
+
+        # Add coronagraph type parameter
+        coronagraph_type = optical_params['CORONAGRAPH_MASK']['type']
+
+        if coronagraph_type == 'vortex':
+            charge = optical_params['CORONAGRAPH_MASK']['charge']
+            self.Coronagraph = ff_c.VortexCoronagraph(
+                Npix_foc=self.Npix_foc,
+                charge=charge,
+                mas_pix=self.pixscale,
+                pupil_grid=self.TelescopeAperture.pupil_grid
+            )
+        else:  # default to lyot
+            self.coronagraph_IWA_mas = optical_params['CORONAGRAPH_MASK']['IWA_mas']
+            self.Coronagraph = ff_c.LyotCoronagraph(
+                Npix_foc=self.Npix_foc,
+                IWA_mas=self.coronagraph_IWA_mas,
+                mas_pix=self.pixscale,
+                pupil_grid=self.TelescopeAperture.pupil_grid
+            )
+
+        self.LyotStop = ff_c.Aperture(Npix_pup=self.Npix_pup,
+                                     aperturename=self.lyotstopmask,
+                                     rotation_angle_aperture = self.rotation_angle_lyot)
 
         self.CSM = ff_c.CoronagraphSystemModel(telescopeaperture=self.TelescopeAperture,
-                           coronagraph=self.Lyotcoronagraph,
+                           coronagraph=self.Coronagraph,
                            lyotaperture=self.LyotStop,
                            Npix_foc=self.Npix_foc,
                            mas_pix=self.pixscale,
@@ -226,8 +247,56 @@ class FakeCoronagraphOpticalSystem:
                            rotation_angle_deg=self.rotation_angle_deg,
                            include_fpm=self.include_fpm)
         return self.CSM
+
     def __init__(self):
         pass
+
+#class FakeCoronagraphOpticalSystem:
+#    """A helper class to build a coronagraph from a configuration file"""
+#    def __new__(self, include_fpm=True, **optical_params):
+#
+#        self.Npix_pup = optical_params['N pix pupil']
+#        self.Npix_foc = optical_params['N pix focal']
+#        self.pixscale = optical_params['pixel scale (mas/pix)']
+#        self.wavelength = optical_params['wavelength (m)']
+#        #rots and flips applied last
+#        self.flipx = optical_params['flip_x']
+#        self.flipy = optical_params['flip_y']
+#
+#        self.rotation_angle_deg = optical_params['rotation angle im (deg)']
+#        self.aperturename = optical_params['APERTURE']['aperture']
+#        self.rotation_angle_aperture = optical_params['APERTURE']['rotation angle aperture (deg)']
+#
+#        self.coronagraph_IWA_mas = optical_params['CORONAGRAPH_MASK']['IWA_mas']
+#
+#        self.lyotstopmask = optical_params['LYOT_STOP']['lyot stop']
+#        self.rotation_angle_lyot = optical_params['LYOT_STOP']['rotation angle lyot (deg)']
+#
+#        self.include_fpm = include_fpm
+#        self.TelescopeAperture = ff_c.Aperture(Npix_pup=self.Npix_pup,
+#                                               aperturename=self.aperturename,
+#                                               rotation_angle_aperture=self.rotation_angle_aperture)
+#        self.Lyotcoronagraph   = ff_c.LyotCoronagraph(Npix_foc=self.Npix_foc,
+#                                                      IWA_mas=self.coronagraph_IWA_mas,
+#                                                      mas_pix=self.pixscale,
+#                                                      pupil_grid=self.TelescopeAperture.pupil_grid)
+#        self.LyotStop          = ff_c.Aperture(Npix_pup=self.Npix_pup,
+#                                               aperturename=self.lyotstopmask,
+#                                              rotation_angle_aperture = self.rotation_angle_lyot)
+#
+#        self.CSM = ff_c.CoronagraphSystemModel(telescopeaperture=self.TelescopeAperture,
+#                           coronagraph=self.Lyotcoronagraph,
+#                           lyotaperture=self.LyotStop,
+#                           Npix_foc=self.Npix_foc,
+#                           mas_pix=self.pixscale,
+#                           wavelength=self.wavelength,
+#                           flipx=self.flipx,
+#                           flipy=self.flipy,
+#                           rotation_angle_deg=self.rotation_angle_deg,
+#                           include_fpm=self.include_fpm)
+#        return self.CSM
+#    def __init__(self):
+#        pass
 
 class FakeDetector:
     """A class to simulate a fake camera.  Accepts and optical system
@@ -263,7 +332,7 @@ class FakeDetector:
              field_center_y = None,
              rotation_angle_deg = None, #not yet implemented
              opticalsystem=None,
-             output_directory=None):  
+             output_directory=None):
         self.flux = flux
         self.input_grid = opticalsystem.focal_grid
         self.read_noise = read_noise
@@ -278,7 +347,7 @@ class FakeDetector:
         self.field_center_y = field_center_y
         self.rotation_angle_deg = rotation_angle_deg
         self.output_directory = output_directory  # Store the output directory
-    
+
         # passed by reference...so the latest efields will update
         self.opticalsystem = opticalsystem
         self.exptime = exptime
@@ -298,7 +367,7 @@ class FakeDetector:
 
     def take_image(self, focal_wf=None, t=None, output_directory=None):
         """Returns an image and optionally saves it to a directory.
-    
+
         Parameters
         ----------
         focal_wf : hcipy Wavefront, optional
@@ -317,7 +386,7 @@ class FakeDetector:
         """
         # Use provided output_directory or fall back to self.output_directory
         output_directory = output_directory or self.output_directory
-    
+
         # Generate the image
         if focal_wf is None:
             this_focal_wf = self.opticalsystem.focal_efield.copy()
@@ -338,7 +407,7 @@ class FakeDetector:
             output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
 
         # Save image to disk if a directory is specified
-    
+
         if output_directory is None:
             return output_image
 
@@ -369,7 +438,7 @@ class FakeDetector:
             print(f"Error saving image to disk: {e}")
             return None
 
-    
+
 class FakeAOSystem:
     """A class that has the same API as the normal AO system class.
        Accepts an optical system and modifies the pupil efield by reference"""
@@ -377,7 +446,7 @@ class FakeAOSystem:
                        modebasis=None,
                        initial_rms_wfe=0,
                        rotation_angle_dm = 0,
-                       flip_x = False, 
+                       flip_x = False,
                        flip_y = False,
                        seed=None):
         if seed is not None:
@@ -395,7 +464,7 @@ class FakeAOSystem:
 
     def set_dm_data(self, dm_microns):
 
-        #insert fake DM flips and rotationl,   
+        #insert fake DM flips and rotationl,
         phase_DM = sf.rotate_and_flip_field(dm_microns, angle=15, flipx=True, flipy=False)
 
         #and correct it with the input rotation angle and flips

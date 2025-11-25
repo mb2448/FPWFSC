@@ -19,7 +19,7 @@
     calspot_ky = float
     calspot_amp = float(min=0)
 
-    [[MEASURED_PARAMS]]    
+    [[MEASURED_PARAMS]]
         centerx = float
         centery = float
         angle = float
@@ -47,7 +47,9 @@
             aperture                      = option('keck', 'subaru')
             rotation angle aperture (deg) = float
         [[[CORONAGRAPH_MASK]]]
+            type                          = option('lyot', 'vortex')
             IWA_mas                       = float(min=0)
+            charge                        = integer(min=1)
         [[[LYOT_STOP]]]
             lyot stop                     = option('NIRC2_incircle_mask', 'NIRC2_large_hexagonal_mask', 'NIRC2_Lyot_Stop')
             rotation angle lyot (deg)     = float

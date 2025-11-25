@@ -9,7 +9,7 @@ from fpwfsc.common import fake_hardware as fhw
 import fpwfsc.common.support_functions as sf
 import fpwfsc.common.dm as dm
 
-from fpwfsc.satellite_pointing_control import PID
+from fpwfsc.satellite_pointing_control.PID import PID
 from pathlib import Path
 from fpwfsc.satellite_pointing_control.satellite_plotter_qt import LiveSquarePlotter
 
