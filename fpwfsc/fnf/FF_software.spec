@@ -21,6 +21,7 @@
     flip_x                        = boolean
     flip_y                        = boolean
     ref PSF oversampling factor   = integer(min=1)
+    FnF correction gain           = float
 
 [FF_SETTINGS]
     xcen                = integer

@@ -163,10 +163,10 @@ def run_fastandfurious_test():
     #initial_cog = aosystem.get_dm_data()
 
     add_mode = amplitude * (
-    mode_basis[0] * random.random() + mode_basis[1] * random.random() + mode_basis[2] * random.random() +
-    mode_basis[3] * random.random() + mode_basis[4] * random.random() + mode_basis[5] * random.random() +
-    mode_basis[6] * random.random() + mode_basis[7] * random.random() + mode_basis[8] * random.random() +
-    mode_basis[9] * random.random()
+     mode_basis[5]# * random.random() + mode_basis[1] * random.random() + mode_basis[2] * random.random() +
+    # mode_basis[3] * random.random() + mode_basis[4] * random.random() + mode_basis[5] * random.random() +
+    # mode_basis[6] * random.random() + mode_basis[7] * random.random() + mode_basis[8] * random.random() +
+    # mode_basis[9] * random.random()
 )
     microns = add_mode * FnF.wavelength / (2 * np.pi) * 1e6
     _,dm_microns = AOsystem.set_dm_data(microns*dm_volt_to_amp_amplify )

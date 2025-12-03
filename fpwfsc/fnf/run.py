@@ -68,6 +68,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     # Reference PSF settings
     oversampling_factor = settings['MODELLING']['ref PSF oversampling factor']
+    # 
+    FnF_correction_gain = settings['MODELLING']['FnF correction gain']
     #----------------------------------------------------------------------
     # F&F parameters
     #----------------------------------------------------------------------
@@ -250,12 +252,19 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
-        microns = -3 * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+        microns = (-1)* FnF_correction_gain * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+        print('the correction gain is ',FnF_correction_gain)
+        print(flip_x)
+        print(flip_y)
         #please delete the -3
-        # if track_pupil:
-        #     center_act, rotangle = measure_pupil_on_DM()
-        #     AO_cog, _ = AOsystem.set_dm_data(microns, center_act, rotangle)
-        AO_cog, _ = AOsystem.set_dm_data(microns)
+        # track_pupil_center = False
+        # track_pupil_rotation = False
+
+        # if track_pupil_center:
+        #     pupcx, pupcy = AOsystem.recompute_pupil_center()
+        # if track_pupil_rotation:
+        #     pupil_angle = AOsystem.recompute_pupil_angle()
+        AO_cog, _ = AOsystem.set_dm_data(microns,flip_x=flip_x, flip_y=flip_y)
 
         # Saving metrics of strehl, airy ring variation
         VAR_measurements[i] = sf.calculate_VAR(data, OpticalModel.ref_psf.shaped,

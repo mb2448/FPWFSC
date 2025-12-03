@@ -81,8 +81,17 @@ class ClosedAOSystemAlias:
         self._closed = True
         self.grid = hcipy.make_uniform_grid([self.Nact, self.Nact], 1, 0)
 
+    def recompute_pupil_center(self):
+        """Computes the pupil center from the wfs image"""
+        xc, yc = self.AO.recompute_center_actuator()
+        self.center_pupil_act = [xc, yc]
+        return xc, yc
 
-    def set_dm_data(self, shape, modify_existing=False):
+    def compute_pupil_angle(self):
+        """Computes the pupil angle from the image of the hexagon on the wfs"""
+        return self.AO.compute_pupil_angle()
+    
+    def set_dm_data(self, shape, flip_x, flip_y,modify_existing=False):#flip_x, flip_y,
         """
         Parameters
         ----------
@@ -96,8 +105,8 @@ class ClosedAOSystemAlias:
                                           self.center_pupil_act,
                                           self.Nact,
                                           self.rotation_angle_dm,
-                                          self.flip_x,
-                                          self.flip_y)
+                                          flip_x,
+                                          flip_y)
 
         binary_map = self.dm.get_binary_actuators_map()
         mask = np.array(binary_map, dtype='bool')

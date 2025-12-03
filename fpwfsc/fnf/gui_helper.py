@@ -92,7 +92,11 @@ config_info = {
         "ref PSF oversampling factor": {
             "help": "Oversampling factor for the reference PSF",
             "expert": True
-        }
+        },
+        "FnF correction gain":{
+            "help": "Compensating for gain difference between FnF command and instrument",
+            "expert": True
+        },
     },
     "FF_SETTINGS": {
         "xcen": {
