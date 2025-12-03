@@ -157,9 +157,9 @@ def run_fastandfurious_test():
     rotation_angle_deg_pre = rotation_angle_aperture
 
     #create zernike mode
-    mode_basis = hcipy.make_zernike_basis(4, 11.3, Aperture.pupil_grid, 9)
+    mode_basis = hcipy.make_zernike_basis(1, 11.3, Aperture.pupil_grid, 7)
     mode_basis = sf.orthonormalize_mode_basis(mode_basis, Aperture.aperture)
-    amplitude = 1.
+    amplitude = 0.
 
     dm_volt_to_amp_amplify = 3
 

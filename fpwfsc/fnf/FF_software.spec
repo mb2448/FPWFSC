@@ -29,6 +29,10 @@
     SNR cutoff          = float
     epsilon             = float
     auto_background     = boolean
+    hitchhiker_mode     = boolean
+    hitchhiker_path     = string
+    save_log            = boolean
+    log_path            = string
 
 [IO]
     save path       = string

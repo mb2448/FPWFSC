@@ -1,1 +1,0 @@
-this folder is for the backgrounds.  to generate a synthetic bad pixel map sim_badpix.fits you need to run a function in the background script manually.

@@ -120,6 +120,22 @@ config_info = {
         "auto_background": {
             "help": "Automatically determine background level",
             "expert": False
+        },
+        "hitchhiker_mode":{
+            "help": "Use science data for FnF",
+            "expert": False
+        },
+        "hitchhiker_path":{
+            "help": "Directory to look for new science data",
+            "expert": True
+        },
+        "save_log":{
+            "help": "Save all measurements",
+            "expert": False
+        },
+        "log_path": {
+            "help": "Directory to save the log",
+            "expert": False
         }
     },
     "IO": {

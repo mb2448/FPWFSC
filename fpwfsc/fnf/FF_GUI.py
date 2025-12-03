@@ -633,7 +633,10 @@ class ConfigEditorGUI(QWidget):
     
     def save_centroids(self):
         # Placeholder function for saving centroids
-        file_name, _ = QFileDialog.getSaveFileName(self, "Save Centroids", "", "All Files (*)")
+        options = QFileDialog.Options()
+        options |= QFileDialog.DontUseNativeDialog
+        default_name = "centroids.fits"
+        file_name, _ = QFileDialog.getSaveFileName(self, "Save Centroids", default_name, "All Files (*)")
         if file_name:
             print("Centroids saved")
 
