@@ -117,9 +117,11 @@ def load_instruments(instrumentname, camargs={}, aoargs={}):
     """
     if instrumentname == 'Sim':
         return 'Sim', 'Sim'
+    elif instrumentname == 'NIRC2':
+        from fpwfsc.qacits import qacits_hardware
+        return qacits_hardware.NIRC2Alias(), qacits_hardware.K2AOAlias()
     else:
-        import qacits_hardware
-        return qacits_hardware.NIRC2Alias(),qacits_hardware.K2AOAlias()
+        raise ValueError(f"Invalid instrument name: {instrumentname}")
 
 def get_help_message(section, key):
     """Retrieve the help message for a given section and key."""

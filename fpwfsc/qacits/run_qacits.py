@@ -4,7 +4,6 @@ import queue  # For thread-safe setpoint updates
 
 from fpwfsc.common import fake_hardware as fhw
 import fpwfsc.common.support_functions as sf
-import fpwfsc.common.dm as dm
 
 from pathlib import Path
 import fpwfsc.qacits.qacits_funcs as qf
@@ -104,15 +103,20 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                poll_interval=settings['HITCHHIKER MODE']['poll interval'],
                                timeout=settings['HITCHHIKER MODE']['timeout'])
 
-    if simmode:
-        #this should be about 5 pixels off
-        initial_shape = AOSystem.get_dm_data()
-        tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = 3e-6, tilt_y=-3e-6,
-                                              dm_rotation=tt_rot_deg, flipx=tt_flipx, flipy=tt_flipy)
-        current_shape = AOSystem.get_dm_data()
-        AOSystem.set_dm_data(current_shape + tt_control)
+    def _rotate_flip_tt(tx, ty):
+        """Detector-frame (tx, ty) -> AO-native (x, y) with rotation + flips applied."""
+        theta = np.deg2rad(tt_rot_deg)
+        fx = -1 if tt_flipx else 1
+        fy = -1 if tt_flipy else 1
+        x_ao =  fx*tx*np.cos(theta) + fy*ty*np.sin(theta)
+        y_ao = -fx*tx*np.sin(theta) + fy*ty*np.cos(theta)
+        return x_ao, y_ao
 
-    current_shape = AOSystem.get_dm_data()
+    if simmode:
+        # Inject an initial offset so the loop has something to correct
+        x0, y0 = _rotate_flip_tt(3e-6, -3e-6)
+        AOSystem.offset_tiptilt(x0, y0)
+
     Controller = PID.PID(Kp=Kp,
                          Ki=Ki,
                          Kd=Kd,
@@ -140,9 +144,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                 # No new setpoint, continue with current
                 pass
         
-        #drift = dm.generate_tip_tilt(initial_shape.shape, tilt_x = i*250e-9, tilt_y=400e-9,
-        #                                  dm_rotation=tt_rot_deg, flipx=False)
-        current_shape = AOSystem.get_dm_data()
         if settings['HITCHHIKER MODE']['hitchhike']:
             # Hitchhiker mode: wait for external process to generate images
             # Note: In sim mode, run qacits_camera_image_generator.py in a separate terminal
@@ -192,10 +193,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                     pixcontrol=pixcontrol,
                     control=control)
         
-        tt_control = dm.generate_tip_tilt(current_shape.shape, tilt_x = control[0], tilt_y=control[1],
-                                          dm_rotation=tt_rot_deg, flipx=tt_flipx, flipy=tt_flipy)
-        current_shape = AOSystem.get_dm_data()
-        AOSystem.set_dm_data(current_shape + tt_control)# + drift)
+        x_ao, y_ao = _rotate_flip_tt(control[0], control[1])
+        AOSystem.offset_tiptilt(x_ao, y_ao)
     
     print(f"Control loop ended after {i+1 if n_iter > 0 else 0} iterations")
     

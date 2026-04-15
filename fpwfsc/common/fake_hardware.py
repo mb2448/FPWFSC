@@ -574,11 +574,22 @@ class FakeAODMSystem:
 
         return
 
-    def offset_tiptilt(self, metersx, metersy,
-                             angle=None,
-                             flipx=None,
-                             flipy=None):
-        pass
+    def offset_tiptilt(self, x, y):
+        """Apply a tip/tilt offset to the simulated DM.
+
+        Signature matches K2AOAlias.offset_tiptilt so qacits can call the
+        same method on sim or real AO. Rotation/flip are expected to be
+        applied upstream (see run_qacits.py)."""
+        from . import dm as _dm
+        shape = self.current_dm_shape.shape
+        tt = _dm.generate_tip_tilt(shape, tilt_x=x, tilt_y=y,
+                                   dm_rotation=0, flipx=False, flipy=False)
+        self.set_dm_data(tt, modify_existing=True)
+
+    def zero_tiptilt(self):
+        """Reset the simulated DM to zero (sim analog of zeroing the FSM)."""
+        shape = self.current_dm_shape.shape
+        self.set_dm_data(np.zeros(shape), modify_existing=False)
 
     def make_dm_command(self, microns):
         return microns
