@@ -313,7 +313,7 @@ def locate_badpix(data, sigmaclip = 5, plot=True):
         plt.axvline(x=cliphigh, color='red', linestyle='--', alpha=0.7)
 
         # Add text showing percentage of bad pixels
-        bad_pixel_percentage = 100 * np.sum(bpmask) / bpmask.size
+        bad_pixel_percentage = 100.0 * float(np.sum(bpmask)) / bpmask.size
         plt.figtext(0.5, 0.01, f'Bad pixels: {bad_pixel_percentage:.2f}% of image',
                   ha='center', fontsize=10)
 
