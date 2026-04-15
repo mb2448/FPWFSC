@@ -13,7 +13,10 @@ from validate import Validator
 import threading
 from pathlib import Path
 
-import FF_plotter_qt as pf
+try:
+    from . import FF_plotter_qt as pf
+except ImportError:
+    import FF_plotter_qt as pf
 
 from fpwfsc.fnf import gui_helper as helper
 from fpwfsc.fnf.run import run
@@ -423,6 +426,34 @@ class ConfigEditorGUI(QWidget):
     def create_input_widget(self, section, key, value):
         # Create an appropriate input widget based on the configuration specification
         # Check if this is a directory option
+        if helper.is_file_option(section, key):
+            widget = QWidget()
+            layout = QHBoxLayout(widget)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(2)
+
+            text_field = QLineEdit(str(value))
+            text_field.setFixedHeight(20)
+
+            browse_button = QPushButton("...")
+            browse_button.setFixedWidth(30)
+            browse_button.setFixedHeight(20)
+
+            def browse_file(tf=text_field):
+                file_name, _ = QFileDialog.getOpenFileName(
+                    self, "Select File", tf.text(),
+                    "FITS Files (*.fits *.fit);;All Files (*)"
+                )
+                if file_name:
+                    tf.setText(file_name)
+
+            browse_button.clicked.connect(lambda _, tf=text_field: browse_file(tf))
+            layout.addWidget(text_field, 1)
+            layout.addWidget(browse_button, 0)
+            widget.setFixedHeight(24)
+            widget.text_field = text_field
+            return widget
+
         if helper.is_directory_option(section, key):
             # Directory selection - create a widget with a text field and browse button
             widget = QWidget()
@@ -448,13 +479,14 @@ class ConfigEditorGUI(QWidget):
                 if directory:
                     text_field.setText(directory)
 
-            browse_button.clicked.connect(browse_directory)
+            browse_button.clicked.connect(lambda _: browse_directory())
 
             # Add widgets to layout
             layout.addWidget(text_field, 1)  # Text field takes most of the space
             layout.addWidget(browse_button, 0)  # Browse button takes minimal space
 
             # Save reference to text field for getting/setting value
+            widget.setFixedHeight(24)
             widget.text_field = text_field
 
             return widget

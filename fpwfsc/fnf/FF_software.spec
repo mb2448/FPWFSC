@@ -1,3 +1,14 @@
+[FF_SETTINGS]
+    xcen                = integer
+    ycen                = integer
+    Apply smooth filter = boolean
+    SNR cutoff          = float
+    epsilon             = float
+    hitchhiker_mode     = boolean
+    hitchhiker_path     = string
+    save_log            = boolean
+    log_path            = string
+
 [LOOP_SETTINGS]
     Plot               = boolean
     N iter             = integer(min=1)
@@ -5,9 +16,14 @@
     leak factor        = float(min=0, max=1)
     Used mode basis    = option('zernike', 'pixel', 'disk_harmonics', 'fourier')
     Number of modes    = integer(min=1)
-    N images averaged  = integer(min=1)
+    dm command boost   = float(min=0)
     control even modes = boolean
     control odd modes  = boolean
+
+[CAMERA CALIBRATION]
+    background file = string(default='')
+    masterflat file = string(default='')
+    badpix file     = string(default='')
 
 [MODELLING]
     wavelength (m)                = float(min=0, max=10e-6)
@@ -22,19 +38,6 @@
     flip_y                        = boolean
     ref PSF oversampling factor   = integer(min=1)
     test time                     = option('daytime', 'nighttime')
-
-
-[FF_SETTINGS]
-    xcen                = integer
-    ycen                = integer
-    Apply smooth filter = boolean
-    SNR cutoff          = float
-    epsilon             = float
-    auto_background     = boolean
-    hitchhiker_mode     = boolean
-    hitchhiker_path     = string
-    save_log            = boolean
-    log_path            = string
 
 [IO]
     save path       = string

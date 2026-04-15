@@ -31,9 +31,9 @@ config_info = {
             "help": "Number of modes to correct",
             "expert": False
         },
-        "N images averaged": {
-            "help": "Number of images to average from the camera",
-            "expert": True
+        "dm command boost": {
+            "help": "Optical gain correction factor. Measure with test_system.py. Typically 2 daytime, 5-10 on-sky.",
+            "expert": False
         },
         "control even modes": {
             "help": "Enable control of even modes",
@@ -45,6 +45,23 @@ config_info = {
         },
         "dm command boost": {
             "help": "Boost factor for DM commands",
+            "expert": True
+        }
+    },
+    "CAMERA CALIBRATION": {
+        "background file": {
+            "help": "Path to background (dark) FITS file. Leave empty to use frame median.",
+            "file": True,
+            "expert": True
+        },
+        "masterflat file": {
+            "help": "Path to master flat FITS file. Leave empty to skip flat fielding.",
+            "file": True,
+            "expert": True
+        },
+        "badpix file": {
+            "help": "Path to bad pixel map FITS file. Leave empty to skip bad pixel correction.",
+            "file": True,
             "expert": True
         }
     },
@@ -105,7 +122,7 @@ config_info = {
             "expert": False
         },
         "ycen": {
-            "help": """The x position of the target psf, in instrument coordinates (eg, pixel 350).
+            "help": """The y position of the target psf, in instrument coordinates (eg, pixel 350).
                         does not need to be accurate to more than a few pixels.""",
             "expert": False
         },
@@ -120,10 +137,6 @@ config_info = {
         "epsilon": {
             "help": "Small value to prevent division by zero",
             "expert": True
-        },
-        "auto_background": {
-            "help": "Automatically determine background level",
-            "expert": False
         },
         "hitchhiker_mode": {
             "help": "Use science data for FnF",
@@ -204,6 +217,10 @@ def is_expert_option(section, key):
 def is_directory_option(section, key):
     """Check if a given option requires a directory selection."""
     return config_info.get(section, {}).get(key, {}).get("directory", False)
+
+def is_file_option(section, key):
+    """Check if a given option requires a file selection."""
+    return config_info.get(section, {}).get(key, {}).get("file", False)
 
 #def get_expert_options(section):
 #    """Get a list of expert options for a given section."""

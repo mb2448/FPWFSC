@@ -2,7 +2,6 @@
 import sys
 import threading
 import numpy as np
-from collections import deque
 import hcipy
 from configobj import ConfigObj
 import time
@@ -20,10 +19,7 @@ from ..common import support_functions as sf
 from ..san import sn_functions as sn
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
-        my_deque=None, my_event=None, plotter=None, ):
-    if my_deque is None:
-        my_deque = deque()
-
+        my_event=None, plotter=None):
     if my_event is None:
         my_event = threading.Event()
     settings = sf.validate_config(config, configspec)
@@ -36,7 +32,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     leak_factor       = settings['LOOP_SETTINGS']['leak factor']
     chosen_mode_basis = settings['LOOP_SETTINGS']['Used mode basis']
     Nmodes            = settings['LOOP_SETTINGS']['Number of modes']
-    Nimg_avg          = settings['LOOP_SETTINGS']['N images averaged']
+    dm_boost          = settings['LOOP_SETTINGS']['dm command boost']
     control_even      = settings['LOOP_SETTINGS']['control even modes']
     control_odd       = settings['LOOP_SETTINGS']['control odd modes']
 
@@ -72,9 +68,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     apply_smooth_filter = settings['FF_SETTINGS']['Apply smooth filter']
     epsilon             = settings['FF_SETTINGS']['epsilon']
     SNR_cutoff          = settings['FF_SETTINGS']['SNR cutoff']
-    #automatically sub the background in the camera frame
-    #this is not used right now anywhere in this script
-    auto_background     = settings['FF_SETTINGS']['auto_background']
     hitchhiker_mode     = settings['FF_SETTINGS']['hitchhiker_mode']
     hitchhiker_path     = settings['FF_SETTINGS']['hitchhiker_path']
     save_log            = settings['FF_SETTINGS']['save_log']
@@ -139,10 +132,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
 
 
-    if auto_background == True:
-        bgds =  None
-    else:
-        bgds = sf.setup_bgd_dict('../bgds/')
+    bgds = {
+        'bkgd':       sf.load_fits_or_none(settings['CAMERA CALIBRATION']['background file']),
+        'masterflat': sf.load_fits_or_none(settings['CAMERA CALIBRATION']['masterflat file']),
+        'badpix':     sf.load_fits_or_none(settings['CAMERA CALIBRATION']['badpix file']),
+    }
 
 
     data_raw = Camera.take_image()
@@ -150,6 +144,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     #only take the fist imge if multiple image is in the stack
     if data_raw.ndim != 2:
         data_raw = data_raw[0]
+
+    # Check calibration files match camera image size
+    for name, arr in bgds.items():
+        if arr is not None and arr.shape != data_raw.shape:
+            raise ValueError(
+                f"Calibration file '{name}' has shape {arr.shape} "
+                f"but camera image has shape {data_raw.shape}"
+            )
 
     data_ref = sf.reduce_images(data_raw, xcen=xcen, ycen=ycen,
                                           npix=Npix_foc,
@@ -183,7 +185,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             return
 
         SRA_measurements[i] = FnF.estimate_strehl()
-        my_deque.append(SRA_measurements)
 
         if hitchhiker_mode==True:
             img= Hitch.wait_for_next_image()
@@ -200,7 +201,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #update the loop with the new data
         phase_DM = FnF.iterate(data)
         #convert to usable DM units
-        microns = -3 * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
+        microns = -1 * dm_boost * phase_DM * FnF.wavelength / (2 * np.pi) * 1e6
 
         AO_cog, _ = AOsystem.set_dm_data(microns)
 
