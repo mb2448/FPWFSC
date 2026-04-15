@@ -118,7 +118,8 @@ def load_instruments(instrumentname, camargs={}, aoargs={}):
     if instrumentname == 'Sim':
         return 'Sim', 'Sim'
     else:
-        raise ValueError("Invalid instrument name")
+        import qacits_hardware
+        return qacits_hardware.NIRC2Alias(),qacits_hardware.K2AOAlias()
 
 def get_help_message(section, key):
     """Retrieve the help message for a given section and key."""
