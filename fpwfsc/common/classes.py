@@ -388,7 +388,7 @@ class FastandFurious:
         self.gain = gain
         self.leak_factor = leak_factor
         self.control_odd_modes = control_odd_modes
-        self.control_even_modes = control_odd_modes
+        self.control_even_modes = control_even_modes
         self.dm_command_boost = dm_command_boost
 
         #Regularization parameter

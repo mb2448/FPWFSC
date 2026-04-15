@@ -3,6 +3,7 @@ import sys
 import numpy as np
 from scipy.ndimage import affine_transform, median_filter
 from skimage.registration import phase_cross_correlation
+from skimage.util import view_as_windows
 from scipy.ndimage import shift
 from scipy.optimize import curve_fit
 import json
@@ -320,28 +321,34 @@ def locate_badpix(data, sigmaclip = 5, plot=True):
 
     return np.array(bpmask, dtype=np.float32)
 
-def removebadpix(data, mask, kern = 5):
-    """Removes bad pixels by replacing them with a median-filtered
-    version of the image.  The slow part here is computing the median,
-    this can be sped up by iterating over pixels in my opinion.
+def removebadpix(data, mask, kern=5):
+    """Removes bad pixels by replacing them with the local median of
+    their kern x kern neighbourhood.  Only patches centred on bad pixels
+    are evaluated, so the cost scales with the number of bad pixels rather
+    than the size of the image.
     Inputs
     -------
         data--a 2d numpy array
         mask--a 2d numpy binary mask indicating bad pixels
               (ones are bad)
-        kern--the kernel to compute the median filter
+        kern--the kernel size for the local median (must be odd)
     Outputs
     -------
-        a 2d numpy array with the bad pixels replaced by the median
+        a 2d numpy array with the bad pixels replaced by the local median
     """
+    bad_ys, bad_xs = np.where(mask > 0)
+    if len(bad_ys) == 0:
+        return data.copy()
 
-    # Create a copy of the provided data
     tmp = data.copy()
-    # Compute the medfilt image associated to the provided data
-    medianed_image = median_filter(tmp, size=(kern, kern), mode='wrap')
-    # Replaces the bad pixel by the computed value
-    tmp[np.where(mask>0)] = medianed_image[np.where(mask>0)]
-    # Return the cleaned data
+    half = kern // 2
+    # Pad with wrap so edge bad pixels get a full neighbourhood
+    padded = np.pad(data, half, mode='wrap')
+    # view_as_windows gives a zero-copy view: shape (H, W, kern, kern)
+    windows = view_as_windows(padded, (kern, kern))
+    # Extract only the patches at bad pixel locations: (n_bad, kern*kern)
+    patches = windows[bad_ys, bad_xs].reshape(len(bad_ys), -1)
+    tmp[bad_ys, bad_xs] = np.median(patches, axis=1)
     return tmp
 
 def equalize_image(data, bkgd=None, masterflat=None, badpix=None):
@@ -499,9 +506,10 @@ def validate_config(config_input, configspec=None):
         print(f"{input_type} PASSED VALIDATION CHECK")
         return config
     else:
+        errors = flatten_errors(config, res)
         print(f"{input_type} FAILED VALIDATION CHECK")
-        print(flatten_errors(config, res))
-        sys.exit(0)
+        print(errors)
+        raise ValueError(f"{input_type} failed validation: {errors}")
 
 
 
@@ -791,7 +799,7 @@ def quick_strehl_est(inputdata, reference_psf):
     """
     pn = inputdata/np.sum(inputdata)*np.sum(reference_psf)
     ret = np.max(pn)/np.max(reference_psf)
-    return np.float(ret)
+    return float(ret)
 
 def calculate_SRA(image, reference_PSF, mas_pix, wavelength, diameter, bg_subtraction=True):
     """Calculates the Strehl Ratio Approximation (SRA) of the image.
@@ -1096,3 +1104,10 @@ def setup_bgd_dict(directory_path):
                 data_dict[key] = hdul[0].data
 
     return data_dict
+
+
+def load_fits_or_none(path):
+    """Load the primary HDU data from a FITS file, or return None if path is empty or missing."""
+    if path and os.path.isfile(path):
+        return fits.getdata(path)
+    return None
