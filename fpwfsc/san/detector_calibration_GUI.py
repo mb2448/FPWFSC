@@ -184,7 +184,9 @@ class CalibrationGUI(QWidget):
         self.thread.start()
 
     def _on_progress(self, acquired, total):
-        self.status.setText(f"Acquiring {acquired}/{total} for {self._current_nice_name}...")
+        msg = f"Taking image {acquired}/{total} for {self._current_nice_name}"
+        self.status.setText(msg + "...")
+        print(msg)
 
     def _on_acquired(self, median_image):
         try:

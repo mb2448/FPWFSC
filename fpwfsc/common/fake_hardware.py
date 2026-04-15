@@ -406,6 +406,8 @@ class FakeDetector:
         if self.bad_pixel_mask is not None:
             output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
 
+        print(f"Sim image acquired at {time.strftime('%H:%M:%S')}  shape={output_image.shape}")
+
         # Save image to disk if a directory is specified
 
         if output_directory is None:
