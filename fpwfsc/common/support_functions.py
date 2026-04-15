@@ -277,12 +277,15 @@ def locate_badpix(data, sigmaclip = 5, plot=True):
         y_plot = yvals + epsilon
         y_fit = gaussfunc(xvals[:-1], *popt) + epsilon
 
-        # Plot the histogram with log scale
-        plt.semilogy(xvals[:-1], y_plot, 'k.', label='Pixel intensity histogram', alpha=0.5)
+        # Plot the histogram with log y, symlog x
+        plt.plot(xvals[:-1], y_plot, 'k.', label='Pixel intensity histogram', alpha=0.5)
 
         # Overplot Gaussian fit on the data
-        plt.semilogy(xvals[:-1], y_fit, 'r-',
-                   label=f'Gaussian fit (μ={mean:.2f}, σ={stddev:.2f})', alpha=0.5)
+        plt.plot(xvals[:-1], y_fit, 'r-',
+                 label=f'Gaussian fit (μ={mean:.2f}, σ={stddev:.2f})', alpha=0.5)
+
+        plt.yscale('log')
+        plt.xscale('symlog')
 
         # Add labels
         plt.xlabel('Pixel intensity')
