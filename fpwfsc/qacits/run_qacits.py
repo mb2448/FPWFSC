@@ -4,6 +4,7 @@ import queue  # For thread-safe setpoint updates
 
 from fpwfsc.common import fake_hardware as fhw
 import fpwfsc.common.support_functions as sf
+import fpwfsc.common.dm as dm
 
 from pathlib import Path
 import fpwfsc.qacits.qacits_funcs as qf
@@ -103,18 +104,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                poll_interval=settings['HITCHHIKER MODE']['poll interval'],
                                timeout=settings['HITCHHIKER MODE']['timeout'])
 
-    def _rotate_flip_tt(tx, ty):
-        """Detector-frame (tx, ty) -> AO-native (x, y) with rotation + flips applied."""
-        theta = np.deg2rad(tt_rot_deg)
-        fx = -1 if tt_flipx else 1
-        fy = -1 if tt_flipy else 1
-        x_ao =  fx*tx*np.cos(theta) + fy*ty*np.sin(theta)
-        y_ao = -fx*tx*np.sin(theta) + fy*ty*np.cos(theta)
-        return x_ao, y_ao
-
     if simmode:
         # Inject an initial offset so the loop has something to correct
-        x0, y0 = _rotate_flip_tt(3e-6, -3e-6)
+        x0, y0 = dm.rotate_flip_tt(3e-6, -3e-6, rot_deg=tt_rot_deg,
+                                   flipx=tt_flipx, flipy=tt_flipy)
         AOSystem.offset_tiptilt(x0, y0)
 
     Controller = PID.PID(Kp=Kp,
@@ -193,7 +186,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                     pixcontrol=pixcontrol,
                     control=control)
         
-        x_ao, y_ao = _rotate_flip_tt(control[0], control[1])
+        x_ao, y_ao = dm.rotate_flip_tt(control[0], control[1], rot_deg=tt_rot_deg,
+                                       flipx=tt_flipx, flipy=tt_flipy)
         AOSystem.offset_tiptilt(x_ao, y_ao)
     
     print(f"Control loop ended after {i+1 if n_iter > 0 else 0} iterations")

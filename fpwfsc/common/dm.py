@@ -67,6 +67,21 @@ def remove_waffle(array, threshold=None):
     
     return result
 
+def rotate_flip_tt(tilt_x, tilt_y, rot_deg=0, flipx=False, flipy=False):
+    """Apply rotation and axis flips to a tip/tilt 2-vector.
+
+    Uses the same coordinate convention as generate_tip_tilt, so calling
+    rotate_flip_tt(x, y, rot, fx, fy) and then applying the returned
+    (x_ao, y_ao) as a plain tilt (no rotation/flip) produces the same
+    effective surface as generate_tip_tilt(shape, x, y, fx, fy, rot).
+    """
+    theta = np.deg2rad(rot_deg)
+    fx = -1 if flipx else 1
+    fy = -1 if flipy else 1
+    x_out =  fx*tilt_x*np.cos(theta) + fy*tilt_y*np.sin(theta)
+    y_out = -fx*tilt_x*np.sin(theta) + fy*tilt_y*np.cos(theta)
+    return x_out, y_out
+
 def generate_tip_tilt(shape, tilt_x=0, tilt_y=0, flipx=False, flipy=False, dm_rotation=0):
     """
     Generates a tip/tilt (linear slope) waveform with specified x and y components.
