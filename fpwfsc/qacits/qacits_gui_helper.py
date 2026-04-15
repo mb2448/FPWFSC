@@ -12,7 +12,7 @@ config_info = {
         },
         "imagedir": {
             "help": "Directory path for image files in hitchhiker mode",
-            "expert": False,
+            "expert": True,
             "directory": True
         },
         "poll interval": {
@@ -90,6 +90,23 @@ config_info = {
             "help": "Maximum output from PID controller in pixels",
             "expert": True
         }
+    },
+    "CAMERA CALIBRATION": {
+        "background file": {
+            "help": "Path to background/dark FITS file (leave blank to use image median)",
+            "expert": True,
+            "file": True
+        },
+        "masterflat file": {
+            "help": "Path to master flat field FITS file (leave blank to skip flat correction)",
+            "expert": True,
+            "file": True
+        },
+        "badpix file": {
+            "help": "Path to bad pixel map FITS file (leave blank to skip bad pixel correction)",
+            "expert": True,
+            "file": True
+        },
     }
 }
 
@@ -114,3 +131,7 @@ def is_expert_option(section, key):
 def is_directory_option(section, key):
     """Check if a given option requires a directory selection."""
     return config_info.get(section, {}).get(key, {}).get("directory", False)
+
+def is_file_option(section, key):
+    """Check if a given option requires a file selection."""
+    return config_info.get(section, {}).get(key, {}).get("file", False)

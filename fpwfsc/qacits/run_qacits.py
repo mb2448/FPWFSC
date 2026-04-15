@@ -1,8 +1,5 @@
-import os, sys
-
 import numpy as np
 import threading
-from collections import deque
 import queue  # For thread-safe setpoint updates
 
 from fpwfsc.common import fake_hardware as fhw
@@ -10,50 +7,41 @@ import fpwfsc.common.support_functions as sf
 import fpwfsc.common.dm as dm
 
 from pathlib import Path
-from fpwfsc.qacits.qacits_plotter_qt import QacitsPlotter
 import fpwfsc.qacits.qacits_funcs as qf
 import fpwfsc.qacits.PID as PID
-import ipdb
 
 def printstatus(iteration=None,
                 setpoint=None,
-                center=None,
+                quad_cell=None,
                 pixcontrol=None,
                 control=None):
     print("\n\n")
     print("Iteration: ", iteration)
-    print("Setpoint: ", setpoint)
-    print("Center: ", center)
-    print("Error: ", setpoint-center)
-    print("control in pixel coords: ", pixcontrol)
-    print("Control in t/t = ", control)
+    print("Setpoint (px): ", setpoint)
+    print("Quad cell (x, y): ", quad_cell)
+    print("PID output (px): ", pixcontrol)
+    print("Control (t/t): ", control)
     return
 
-
-
 def run(camera=None, aosystem=None, config=None, configspec=None,
-        my_deque=None, my_event=None, plotter=None, plot_signal=None,
+        my_event=None, plotter=None, plot_signal=None,
         setpoint_queue=None):
     """
     Run the QACITS tracking loop
-    
+
     Parameters:
     -----------
     camera : Camera object or 'Sim'
     aosystem : AO system object or 'Sim'
     config : Configuration object or path to config file
     configspec : Path to config spec file
-    my_deque : Optional deque for data collection
     my_event : Threading event for stopping the loop
     plotter : DEPRECATED - use plot_signal instead
-    plot_signal : PyQt signal for thread-safe plotting (emits: image, x_center, y_center, 
+    plot_signal : PyQt signal for thread-safe plotting (emits: image, x_center, y_center,
                   min_radius, max_radius, x_coords, y_coords, title)
     setpoint_queue : queue.Queue, optional
         Queue for receiving setpoint updates from GUI without resetting PID
     """
-    if my_deque is None:
-        my_deque = deque()
-
     if my_event is None:
         my_event = threading.Event()
 
@@ -84,7 +72,12 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         AOSystem = aosystem
         simmode = False
     settings = sf.validate_config(config, configspec)
-    bgds = sf.setup_bgd_dict(hwsettings['CAMERA_CALIBRATION']['bgddir'])
+
+    bgds = {
+        'bkgd':       sf.load_fits_or_none(settings['CAMERA CALIBRATION']['background file']),
+        'masterflat': sf.load_fits_or_none(settings['CAMERA CALIBRATION']['masterflat file']),
+        'badpix':     sf.load_fits_or_none(settings['CAMERA CALIBRATION']['badpix file']),
+    }
 
     n_iter    = settings['EXECUTION']['N iterations']
     setpointx = settings['EXECUTION']['x setpoint']
@@ -92,13 +85,13 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     setpoint = np.array([setpointy, setpointx])
     inner_rad = settings['EXECUTION']['inner radius']
     outer_rad = settings['EXECUTION']['outer radius']
-    # Use fixed values for spot search
+    if outer_rad <= inner_rad:
+        raise ValueError(f"outer radius ({outer_rad}) must be strictly greater than inner radius ({inner_rad})")
 
     Kp = settings['PID']['Kp']
     Ki = settings['PID']['Ki']
     Kd = settings['PID']['Kd']
     output_limit = settings['PID']['output_limits']
-
 
     tt_gain = settings['AO']['tip tilt gain']
     tt_rot_deg  = settings['AO']['tip tilt angle (deg)']
@@ -115,7 +108,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         #this should be about 5 pixels off
         initial_shape = AOSystem.get_dm_data()
         tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = 3e-6, tilt_y=-3e-6,
-                                              dm_rotation=tt_rot_deg, flipx=False)
+                                              dm_rotation=tt_rot_deg, flipx=tt_flipx, flipy=tt_flipy)
         current_shape = AOSystem.get_dm_data()
         AOSystem.set_dm_data(current_shape + tt_control)
 
@@ -166,10 +159,16 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             data_speck_raw = Camera.take_image()
 
 
+        #Check if bgd files are the right size
+        if i == 0:
+            for key, arr in bgds.items():
+                if arr is not None and arr.shape != data_speck_raw.shape:
+                    raise ValueError(f"Calibration file shape mismatch: '{key}' is {arr.shape}, "
+                                     f"camera image is {data_speck_raw.shape}")
 
         data_speck = sf.equalize_image(data_speck_raw, **bgds)
         #compute offset
-        xs, ys, cropped = qf.crop_to_square(data_speck, cx=setpointx, cy = setpointy, size=outer_rad*4)
+        xs, ys, cropped = qf.crop_to_square(data_speck, cx=setpointx, cy=setpointy, size=outer_rad*2 + 1)
         xo, yo = qf.compute_quad_cell_flux(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys)
 
@@ -187,25 +186,25 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         pixcontrol = Controller.iterate(np.array([xo, yo]))
         control = pixcontrol*tt_gain
 
-        # Print status showing iteration, setpoint, measured centers, error, and control
         printstatus(iteration=i,
                     setpoint=setpoint,
-                    center=np.array([yo, xo]),  # Note: printstatus expects [y, x] order
+                    quad_cell=np.array([xo, yo]),
                     pixcontrol=pixcontrol,
                     control=control)
         
-        tt_control = dm.generate_tip_tilt(initial_shape.shape, tilt_x = control[0], tilt_y=control[1],
-                                          dm_rotation=tt_rot_deg, flipx=False)
+        tt_control = dm.generate_tip_tilt(current_shape.shape, tilt_x = control[0], tilt_y=control[1],
+                                          dm_rotation=tt_rot_deg, flipx=tt_flipx, flipy=tt_flipy)
         current_shape = AOSystem.get_dm_data()
         AOSystem.set_dm_data(current_shape + tt_control)# + drift)
     
-    print(f"Control loop ended after {i+1} iterations")
+    print(f"Control loop ended after {i+1 if n_iter > 0 else 0} iterations")
     
     # Only call execute if running standalone with a plotter
     if plotter is not None and plot_signal is None:
         plotter.execute()
 
 if __name__ == "__main__":
+    from fpwfsc.qacits.qacits_plotter_qt import QacitsPlotter
     camera = 'Sim'
     aosystem = 'Sim'
     config = 'qacits_config.ini'

@@ -1,7 +1,8 @@
 import sys
 import numpy as np
-from PyQt5 import QtWidgets, QtGui
+from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtGui import QTransform
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
 
@@ -227,10 +228,6 @@ class QacitsPlotter(QtWidgets.QWidget):
             vmin = np.min(self.current_image)
             vmax = np.max(self.current_image)
 
-        # Set title if provided
-        #if title is not None:
-        #    self.setWindowTitle(title)
-
         # Create coordinate arrays if not provided
         if x_coords is None or y_coords is None:
             height, width = image.shape[:2]
@@ -242,6 +239,9 @@ class QacitsPlotter(QtWidgets.QWidget):
         x_min, x_max = x_coords.min(), x_coords.max()
         y_min, y_max = y_coords.min(), y_coords.max()
 
+        if title is not None:
+            self.main_plot.setTitle(title)
+
         # Update image with calculated levels (transpose for correct orientation in pyqtgraph)
         self.img_item.setImage(image.T, autoLevels=False, levels=[vmin, vmax])
 
@@ -251,7 +251,6 @@ class QacitsPlotter(QtWidgets.QWidget):
         dy = (y_max - y_min) / image.shape[0]
 
         # Use transform to set different x and y scales
-        from PyQt5.QtGui import QTransform
         transform = QTransform()
         transform.scale(dx, dy)
         self.img_item.setTransform(transform)

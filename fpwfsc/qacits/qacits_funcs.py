@@ -1,5 +1,4 @@
 import numpy as np
-import astropy.io.fits as pf
 
 def test_crop_visualization(test_img=None, cx=None, cy=None, size=None):
     """Test function to visualize original and cropped images with coordinate verification."""
@@ -9,7 +8,7 @@ def test_crop_visualization(test_img=None, cx=None, cy=None, size=None):
     x_coords, y_coords, cropped_img = crop_to_square(image=test_img, cx=cx, cy=cy, size=size)
 
     # Create side-by-side plots
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
 
     # Original image with crop region
     ax1.imshow(test_img, cmap='viridis')
@@ -203,6 +202,7 @@ def visualize_quad_cell(image=None, x_center=None, y_center=None, min_radius=Non
 
 
 if __name__ == "__main__":
+    import astropy.io.fits as pf
     test_img = pf.open('/Users/mbottom/Desktop/projects/HSF_exoplanet_imaging/fast_and_furious_wfs/code/dummy_camera_directory/image_20250916_195537_1.fits')[0].data
 
     xc, yc = 330, 425

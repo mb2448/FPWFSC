@@ -1,6 +1,5 @@
 import sys
 import os
-import ipdb
 import queue  # For thread-safe setpoint updates
 
 from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
@@ -12,11 +11,8 @@ from PyQt5.QtGui import QFont
 
 import matplotlib.pyplot as plt
 from configobj import ConfigObj, ConfigObjError, flatten_errors
-from validate import Validator
 import threading
-import time
 from pathlib import Path
-import numpy as np
 
 # Import the qacits GUI helper module
 import fpwfsc.qacits.qacits_gui_helper as helper
@@ -25,16 +21,10 @@ import fpwfsc.qacits.qacits_gui_helper as helper
 from fpwfsc.qacits.qacits_plotter_qt import QacitsPlotter
 
 # Import the run function from run_qacits.py
-from run_qacits import run as original_run
+from fpwfsc.qacits.run_qacits import run as original_run
 
 # Import the custom validator
 from fpwfsc.common.support_functions import MyValidator
-
-
-class PlotUpdateSignals(QThread):
-    """Signals for thread-safe plotter updates"""
-    update_plot = pyqtSignal(object, float, float, float, float, object, object, str)  
-    # Args: image, x_center, y_center, min_radius, max_radius, x_coords, y_coords, title
 
 
 class AlgorithmThread(QThread):
@@ -173,7 +163,7 @@ class QacitsConfigGUI(QWidget):
         
         # Queue for thread-safe setpoint updates
         self.setpoint_queue = queue.Queue()
-        self.current_setpoint = (330.01, 426.0)  # Default, will be updated from config
+        self.current_setpoint = None  # Will be set from config when loop starts
         
         # References to setpoint input widgets (set during create_widgets)
         self.x_setpoint_widget = None
@@ -183,27 +173,29 @@ class QacitsConfigGUI(QWidget):
 
     def closeEvent(self, event):
         """Handle window close event - ensure all resources are cleaned up"""
-        print("Window closing, cleaning up resources...")
+        print("Window closing...")
 
-        if self.is_running:
-            self.is_running = False
-            if hasattr(self, 'my_event'):
-                self.my_event.set()
+        self.thread_check_timer.stop()
+
+        if hasattr(self, 'my_event'):
+            self.my_event.set()
 
         if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
             try:
-                print("Terminating algorithm thread...")
+                self.algorithm_thread.plot_update_signal.disconnect()
+            except Exception:
+                pass
+            try:
                 self.algorithm_thread.terminate()
-                self.algorithm_thread.wait(500)
-            except Exception as e:
-                print(f"Error terminating thread: {e}")
+            except Exception:
+                pass
 
-        self.cleanup_resources()
         event.accept()
+        os._exit(0)
 
     def initUI(self):
         self.setWindowTitle('miniQACITS')
-        self.resize(325, 500)
+        self.resize(325, 530)
 
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)
@@ -232,9 +224,9 @@ class QacitsConfigGUI(QWidget):
         scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
         scroll_content = QWidget(scroll)
 
-        self.layout = QVBoxLayout(scroll_content)
-        self.layout.setSpacing(2)
-        self.layout.setContentsMargins(5, 5, 5, 5)
+        self.config_layout = QVBoxLayout(scroll_content)
+        self.config_layout.setSpacing(2)
+        self.config_layout.setContentsMargins(5, 5, 5, 5)
         scroll.setWidget(scroll_content)
 
         self.load_config(initial_load=True)
@@ -366,8 +358,8 @@ class QacitsConfigGUI(QWidget):
             # Get initial setpoint from config
             self.update_config_from_gui()
             self.current_setpoint = (
-                float(self.config['EXECUTION'].get('x setpoint', 330.01)),
-                float(self.config['EXECUTION'].get('y setpoint', 426.0))
+                float(self.config['EXECUTION']['x setpoint']),
+                float(self.config['EXECUTION']['y setpoint'])
             )
             
             self.run_config()
@@ -478,65 +470,30 @@ class QacitsConfigGUI(QWidget):
             print(f"Error loading configuration: {e}")
             if initial_load:
                 print("Error loading default configuration. Creating config from spec file.")
-                try:
-                    self.config = ConfigObj(configspec=self.spec_file)
-                    validator = MyValidator()
-                    result = self.config.validate(validator, copy=True)
+                self.config = ConfigObj(configspec=self.spec_file)
+                validator = MyValidator()
+                result = self.config.validate(validator, copy=True)
 
-                    if result is not True:
-                        print("Warning: Some validation errors occurred with defaults")
-                        for section_list, key, error in flatten_errors(self.config, result):
-                            if key is not None:
-                                section_str = '.'.join(section_list)
-                                if error is False:
-                                    print(f"Missing value for '{section_str}.{key}'")
-                                else:
-                                    print(f"Invalid value for '{section_str}.{key}': {error}")
+                if result is not True:
+                    print("Warning: Some validation errors occurred with defaults")
+                    for section_list, key, error in flatten_errors(self.config, result):
+                        if key is not None:
+                            section_str = '.'.join(section_list)
+                            if error is False:
+                                print(f"Missing value for '{section_str}.{key}'")
                             else:
-                                print(f"Missing section: {'.'.join(section_list)}")
+                                print(f"Invalid value for '{section_str}.{key}': {error}")
+                        else:
+                            print(f"Missing section: {'.'.join(section_list)}")
 
-                    print("Created configuration using defaults from spec file")
-                except Exception as ex:
-                    print(f"Error creating config from spec file: {ex}")
-                    self.config = ConfigObj(configspec=self.spec_file)
-
-                    self.config['HITCHHIKER MODE'] = {
-                        'hitchhike': 'False',
-                        'imagedir': '/'
-                    }
-
-                    self.config['EXECUTION'] = {
-                        'plot': 'True',
-                        'N iterations': '100',
-                        'x setpoint': '512.0',
-                        'y setpoint': '512.0'
-                    }
-
-                    self.config['AO'] = {
-                        'waffle mode amplitude': '150e-9',
-                        'tip tilt gain': '-250e-9',
-                        'tip tilt angle (deg)': '0',
-                        'tip tilt flip x': 'False',
-                        'tip tilt flip y': 'False'
-                    }
-
-                    self.config['PID'] = {
-                        'Kp': '0.5',
-                        'Ki': '0.1',
-                        'Kd': '0.0',
-                        'output_limits': '3'
-                    }
-
-                    validator = MyValidator()
-                    self.config.validate(validator, preserve_errors=True)
-                    print("Created minimal fallback configuration")
+                print("Created configuration using defaults from spec file")
 
                 self.update_gui_from_config()
 
     def create_widgets(self):
         """Create widgets for each configuration section"""
-        while self.layout.count():
-            item = self.layout.takeAt(0)
+        while self.config_layout.count():
+            item = self.config_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.deleteLater()
@@ -548,7 +505,10 @@ class QacitsConfigGUI(QWidget):
             section_layout.setSpacing(2)
             section_layout.setContentsMargins(5, 5, 5, 5)
 
-            section_label = QLabel(f"<b>{section}</b>")
+            section_label = QLabel(section)
+            bold_font = section_label.font()
+            bold_font.setBold(True)
+            section_label.setFont(bold_font)
             section_layout.addWidget(section_label)
 
             regular_options = []
@@ -585,7 +545,7 @@ class QacitsConfigGUI(QWidget):
             if len(regular_options) <= 2 and len(expert_options) == 0:
                 section_frame.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Minimum)
 
-            self.layout.addWidget(section_frame)
+            self.config_layout.addWidget(section_frame)
 
     def create_item_widget(self, key, value, section):
         """Create a widget for a single configuration item"""
@@ -616,7 +576,39 @@ class QacitsConfigGUI(QWidget):
         """Create an appropriate input widget based on the configuration specification"""
         spec = self.get_spec_for_key(f"{section}.{key}")
 
-        if helper.is_directory_option(section, key):
+        if helper.is_file_option(section, key):
+            widget = QWidget()
+            layout = QHBoxLayout(widget)
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(2)
+
+            text_field = QLineEdit(str(value))
+            text_field.setFixedHeight(20)
+            text_field.setPlaceholderText("(none)")
+
+            browse_button = QPushButton("...")
+            browse_button.setFixedWidth(30)
+            browse_button.setFixedHeight(20)
+
+            def browse_file(tf=text_field):
+                start_path = tf.text() if tf.text() else str(Path.home())
+                file_path, _ = QFileDialog.getOpenFileName(
+                    None, "Select FITS File", start_path,
+                    "FITS Files (*.fits *.fit *.FITS *.FIT);;All Files (*)"
+                )
+                if file_path:
+                    tf.setText(file_path)
+
+            browse_button.clicked.connect(lambda _: browse_file())
+
+            layout.addWidget(text_field, 1)
+            layout.addWidget(browse_button, 0)
+
+            widget.text_field = text_field
+            widget.setFixedHeight(22)
+            return widget
+
+        elif helper.is_directory_option(section, key):
             widget = QWidget()
             layout = QHBoxLayout(widget)
             layout.setContentsMargins(0, 0, 0, 0)
@@ -629,15 +621,15 @@ class QacitsConfigGUI(QWidget):
             browse_button.setFixedWidth(30)
             browse_button.setFixedHeight(20)
 
-            def browse_directory():
+            def browse_directory(tf=text_field):
                 directory = QFileDialog.getExistingDirectory(
-                    None, "Select Directory", text_field.text(),
+                    None, "Select Directory", tf.text(),
                     QFileDialog.ShowDirsOnly | QFileDialog.DontResolveSymlinks
                 )
                 if directory:
-                    text_field.setText(directory)
+                    tf.setText(directory)
 
-            browse_button.clicked.connect(browse_directory)
+            browse_button.clicked.connect(lambda _: browse_directory())
 
             layout.addWidget(text_field, 1)
             layout.addWidget(browse_button, 0)
@@ -696,12 +688,12 @@ class QacitsConfigGUI(QWidget):
 
     def update_config_from_gui(self):
         """Update the configuration object with values from GUI widgets"""
-        for i in range(self.layout.count()):
-            section_frame = self.layout.itemAt(i).widget()
+        for i in range(self.config_layout.count()):
+            section_frame = self.config_layout.itemAt(i).widget()
             if isinstance(section_frame, QFrame):
                 section_layout = section_frame.layout()
                 section_label = section_layout.itemAt(0).widget()
-                section = section_label.text().strip('<b>').strip('</b>')
+                section = section_label.text()
 
                 for j in range(1, section_layout.count()):
                     item = section_layout.itemAt(j).widget()
@@ -750,16 +742,16 @@ class QacitsConfigGUI(QWidget):
 
     def update_gui_from_config(self):
         """Update GUI widgets from the configuration"""
-        if self.layout.count() == 0:
+        if self.config_layout.count() == 0:
             self.create_widgets()
             return
 
-        for i in range(self.layout.count()):
-            section_frame = self.layout.itemAt(i).widget()
+        for i in range(self.config_layout.count()):
+            section_frame = self.config_layout.itemAt(i).widget()
             if isinstance(section_frame, QFrame):
                 section_layout = section_frame.layout()
                 section_label = section_layout.itemAt(0).widget()
-                section = section_label.text().strip('<b>').strip('</b>')
+                section = section_label.text()
 
                 self.update_section_widgets(section_layout, self.config[section])
 

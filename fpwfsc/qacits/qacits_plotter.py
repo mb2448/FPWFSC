@@ -278,6 +278,7 @@ class LiveSquarePlotter:
 
         # Update residuals plot as a radial plot with setpoint at center
         if len(self.centers_history) > 0 and len(self.setpoints_history) > 0:
+            self.ax_residuals.cla()
             residuals = []
 
             for i in range(len(self.centers_history)):
