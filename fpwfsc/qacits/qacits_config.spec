@@ -21,7 +21,7 @@
     Kp = float(min=0, default=0.5)
     Ki = float(min=0, default=0.1)
     Kd = float(min=0, default=0)
-    output_limits = float(default=3)
+    output_limits = float(default=0.5)
 
 [AO]
     tip tilt gain = float(default=-250e-9)

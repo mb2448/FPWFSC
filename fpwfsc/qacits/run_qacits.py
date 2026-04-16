@@ -13,13 +13,13 @@ import fpwfsc.qacits.PID as PID
 def printstatus(iteration=None,
                 setpoint=None,
                 quad_cell=None,
-                pixcontrol=None,
+                correction=None,
                 control=None):
     print("\n\n")
     print("Iteration: ", iteration)
     print("Setpoint (px): ", setpoint)
     print("Quad cell (x, y): ", quad_cell)
-    print("PID output (px): ", pixcontrol)
+    print("PID output (px): ", correction)
     print("Control (t/t): ", control)
     return
 
@@ -176,14 +176,14 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             plotter.update(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys, title=plottitle)
 
-        #pixcontrol = np.random.random(2)-0.5
-        pixcontrol = Controller.iterate(np.array([xo, yo]))
-        control = pixcontrol*tt_gain
+        #correction = np.random.random(2)-0.5
+        correction = Controller.iterate(np.array([xo, yo]))
+        control = correction*tt_gain
 
         printstatus(iteration=i,
                     setpoint=setpoint,
                     quad_cell=np.array([xo, yo]),
-                    pixcontrol=pixcontrol,
+                    correction=correction,
                     control=control)
         
         x_ao, y_ao = dm.rotate_flip_tt(control[0], control[1], rot_deg=tt_rot_deg,
