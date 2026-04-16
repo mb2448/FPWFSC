@@ -119,14 +119,25 @@ class LivePlotter(QtWidgets.QWidget):
         self.strehl_plot.setYRange(0, 1.1)
         self.contrast_plot.setYRange(1e-2, 3)
         
+        # Pixel value readout on hover
+        self.pixel_label = QtWidgets.QLabel("")
+        self.pixel_label.setStyleSheet("color: white; background: rgba(0,0,0,150); padding: 2px;")
+        layout.addWidget(self.pixel_label, 2, 0, 1, 2)
+        self._psf_raw = None
+        self._wf_raw = None
+        self._proxy_psf = pg.SignalProxy(self.psf_plot.scene().sigMouseMoved,
+                                        rateLimit=30, slot=self._on_mouse_psf)
+        self._proxy_wf = pg.SignalProxy(self.wf_plot.scene().sigMouseMoved,
+                                       rateLimit=30, slot=self._on_mouse_wf)
+
         # Set up a timer for periodic updates (process Qt events)
         self.timer = QTimer()
         self.timer.timeout.connect(self.process_events)
         self.timer.start(50)  # Update every 50 ms
-        
+
         # Flag to track if the window has been closed
         self.closed = False
-        
+
         # Show the widget
         self.show()
     
@@ -215,6 +226,24 @@ class LivePlotter(QtWidgets.QWidget):
         self.timer.stop()
         super().close()
     
+    def _pixel_readout(self, evt, plot_widget, raw_data, label):
+        pos = evt[0]
+        if raw_data is None:
+            return
+        pt = plot_widget.plotItem.vb.mapSceneToView(pos)
+        col, row = int(round(pt.x())), int(round(pt.y()))
+        h, w = raw_data.shape[:2]
+        if 0 <= row < h and 0 <= col < w:
+            self.pixel_label.setText(f"{label}  x={col}  y={row}  val={raw_data[row, col]:.4g}")
+        else:
+            self.pixel_label.setText("")
+
+    def _on_mouse_psf(self, evt):
+        self._pixel_readout(evt, self.psf_plot, self._psf_raw, "PSF")
+
+    def _on_mouse_wf(self, evt):
+        self._pixel_readout(evt, self.wf_plot, self._wf_raw, "WF")
+
     def process_events(self):
         """Process events to keep the UI responsive"""
         if not self.closed:
@@ -300,6 +329,9 @@ class LivePlotter(QtWidgets.QWidget):
 
 
             
+            # Store raw data for pixel readout (before log/normalization)
+            self._psf_raw = data_transpose
+
             # Update PSF display (log scale, similar to original)
             data_max = np.max(np.abs(data_transpose))
             if data_max > 0:  # Avoid division by zero
@@ -317,6 +349,7 @@ class LivePlotter(QtWidgets.QWidget):
             # Update wavefront residuals
             # Mask the wavefront with the aperture
             masked_wf = pupil_wf_transpose * (aperture_transpose > 0)
+            self._wf_raw = masked_wf
             max_res = np.max(np.abs(masked_wf))
             if max_res > 0:  # Avoid division by zero
                 # Scale to -1 to 1 range
