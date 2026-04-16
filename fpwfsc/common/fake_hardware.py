@@ -22,70 +22,75 @@ comment = """
 """
 
 def center_image(small_image, large_size, center_position):
-    """Centers a smaller image at a specific position in a larger empty image
+    """Centers a smaller image at a specific position in a larger empty image.
+
+    If the small image extends beyond the large image boundary, it is
+    clipped to fit (no error).
 
     Parameters
     ----------
     small_image : ndarray
         The smaller image to be centered
     large_size : tuple
-        Size of the larger image (height, width)
+        Size of the larger image (rows, cols)
     center_position : tuple
-        Position to center the small image (y, x)
+        (x, y) pixel position in the large image where the small image
+        should be centered.  x = column, y = row.
 
     Returns
     -------
     ndarray
         The larger image with the small image centered at the specified position
     """
-    # Create empty large image
     large_image = np.zeros(large_size, dtype=small_image.dtype)
+    sh, sw = small_image.shape[:2]
+    lr, lc = large_size[:2]
 
-    # Calculate corners for placement
-    x_start = center_position[0] - small_image.shape[0]//2
-    x_end = x_start + small_image.shape[0]
-    y_start = center_position[1] - small_image.shape[1]//2
-    y_end = y_start + small_image.shape[1]
+    # center_position is (x, y) = (col, row)
+    col_start = center_position[0] - sh // 2
+    row_start = center_position[1] - sw // 2
 
-    # Place small image in large image
-    large_image[y_start:y_end, x_start:x_end] = small_image
+    # Clip: source region within small_image, dest region within large_image
+    src_r0 = max(0, -row_start)
+    src_c0 = max(0, -col_start)
+    dst_r0 = max(0, row_start)
+    dst_c0 = max(0, col_start)
+    dst_r1 = min(lr, row_start + sw)
+    dst_c1 = min(lc, col_start + sh)
+    src_r1 = src_r0 + (dst_r1 - dst_r0)
+    src_c1 = src_c0 + (dst_c1 - dst_c0)
+
+    large_image[dst_r0:dst_r1, dst_c0:dst_c1] = small_image[src_r0:src_r1, src_c0:src_c1]
 
     return large_image
 
-def create_bad_pixel_mask(height, width, bad_pixel_fraction, outputfile=None):
-    """Creates a random bad pixel mask.
+def deterministic_bad_pixels(height, width, fraction=0.01):
+    """Generate a deterministic bad-pixel mask from pixel coordinates.
+
+    Uses a prime-hash so the result is reproducible, size-independent
+    (pixel (r, c) is always the same bad/good regardless of image size),
+    and requires no stored file.
 
     Parameters
     ----------
-    height : int
-        Height of the detector in pixels
-    width : int
-        Width of the detector in pixels
-    bad_pixel_fraction : float
-        Fraction of pixels that should be marked as bad (between 0.0 and 1.0)
+    height, width : int
+        Detector dimensions in pixels.
+    fraction : float
+        Fraction of pixels to flag as bad (0.0 to 1.0).  Returns None
+        if fraction <= 0.
 
     Returns
     -------
-    ndarray
-        Boolean mask where True indicates a bad pixel
+    ndarray (bool) or None
     """
-    if bad_pixel_fraction <= 0:
+    if fraction <= 0:
         return None
-
-    bad_pixel_mask = np.zeros((height, width), dtype=bool)
-    num_bad_pixels = int(bad_pixel_fraction * height * width)
-
-    # Randomly select pixels to mark as bad
-    bad_indices = np.random.choice(height * width,
-                                  size=num_bad_pixels,
-                                  replace=False)
-    bad_y, bad_x = np.unravel_index(bad_indices, (height, width))
-    bad_pixel_mask[bad_y, bad_x] = True
-
-    if outputfile is not None:
-        pf.writeto(outputfile, 1*bad_pixel_mask, overwrite=True)
-
-    return bad_pixel_mask
+    y, x = np.mgrid[0:height, 0:width]
+    h = (x.astype(np.uint64) * 73856093) ^ (y.astype(np.uint64) * 19349663)
+    h ^= h >> np.uint64(16)
+    h *= np.uint64(0x45d9f3b)
+    h ^= h >> np.uint64(16)
+    return (h % np.uint64(100003)) < np.uint64(int(fraction * 100003))
 
 class HitchhikerTimeoutError(Exception):
     """Raised when Hitchhiker times out waiting for a new image."""
@@ -322,7 +327,7 @@ class FakeDetector:
              read_noise=0,
              dark_current_rate=0,
              flat_field=0,
-             bad_pixel_mask=None,
+             bad_pixel_fraction=0,
              bias_offset=0,
              include_photon_noise=True,
              exptime=None,
@@ -339,21 +344,19 @@ class FakeDetector:
         self.dark_current_rate = dark_current_rate
         self.include_photon_noise = include_photon_noise
         self.flat_field = flat_field
-        self.bad_pixel_mask = bad_pixel_mask
         self.bias_offset = bias_offset
         self.xsize = xsize
         self.ysize = ysize
         self.field_center_x = field_center_x
         self.field_center_y = field_center_y
         self.rotation_angle_deg = rotation_angle_deg
-        self.output_directory = output_directory  # Store the output directory
+        self.output_directory = output_directory
 
         # passed by reference...so the latest efields will update
         self.opticalsystem = opticalsystem
         self.exptime = exptime
-        if self.bad_pixel_mask is not None:
-            self.badpixelmask = np.array(pf.open(self.bad_pixel_mask)[0].data, dtype=bool)
-            self.nbadpix = np.sum(self.badpixelmask)
+        self.badpixelmask = deterministic_bad_pixels(xsize, ysize, fraction=bad_pixel_fraction or 0)
+        self.nbadpix = int(np.sum(self.badpixelmask)) if self.badpixelmask is not None else 0
 
         self.detector = hcipy.optics.NoisyDetector(
                               self.input_grid,
@@ -403,7 +406,7 @@ class FakeDetector:
         output_image += np.random.poisson(self.dark_current_rate*self.exptime, size=output_image.shape)
         output_image += np.random.normal(0, self.read_noise, size=output_image.shape)
         output_image += self.bias_offset
-        if self.bad_pixel_mask is not None:
+        if self.badpixelmask is not None:
             output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
 
         print(f"Sim image acquired at {time.strftime('%H:%M:%S')}  shape={output_image.shape}")

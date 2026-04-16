@@ -66,7 +66,7 @@
         ysize                = integer(min=0)
         field_center_x       = integer(min=0)
         field_center_y       = integer(min=0)
-        bad_pixel_mask       = string_or_none
+        bad_pixel_fraction   = float(min=0, max=1, default=0)
         output_directory     = string_or_none
 
     [[AO_PARAMS]]
