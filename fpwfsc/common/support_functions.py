@@ -354,26 +354,67 @@ def removebadpix(data, mask, kern=5):
     tmp[bad_ys, bad_xs] = np.median(patches, axis=1)
     return tmp
 
-def equalize_image(data, bkgd=None, masterflat=None, badpix=None):
-    """removes bad pixels from bgd-subtracted data,
-    and divides by the master flat field
-    Inputs
-    -------
-    data - 2d np array
-        your data
-    bgd - 2d np array
-        backgrounds, defaults to median of data if None
-    masterflat - 2d np array
-        the flatfield, defaults to 1 if None
-    badpix - 2d binary np array
-        the bad pixel map, 1 where bad pixels exist
-        if None, ignored
+def estimate_background_from_border(data, border_width=5):
+    """Estimate a 2D background from the border rows and columns of an image.
 
-    Returns - 2d np array
-        the cleaned image
+    Computes the median of each column using the outer `border_width` rows
+    (top and bottom), subtracts that column profile, then computes the median
+    of each row using the outer `border_width` columns (left and right) of
+    the column-subtracted image, and subtracts that row profile. The result
+    captures column striping and row gradients that a scalar median misses.
+
+    Parameters
+    ----------
+    data : 2d np array
+    border_width : int
+        Number of border rows/columns to use (default 5).
+
+    Returns
+    -------
+    2d np array
+        Estimated background, same shape as data.
+    """
+    ny, nx = data.shape
+
+    # Column profile from top and bottom border rows
+    border_rows = np.concatenate([data[:border_width, :],
+                                  data[-border_width:, :]], axis=0)
+    col_profile = np.median(border_rows, axis=0)
+
+    # Subtract column profile, then compute row profile from left/right borders
+    col_subtracted = data - col_profile[np.newaxis, :]
+    border_cols = np.concatenate([col_subtracted[:, :border_width],
+                                  col_subtracted[:, -border_width:]], axis=1)
+    row_profile = np.median(border_cols, axis=1)
+
+    return col_profile[np.newaxis, :] + row_profile[:, np.newaxis]
+
+
+def equalize_image(data, bkgd=None, masterflat=None, badpix=None):
+    """Apply background subtraction, flat fielding, and bad pixel correction.
+
+    Parameters
+    ----------
+    data : 2d np array
+        Raw image.
+    bkgd : 2d np array or None
+        Background / dark frame. If None, a background is estimated from
+        the border rows and columns of the image via
+        estimate_background_from_border.
+    masterflat : 2d np array or None
+        Flat field (should be mean-normalized to ~1). If None, no flat
+        correction is applied.
+    badpix : 2d binary np array or None
+        Bad pixel map (nonzero = bad). If None, no bad pixel correction
+        is applied.
+
+    Returns
+    -------
+    2d np array
+        The cleaned image.
     """
     if bkgd is None:
-        bkgd = np.median(data)
+        bkgd = estimate_background_from_border(data)
     if masterflat is None:
         masterflat = 1
     if badpix is None:
