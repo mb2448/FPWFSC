@@ -3,11 +3,11 @@ Detector calibration GUI.
 
 Small PyQt5 tool to take backgrounds, flats, and bad-pixel maps with
 either the simulator or NIRC2. Mirrors the logic of
-san/detector_calibration_script.py but wraps it in a simpler,
+calibration/detector_calibration_script.py but wraps it in a simpler,
 button-driven interface.
 
 Run:
-    python -m fpwfsc.san.detector_calibration_GUI
+    python -m fpwfsc.calibration.detector_calibration_GUI
 """
 
 import os
@@ -150,8 +150,8 @@ class CalibrationGUI(QWidget):
             if name == "Sim":
                 import fpwfsc.common.fake_hardware as fhw
                 script_dir = Path(__file__).parent.absolute()
-                hwconfig = script_dir / "sn_config.ini"
-                hwspec = script_dir / "sn_config.spec"
+                hwconfig = script_dir.parent / "sim" / "sim_config.ini"
+                hwspec = script_dir.parent / "sim" / "sim_config.spec"
                 hw = sf.validate_config(str(hwconfig), str(hwspec))
                 CSM = fhw.FakeCoronagraphOpticalSystem(**hw['SIMULATION']['OPTICAL_PARAMS'])
                 self.camera = fhw.FakeDetector(opticalsystem=CSM,

@@ -49,8 +49,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         print("Using Simulator Mode")
         simmode = True
         script_dir = Path(__file__).parent.absolute()
-        hwconfig_path = script_dir.parent / "san" / "sn_config.ini"
-        hwspec_path = script_dir.parent / "san" / "sn_config.spec"
+        hwconfig_path = script_dir.parent / "sim" / "sim_config.ini"
+        hwspec_path = script_dir.parent / "sim" / "sim_config.spec"
 
         # Print paths for debugging
         print(f"Looking for config at: {hwconfig_path}")

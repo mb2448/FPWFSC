@@ -50,25 +50,13 @@ def generate_images(output_dir, interval=1.0, count=None):
 
     # Load hardware config for simulator
     script_dir = Path(__file__).parent.absolute()
-    hwconfig_path = script_dir.parent / "san" / "sn_config.ini"
-    hwspec_path = script_dir.parent / "san" / "sn_config.spec"
+    hwconfig_path = script_dir.parent / "sim" / "sim_config.ini"
+    hwspec_path = script_dir.parent / "sim" / "sim_config.spec"
 
     print(f"Loading hardware config from: {hwconfig_path}")
 
     if not hwconfig_path.exists():
-        print(f"WARNING: Hardware config not found at {hwconfig_path}")
-        print("Trying alternative location...")
-        # Try current directory
-        hwconfig_path = Path("../san/sn_config.ini").absolute()
-        hwspec_path = Path("../san/sn_config.spec").absolute()
-
-        if not hwconfig_path.exists():
-            raise FileNotFoundError(
-                f"Hardware config not found. Tried:\n"
-                f"  1. {script_dir.parent / 'san' / 'sn_config.ini'}\n"
-                f"  2. {hwconfig_path}\n"
-                f"Make sure you're running from the qacits directory."
-            )
+        raise FileNotFoundError(f"Sim config not found: {hwconfig_path}")
 
     if not hwspec_path.exists():
         raise FileNotFoundError(f"Hardware spec not found: {hwspec_path}")
