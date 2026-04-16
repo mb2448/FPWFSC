@@ -25,6 +25,7 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
                              QFileDialog, QMessageBox, QSpinBox,
                              QDialog, QDialogButtonBox)
 from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt5.QtGui import QFont
 
 import fpwfsc.common.support_functions as sf
 
@@ -80,7 +81,7 @@ class CalibrationGUI(QWidget):
 
     def _init_ui(self):
         self.setWindowTitle("Detector calibration")
-        self.resize(420, 200)
+        self.resize(460, 320)
         layout = QVBoxLayout(self)
 
         row = QHBoxLayout()
@@ -109,6 +110,17 @@ class CalibrationGUI(QWidget):
         row.addWidget(self.n_images)
         row.addStretch()
         layout.addLayout(row)
+
+        recommendations = (
+            "Recommended setup per calibration type:\n"
+            "              default    bench           sky\n"
+            "background    all zero   lamp off        slew off star\n"
+            "flat          all ones   ignore          sky/dome flat or ignore\n"
+            "badpixel      all zero   shutter close   shutter close"
+        )
+        table_label = QLabel(recommendations)
+        table_label.setFont(QFont("Courier", 11))
+        layout.addWidget(table_label)
 
         self.status = QLabel("Ready")
         layout.addWidget(self.status)
@@ -197,6 +209,10 @@ class CalibrationGUI(QWidget):
                 # locate_badpix fits a Gaussian and sigma-clips; plot=True pops up
                 # the matplotlib histogram the existing calibration script shows.
                 data = sf.locate_badpix(median_image, sigmaclip=3, plot=True)
+            elif self._current_kind == "flat":
+                # Normalize by mean so equalize_image's `data/masterflat` stays
+                # near the original scale.
+                data = median_image / np.mean(median_image)
             else:
                 data = median_image
 
