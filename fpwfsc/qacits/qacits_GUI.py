@@ -412,18 +412,6 @@ class QacitsConfigGUI(QWidget):
 
         self.run_stop_button.setEnabled(True)
 
-        if hasattr(self, 'plotter') and self.plotter is not None:
-            try:
-                plt.close('all')
-                if hasattr(self.plotter, 'close'):
-                    self.plotter.close()
-                elif hasattr(self.plotter, 'cleanup'):
-                    self.plotter.cleanup()
-                print("Plotter closed")
-            except Exception as e:
-                print(f"Error closing plotter: {e}")
-            self.plotter = None
-
     def load_config(self, file_name=None, initial_load=False):
         """Load configuration file and update GUI"""
         if initial_load:
@@ -801,9 +789,16 @@ class QacitsConfigGUI(QWidget):
                 print(f"    {key} = {value}")
             print()
 
+        # Close any existing plotter before creating a new one
+        if hasattr(self, 'plotter') and self.plotter is not None:
+            try:
+                self.plotter.close()
+            except Exception:
+                pass
+
         # Create plotter in the MAIN thread
         if self.config['EXECUTION'].get('plot', 'True').lower() == 'true':
-            self.plotter = QacitsPlotter(figsize=(300, 300))
+            self.plotter = QacitsPlotter(figsize=(300, 450))
         else:
             self.plotter = None
 

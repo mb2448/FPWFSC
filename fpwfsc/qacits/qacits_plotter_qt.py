@@ -118,6 +118,17 @@ class QacitsPlotter(QtWidgets.QWidget):
         # Enable mouse interaction for panning and zooming
         self.main_plot.setMouseEnabled(x=True, y=True)
 
+        # Pixel value readout on hover
+        self.pixel_label = QtWidgets.QLabel("")
+        self.pixel_label.setStyleSheet("color: white; background: rgba(0,0,0,150); padding: 2px;")
+        main_layout.addWidget(self.pixel_label)
+        self._img_x_min = 0
+        self._img_y_min = 0
+        self._img_dx = 1
+        self._img_dy = 1
+        self.proxy = pg.SignalProxy(self.main_plot.scene().sigMouseMoved,
+                                   rateLimit=30, slot=self._on_mouse_moved)
+
         # Set up a timer for periodic updates
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
@@ -180,6 +191,21 @@ class QacitsPlotter(QtWidgets.QWidget):
         self.timer.stop()
         super().close()
 
+    def _on_mouse_moved(self, evt):
+        pos = evt[0]
+        if self.current_image is None:
+            return
+        mouse_point = self.main_plot.plotItem.vb.mapSceneToView(pos)
+        mx, my = mouse_point.x(), mouse_point.y()
+        col = int(round((mx - self._img_x_min) / self._img_dx))
+        row = int(round((my - self._img_y_min) / self._img_dy))
+        h, w = self.current_image.shape[:2]
+        if 0 <= row < h and 0 <= col < w:
+            val = self.current_image[row, col]
+            self.pixel_label.setText(f"x={mx:.1f}  y={my:.1f}  val={val:.2f}")
+        else:
+            self.pixel_label.setText("")
+
     def update_plot(self):
         """Update the plot periodically"""
         if not self.closed:
@@ -238,6 +264,10 @@ class QacitsPlotter(QtWidgets.QWidget):
         # Set up image extent for proper coordinate display
         x_min, x_max = x_coords.min(), x_coords.max()
         y_min, y_max = y_coords.min(), y_coords.max()
+        self._img_x_min = x_min
+        self._img_y_min = y_min
+        self._img_dx = (x_max - x_min) / image.shape[1] if image.shape[1] > 1 else 1
+        self._img_dy = (y_max - y_min) / image.shape[0] if image.shape[0] > 1 else 1
 
         if title is not None:
             self.main_plot.setTitle(title)
