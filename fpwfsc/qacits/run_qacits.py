@@ -78,6 +78,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         'masterflat': sf.load_fits_or_none(settings['CAMERA CALIBRATION']['masterflat file']),
         'badpix':     sf.load_fits_or_none(settings['CAMERA CALIBRATION']['badpix file']),
     }
+    print(f"Background file: {settings['CAMERA CALIBRATION']['background file'] or '(none)'}")
+    print(f"Masterflat file: {settings['CAMERA CALIBRATION']['masterflat file'] or '(none)'}")
+    print(f"Bad pixel file:  {settings['CAMERA CALIBRATION']['badpix file'] or '(none)'}")
 
     n_iter    = settings['EXECUTION']['N iterations']
     setpointx = settings['EXECUTION']['x setpoint']
