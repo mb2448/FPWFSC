@@ -287,10 +287,13 @@ class QacitsPlotter(QtWidgets.QWidget):
 
         # Update overlays if center and radii are provided
         if x_center is not None and y_center is not None and min_radius is not None and max_radius is not None:
-            # Update inner circle
-            self.inner_circle.setPos([x_center - min_radius, y_center - min_radius])
-            self.inner_circle.setSize([2 * min_radius, 2 * min_radius])
-            self.inner_circle.show()
+            # Update inner circle (hide if radius is zero to avoid division by zero in CircleROI)
+            if min_radius > 0:
+                self.inner_circle.setPos([x_center - min_radius, y_center - min_radius])
+                self.inner_circle.setSize([2 * min_radius, 2 * min_radius])
+                self.inner_circle.show()
+            else:
+                self.inner_circle.hide()
 
             # Update outer circle
             self.outer_circle.setPos([x_center - max_radius, y_center - max_radius])
