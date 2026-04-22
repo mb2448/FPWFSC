@@ -195,7 +195,7 @@ class QacitsConfigGUI(QWidget):
 
     def initUI(self):
         self.setWindowTitle('miniQACITS')
-        self.resize(325, 530)
+        self.resize(325, 575)
 
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)
@@ -252,14 +252,6 @@ class QacitsConfigGUI(QWidget):
         button_layout.addLayout(config_buttons_layout)
         button_layout.addSpacing(5)
 
-        # Update Setpoint button
-        self.update_setpoint_button = QPushButton('Update Setpoint')
-        self.update_setpoint_button.setFont(QFont('Arial', 9))
-        self.update_setpoint_button.clicked.connect(self.on_update_setpoint_clicked)
-        self.update_setpoint_button.setEnabled(False)  # Disabled until loop starts
-        self.update_setpoint_button.setStyleSheet("background-color: #4CAF50; color: white;")
-        button_layout.addWidget(self.update_setpoint_button)
-
         self.run_stop_button = QPushButton('Run')
         self.run_stop_button.setFont(QFont('Arial', 10, QFont.Bold))
         self.run_stop_button.clicked.connect(self.toggle_run_stop)
@@ -270,7 +262,7 @@ class QacitsConfigGUI(QWidget):
 
         # Reset DTT Offset button
         self.reset_dtt_button = QPushButton('Reset DTT Offset')
-        self.reset_dtt_button.setFont(QFont('Arial', 9))
+        self.reset_dtt_button.setFont(QFont('Arial', 10, QFont.Bold))
         self.reset_dtt_button.clicked.connect(self.on_reset_dtt_clicked)
         self.reset_dtt_button.setStyleSheet("background-color: #FF9800; color: white;")
         button_layout.addWidget(self.reset_dtt_button)
@@ -530,6 +522,17 @@ class QacitsConfigGUI(QWidget):
             for key, value in regular_options:
                 item_widget = self.create_item_widget(key, value, section)
                 section_layout.addWidget(item_widget)
+
+            # Place the "Apply Setpoint" button right under the setpoint fields
+            if section == 'EXECUTION':
+                section_layout.addSpacing(8)
+                self.update_setpoint_button = QPushButton('Apply Setpoint (live)')
+                self.update_setpoint_button.setFont(QFont('Arial', 10, QFont.Bold))
+                self.update_setpoint_button.clicked.connect(self.on_update_setpoint_clicked)
+                self.update_setpoint_button.setEnabled(False)
+                self.update_setpoint_button.setStyleSheet("background-color: #4CAF50; color: white;")
+                section_layout.addWidget(self.update_setpoint_button)
+                section_layout.addSpacing(8)
 
             if expert_options:
                 expert_box = CollapsibleBox("Expert Options")
