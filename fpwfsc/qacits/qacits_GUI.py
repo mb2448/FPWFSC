@@ -207,7 +207,7 @@ class QacitsConfigGUI(QWidget):
 
     def initUI(self):
         self.setWindowTitle('miniQACITS')
-        self.resize(325, 575)
+        self.resize(325, 585)
 
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)
