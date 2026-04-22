@@ -25,7 +25,8 @@ def printstatus(iteration=None,
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_event=None, plotter=None, plot_signal=None,
-        setpoint_queue=None):
+        setpoint_queue=None, centroid_offset_queue=None,
+        centroid_offset_feedback=None):
     """
     Run the QACITS tracking loop
 
@@ -41,6 +42,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                   min_radius, max_radius, x_coords, y_coords, title)
     setpoint_queue : queue.Queue, optional
         Queue for receiving setpoint updates from GUI without resetting PID
+    centroid_offset_queue : queue.Queue, optional
+        Queue for receiving centroid offset updates. Send (x, y) to set a
+        specific offset, or None to capture the current quad-cell reading.
+    centroid_offset_feedback : queue.Queue, optional
+        Queue for sending back applied centroid offsets to the GUI.
     """
     if my_event is None:
         my_event = threading.Event()
@@ -91,6 +97,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if outer_rad <= inner_rad:
         raise ValueError(f"outer radius ({outer_rad}) must be strictly greater than inner radius ({inner_rad})")
 
+    centroid_offset_x = settings['PID']['x centroid offset']
+    centroid_offset_y = settings['PID']['y centroid offset']
     Kp = settings['PID']['Kp']
     Ki = settings['PID']['Ki']
     Kd = settings['PID']['Kd']
@@ -108,16 +116,16 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                timeout=settings['HITCHHIKER MODE']['timeout'])
 
     if simmode:
-        # Inject an initial offset so the loop has something to correct
-        x0, y0 = dm.rotate_flip_tt(3e-6, -3e-6, rot_deg=tt_rot_deg,
-                                   flipx=tt_flipx, flipy=tt_flipy)
-        AOSystem.offset_tiptilt(x0, y0)
+        # Inject a fixed physical tilt so the loop has something to correct.
+        # This is independent of the controller's rotation/flip calibration.
+        AOSystem.offset_tiptilt(3e-6, -3e-6)
 
+    centroid_setpoint = np.array([centroid_offset_x, centroid_offset_y])
     Controller = PID.PID(Kp=Kp,
                          Ki=Ki,
                          Kd=Kd,
                          output_limits=output_limit,
-                         setpoint=np.array([0,0]))
+                         setpoint=centroid_setpoint)
 
     print(f"Starting control loop with initial setpoint: X={setpointx:.2f}, Y={setpointy:.2f}")
 
@@ -169,6 +177,22 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         xo, yo = qf.compute_quad_cell_flux(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys)
 
+        # Check for centroid offset updates
+        if centroid_offset_queue is not None:
+            try:
+                new_offset = centroid_offset_queue.get_nowait()
+                if new_offset is None:
+                    # Capture current reading
+                    centroid_setpoint = np.array([xo, yo])
+                else:
+                    centroid_setpoint = np.array(new_offset)
+                Controller.update_setpoint(centroid_setpoint)
+                print(f"Centroid offset set to: x={centroid_setpoint[0]:.4f}, y={centroid_setpoint[1]:.4f}")
+                if centroid_offset_feedback is not None:
+                    centroid_offset_feedback.put((centroid_setpoint[0], centroid_setpoint[1]))
+            except queue.Empty:
+                pass
+
         # Use signal for thread-safe plotting (new method)
         if plot_signal is not None:
             plottitle = '%.2f'%xo +', '+'%.2f'%yo
@@ -192,7 +216,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         x_ao, y_ao = dm.rotate_flip_tt(control[0], control[1], rot_deg=tt_rot_deg,
                                        flipx=tt_flipx, flipy=tt_flipy)
         AOSystem.offset_tiptilt(x_ao, y_ao)
-    
+
     print(f"Control loop ended after {i+1 if n_iter > 0 else 0} iterations")
     
     # Only call execute if running standalone with a plotter

@@ -337,7 +337,8 @@ class FakeDetector:
              field_center_y = None,
              rotation_angle_deg = None, #not yet implemented
              opticalsystem=None,
-             output_directory=None):
+             output_directory=None,
+             readout_delay=0):
         self.flux = flux
         self.input_grid = opticalsystem.focal_grid
         self.read_noise = read_noise
@@ -351,6 +352,7 @@ class FakeDetector:
         self.field_center_y = field_center_y
         self.rotation_angle_deg = rotation_angle_deg
         self.output_directory = output_directory
+        self.readout_delay = readout_delay
 
         # passed by reference...so the latest efields will update
         self.opticalsystem = opticalsystem
@@ -408,6 +410,9 @@ class FakeDetector:
         output_image += self.bias_offset
         if self.badpixelmask is not None:
             output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
+
+        if self.readout_delay > 0:
+            time.sleep(self.readout_delay)
 
         print(f"Sim image acquired at {time.strftime('%H:%M:%S')}  shape={output_image.shape}")
 

@@ -1,119 +1,124 @@
-# satellite_gui_helper.py
+# qacits_gui_helper.py
 
 # Define valid instruments
 valid_instruments = ['Sim', 'NIRC2']
 
 # Configuration information dictionary
 config_info = {
-    "HITCHHIKER MODE": {
-        "hitchhike": {
-            "help": "Enable hitchhiker mode to look for files in a directory",
-            "expert": False
-        },
-        "imagedir": {
-            "help": "Directory path for image files in hitchhiker mode",
-            "expert": True,
-            "directory": True
-        },
-        "poll interval": {
-            "help": "How often to check the directory for new files",
-            "expert": True
-        },
-        "timeout": {
-            "help": "loop will exit if a file does not appear in this timeframe",
-            "expert": True
-        },
-    },
     "EXECUTION": {
         "plot": {
-            "help": "Enable plotting",
+            "help": "Enable live image plotting during the loop",
             "expert": False
         },
-        "n_iter": {
-            "help": "Number of iterations for the algorithm",
+        "N iterations": {
+            "help": "Number of control loop iterations to run",
             "expert": False
         },
         "x setpoint": {
-            "help": "X-coordinate of the setpoint",
+            "help": "X pixel coordinate where the star is expected on the detector",
             "expert": False
         },
         "y setpoint": {
-            "help": "Y-coordinate of the setpoint",
+            "help": "Y pixel coordinate where the star is expected on the detector",
             "expert": False
         },
         "inner radius": {
-            "help": "inner radius of `quad cell` in pixels",
+            "help": "Inner radius of the quad cell annulus in pixels (0 = full circle)",
             "expert": True
         },
         "outer radius": {
-            "help": "outer radius of `quad cell` in pixels",
+            "help": "Outer radius of the quad cell annulus in pixels. Also sets the crop size (2*outer_rad+1).",
             "expert": True
         },
-
-    },
-    "AO": {
-        "default_waffle_amplitude": {
-            "help": "Amplitude for waffle pattern",
-            "expert": False
-        },
-        "tip tilt gain": {
-            "help": "Gain to convert from pixels to TT_OFFSET commands",
-            "expert": True
-        },
-        "tip tilt angle (deg)": {
-            "help": "Rotation angle for tip-tilt in degrees",
-            "expert": True
-        },
-        "tip tilt flip x": {
-            "help": "Flip the X-axis for tip-tilt",
-            "expert": True
-        },
-        "tip tilt flip y": {
-            "help": "Flip the Y-axis for tip-tilt",
-            "expert": True
-        }
-    },
-    "PID": {
-        "Kp": {
-            "help": "Proportional gain for PID control",
-            "expert": True
-        },
-        "Ki": {
-            "help": "Integral gain for PID control",
-            "expert": True
-        },
-        "Kd": {
-            "help": "Derivative gain for PID control",
-            "expert": True
-        },
-        "output_limits": {
-            "help": "Maximum output from PID controller in pixels",
-            "expert": True
-        }
     },
     "CAMERA CALIBRATION": {
         "background file": {
-            "help": "Path to background/dark FITS file (leave blank to use image median)",
+            "help": "Path to background/dark FITS file. If blank, background is estimated from the border rows/columns of each frame.",
             "expert": True,
             "file": True
         },
         "masterflat file": {
-            "help": "Path to master flat field FITS file (leave blank to skip flat correction)",
+            "help": "Path to mean-normalized master flat FITS file. If blank, no flat correction is applied.",
             "expert": True,
             "file": True
         },
         "badpix file": {
-            "help": "Path to bad pixel map FITS file (leave blank to skip bad pixel correction)",
+            "help": "Path to bad pixel map FITS file (nonzero = bad). If blank, no bad pixel correction is applied.",
             "expert": True,
             "file": True
         },
-    }
+    },
+    "HITCHHIKER MODE": {
+        "hitchhike": {
+            "help": "Enable hitchhiker mode: read images from a directory instead of controlling the camera",
+            "expert": False
+        },
+        "imagedir": {
+            "help": "Directory to watch for new FITS files in hitchhiker mode",
+            "expert": True,
+            "directory": True
+        },
+        "poll interval": {
+            "help": "How often (seconds) to check the directory for new files",
+            "expert": True
+        },
+        "timeout": {
+            "help": "Exit the loop if no new file appears within this many seconds",
+            "expert": True
+        },
+    },
+    "PID": {
+        "x centroid offset": {
+            "help": "Quad cell X target in centroid units (0 = centered on setpoint pixel). Range -1 to 1.",
+            "expert": False
+        },
+        "y centroid offset": {
+            "help": "Quad cell Y target in centroid units (0 = centered on setpoint pixel). Range -1 to 1.",
+            "expert": False
+        },
+        "Kp": {
+            "help": "Proportional gain. Start with 0.3-0.5 and increase until convergence without oscillation.",
+            "expert": True
+        },
+        "Ki": {
+            "help": "Integral gain. Set to 0 initially; add small values to eliminate steady-state offset.",
+            "expert": True
+        },
+        "Kd": {
+            "help": "Derivative gain. Usually 0; can reduce overshoot if Kp is high.",
+            "expert": True
+        },
+        "output_limits": {
+            "help": "Maximum PID output magnitude in centroid units. Symmetric +/- clamp. Prevents large corrections from noisy measurements.",
+            "expert": True
+        }
+    },
+    "AO": {
+        "tip tilt gain": {
+            "help": "Conversion factor from centroid units to AO tip-tilt command units. Sign and magnitude depend on the instrument.",
+            "expert": True
+        },
+        "tip tilt angle (deg)": {
+            "help": "Rotation angle between detector axes and AO axes in degrees. Calibrate per instrument.",
+            "expert": True
+        },
+        "tip tilt flip x": {
+            "help": "Flip the X correction direction (negate X before sending to AO)",
+            "expert": True
+        },
+        "tip tilt flip y": {
+            "help": "Flip the Y correction direction (negate Y before sending to AO)",
+            "expert": True
+        }
+    },
 }
 
 def load_instruments(instrumentname, camargs={}, aoargs={}):
     """
-    Load instruments based on the selected name
-    For now, only simulation mode is supported
+    Load camera and AO system for the selected instrument.
+
+    Returns (camera, aosystem) where each is either a string sentinel
+    ('Sim') or a hardware wrapper object.
     """
     if instrumentname == 'Sim':
         return 'Sim', 'Sim'

@@ -33,6 +33,7 @@
         field_center_y       = integer(min=0)
         bad_pixel_fraction   = float(min=0, max=1, default=0)
         output_directory     = string_or_none
+        readout_delay        = float(min=0, default=0)
 
     [[AO_PARAMS]]
         modebasis               = option_or_none('zernike', 'pixel', 'disk_harmonics', 'fourier')

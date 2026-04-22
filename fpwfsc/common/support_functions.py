@@ -1152,6 +1152,9 @@ def setup_bgd_dict(directory_path):
 
 def load_fits_or_none(path):
     """Load the primary HDU data from a FITS file, or return None if path is empty or missing."""
-    if path and os.path.isfile(path):
+    if not path:
+        return None
+    if os.path.isfile(path):
         return fits.getdata(path)
+    print(f"WARNING: calibration file not found: {path}")
     return None
