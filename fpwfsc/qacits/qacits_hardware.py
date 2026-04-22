@@ -33,7 +33,7 @@ class K2AOAlias():
 
     def zero_tiptilt(self):
         """Zero out the tip/tilt"""
-        self.aosys.dtt.set_offsets(0, 0)
+        self.aosys.dtt.clear_close_loop_offsets()
         return
 
 if __name__ == "__main__":

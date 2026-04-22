@@ -266,6 +266,15 @@ class QacitsConfigGUI(QWidget):
         self.run_stop_button.setStyleSheet("background-color: green; color: white;")
         button_layout.addWidget(self.run_stop_button)
 
+        button_layout.addSpacing(5)
+
+        # Reset DTT Offset button
+        self.reset_dtt_button = QPushButton('Reset DTT Offset')
+        self.reset_dtt_button.setFont(QFont('Arial', 9))
+        self.reset_dtt_button.clicked.connect(self.on_reset_dtt_clicked)
+        self.reset_dtt_button.setStyleSheet("background-color: #FF9800; color: white;")
+        button_layout.addWidget(self.reset_dtt_button)
+
         main_layout.addLayout(button_layout)
 
         self.thread_check_timer = QTimer()
@@ -319,6 +328,16 @@ class QacitsConfigGUI(QWidget):
             print(f"Error: Invalid setpoint values in GUI fields. Please check x setpoint and y setpoint are valid numbers.")
             print(f"Details: {e}")
 
+    def on_reset_dtt_clicked(self):
+        """Handle reset DTT offset button click"""
+        if self.aosystem is not None:
+            try:
+                self.aosystem.zero_tiptilt()
+                print("DTT offset reset to zero.")
+            except Exception as e:
+                print(f"Error resetting DTT offset: {e}")
+        else:
+            print("No AO system loaded. Cannot reset DTT offset.")
 
     def check_thread_status(self):
         """Check if algorithm thread is still running"""
