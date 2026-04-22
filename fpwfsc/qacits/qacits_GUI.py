@@ -334,7 +334,7 @@ class QacitsConfigGUI(QWidget):
     def check_thread_status(self):
         """Check if algorithm thread is still running"""
         if hasattr(self, 'algorithm_thread'):
-            if not self.algorithm_thread.isRunning() and self.is_running:
+            if not self.algorithm_thread.isRunning() and (self.is_running or self._stopping):
                 self.is_running = False
                 self.run_stop_button.setText('Run')
                 self.run_stop_button.setStyleSheet("background-color: green; color: white;")
@@ -389,32 +389,10 @@ class QacitsConfigGUI(QWidget):
             self._stopping = True
 
             if hasattr(self, 'my_event'):
-                print("Setting stop event")
+                print("Setting stop event — waiting for current iteration to finish")
                 self.my_event.set()
-
-                if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
-                    QTimer.singleShot(500, self.check_if_force_terminate)
-                else:
-                    self._stopping = False
-                    self.cleanup_resources()
-
-    def check_if_force_terminate(self):
-        """Check if we need to force terminate the thread"""
-        if hasattr(self, 'algorithm_thread') and self.algorithm_thread.isRunning():
-            print("Thread still running after timeout, attempting to terminate...")
-            try:
-                self.algorithm_thread.terminate()
-                self.algorithm_thread.wait(500)
-
-                if self.algorithm_thread.isRunning():
-                    print("Thread could not be terminated. Disconnecting it.")
-                    self.algorithm_thread = None
-            except Exception as e:
-                print(f"Error terminating thread: {e}")
-            finally:
-                self.cleanup_resources()
-        else:
-            self.cleanup_resources()
+                # check_thread_status (1-second timer) will detect when the
+                # thread exits and call cleanup_resources to re-enable buttons.
 
     def cleanup_resources(self):
         """Clean up any resources that need to be explicitly closed"""
