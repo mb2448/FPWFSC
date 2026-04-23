@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QTransform
+from PyQt5.QtGui import QTransform, QPainter
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
 
@@ -82,8 +82,15 @@ class QacitsPlotter(QtWidgets.QWidget):
         self.img_item = pg.ImageItem()
         self.main_plot.addItem(self.img_item)
 
+        # Semi-transparent overlay to shade non-annulus regions
+        self.mask_item = pg.ImageItem()
+        self.mask_item.setZValue(10)  # on top of the image
+        self.mask_item.setCompositionMode(QPainter.CompositionMode_SourceOver)
+        self.main_plot.addItem(self.mask_item)
+
         # Store current image for percentile calculations
         self.current_image = None
+        self._last_overlay_params = {}
 
         # Initialize overlay elements
         self.inner_circle = pg.CircleROI([0, 0], [0, 0], pen=pg.mkPen('r', width=4), movable=False)
@@ -147,7 +154,8 @@ class QacitsPlotter(QtWidgets.QWidget):
         colors = [(0, 0, 255), (0, 255, 255), (0, 255, 0), (255, 255, 0), (255, 0, 0)]
         positions = [0.0, 0.25, 0.5, 0.75, 1.0]
         self.jet_colormap = ColorMap(pos=positions, color=colors)
-        self.img_item.setLookupTable(self.jet_colormap.getLookupTable(0.0, 1.0, 256))
+        self.jet_lut = self.jet_colormap.getLookupTable(0.0, 1.0, 256)  # (256, 3) uint8
+        self.img_item.setLookupTable(self.jet_lut)
 
     def on_stretch_changed(self):
         """Handle slider value changes"""
@@ -160,24 +168,43 @@ class QacitsPlotter(QtWidgets.QWidget):
         # Update image levels
         self.update_image_levels()
 
+    def _render_image(self, image, vmin, vmax, x_center=None, y_center=None,
+                      min_radius=None, max_radius=None, x_coords=None, y_coords=None):
+        """Apply colormap with annulus shading and display."""
+        clipped = np.clip((image - vmin) / (vmax - vmin + 1e-10), 0, 1)
+        indices = (clipped * 255).astype(np.uint8)
+        rgb = self.jet_lut[indices].copy()
+
+        if x_center is not None and y_center is not None and min_radius is not None and max_radius is not None:
+            if x_coords is not None and y_coords is not None:
+                ddx = x_coords - x_center
+                ddy = y_coords - y_center
+            else:
+                yy, xx = np.mgrid[0:image.shape[0], 0:image.shape[1]]
+                ddx = xx - x_center
+                ddy = yy - y_center
+            dist = np.sqrt(ddx**2 + ddy**2)
+            outside = (dist > max_radius) | (dist < min_radius)
+            rgb[outside] = (rgb[outside] * 0.3).astype(np.uint8)
+
+        self.img_item.setImage(rgb.transpose(1, 0, 2), autoLevels=False)
+        self.img_item.setLookupTable(None)
+
     def update_image_levels(self):
         """Update the image display levels based on current slider values"""
         if self.current_image is None:
             return
-        
+
         lower_percentile = self.lower_slider.value()
         upper_percentile = self.upper_slider.value()
-        
-        # Ensure lower < upper
+
         if lower_percentile >= upper_percentile:
             return
-        
-        # Calculate intensity levels
+
         vmin = np.percentile(self.current_image, lower_percentile)
         vmax = np.percentile(self.current_image, upper_percentile)
-        
-        # Apply levels to existing image
-        self.img_item.setLevels([vmin, vmax])
+
+        self._render_image(self.current_image, vmin, vmax, **self._last_overlay_params)
 
     def closeEvent(self, event):
         """Handle window close event - ensures cleanup"""
@@ -272,8 +299,13 @@ class QacitsPlotter(QtWidgets.QWidget):
         if title is not None:
             self.main_plot.setTitle(title)
 
-        # Update image with calculated levels (transpose for correct orientation in pyqtgraph)
-        self.img_item.setImage(image.T, autoLevels=False, levels=[vmin, vmax])
+        # Store overlay params so stretch sliders can re-render
+        self._last_overlay_params = dict(
+            x_center=x_center, y_center=y_center,
+            min_radius=min_radius, max_radius=max_radius,
+            x_coords=x_coords, y_coords=y_coords)
+
+        self._render_image(image, vmin, vmax, **self._last_overlay_params)
 
         # Set the position and scale of the image to match coordinates
         self.img_item.setPos(x_min, y_min)
@@ -317,6 +349,8 @@ class QacitsPlotter(QtWidgets.QWidget):
             # Update center point
             self.center_point.setData([x_center], [y_center])
             self.center_point.show()
+
+            self.mask_item.hide()
         else:
             # Hide overlays if no center/radii provided
             self.inner_circle.hide()
@@ -326,6 +360,7 @@ class QacitsPlotter(QtWidgets.QWidget):
             self.v_line_left.hide()
             self.v_line_right.hide()
             self.center_point.hide()
+            self.mask_item.hide()
 
         # Process events to update the plot and allow interaction
         if not self.closed:
