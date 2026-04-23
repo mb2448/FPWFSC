@@ -93,8 +93,8 @@ class QacitsPlotter(QtWidgets.QWidget):
         self._last_overlay_params = {}
 
         # Initialize overlay elements
-        self.inner_circle = pg.CircleROI([0, 0], [0, 0], pen=pg.mkPen('r', width=4), movable=False)
-        self.outer_circle = pg.CircleROI([0, 0], [0, 0], pen=pg.mkPen('r', width=4), movable=False)
+        self.inner_circle = pg.CircleROI([0, 0], [0, 0], pen=pg.mkPen('k', width=4), movable=False)
+        self.outer_circle = pg.CircleROI([0, 0], [0, 0], pen=pg.mkPen('k', width=4), movable=False)
 
         # Create line segments instead of infinite lines
         self.h_line_top = pg.PlotDataItem(pen=pg.mkPen('r', width=4, style=Qt.DashLine))
@@ -102,16 +102,15 @@ class QacitsPlotter(QtWidgets.QWidget):
         self.v_line_left = pg.PlotDataItem(pen=pg.mkPen('r', width=4, style=Qt.DashLine))
         self.v_line_right = pg.PlotDataItem(pen=pg.mkPen('r', width=4, style=Qt.DashLine))
 
-        self.center_point = pg.ScatterPlotItem([0], [0], symbol='+', size=15, pen=pg.mkPen('r', width=4))
+        self.center_point = pg.ScatterPlotItem([0], [0], symbol='+', size=15, pen=pg.mkPen('k', width=4))
 
         # Add overlay elements to plot (initially hidden)
-        self.main_plot.addItem(self.inner_circle)
-        self.main_plot.addItem(self.outer_circle)
-        self.main_plot.addItem(self.h_line_top)
-        self.main_plot.addItem(self.h_line_bottom)
-        self.main_plot.addItem(self.v_line_left)
-        self.main_plot.addItem(self.v_line_right)
-        self.main_plot.addItem(self.center_point)
+        for item in [self.inner_circle, self.outer_circle,
+                     self.h_line_top, self.h_line_bottom,
+                     self.v_line_left, self.v_line_right,
+                     self.center_point]:
+            item.setZValue(20)
+            self.main_plot.addItem(item)
 
         # Hide overlays initially
         self.inner_circle.hide()

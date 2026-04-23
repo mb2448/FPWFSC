@@ -417,10 +417,11 @@ def equalize_image(data, bkgd=None, masterflat=None, badpix=None):
         bkgd = estimate_background_from_border(data)
     if masterflat is None:
         masterflat = 1
+    calibrated = (data-bkgd)/masterflat
     if badpix is None:
-        return (data-bkgd)/masterflat
+        return calibrated
     else:
-        return removebadpix(data-bkgd, badpix)/masterflat
+        return removebadpix(calibrated, badpix)
 
 def square_crop(image, npix, xcen, ycen):
     """Crop an image to npix x npix, about the point xcen, ycen."""
