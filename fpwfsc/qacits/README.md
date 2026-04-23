@@ -52,9 +52,10 @@ python qacits_GUI.py
 
 **PID section:**
 - `centroid offset: x:[ ] y:[ ]` — inline text fields for the quad cell target offset. Default (0, 0) means drive the star to the setpoint pixel. Nonzero values make the PID maintain a deliberate offset.
-- **Set Offset** (green) / **Capture Offset** (blue) — two half-width buttons:
+- **Set Offset** (green) / **Capture Offset** (blue) / **Zero Offset** (grey) — three buttons:
   - **Set Offset** pushes the typed centroid offset values to the running PID.
-  - **Capture Offset** tells the loop to grab the current quad cell reading and use it as the new PID target. The button latches ("Capturing...") until the loop applies it on the next iteration, then the text fields update with the captured values.
+  - **Capture Offset** tells the loop to grab the current quad cell reading and use it as the new PID target. The button latches ("Capturing...") until the loop applies it on the next iteration, then the text fields update with the captured values. Can be pre-armed before Run.
+  - **Zero Offset** resets the centroid offset to (0, 0) — return to normal centering. Updates the text fields and pushes to the loop if running.
 - Expert options (collapsed): `Kp`, `Ki`, `Kd`, `output_limits`
 
 **CAMERA CALIBRATION section** (all expert, collapsed):
@@ -313,4 +314,4 @@ Calibration tools live in `fpwfsc/calibration/`:
 - Use **Capture Offset** to lock the current star position as the PID target
 - Pre-arm it before Run to maintain an existing alignment from the start
 - Use **Set Offset** to type a specific offset value
-- Set both to 0 to return to normal centering behavior
+- Use **Zero Offset** to return to normal centering behavior with one click
