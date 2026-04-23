@@ -1,5 +1,4 @@
 import numpy as np
-import ipdb
 
 def rotateXY(xvals, yvals, thetadeg = 0):
     theta = np.pi/180.0*thetadeg

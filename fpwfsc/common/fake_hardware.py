@@ -43,20 +43,20 @@ def center_image(small_image, large_size, center_position):
         The larger image with the small image centered at the specified position
     """
     large_image = np.zeros(large_size, dtype=small_image.dtype)
-    sh, sw = small_image.shape[:2]
+    sh, sw = small_image.shape[:2]  # sh = rows, sw = cols
     lr, lc = large_size[:2]
 
     # center_position is (x, y) = (col, row)
-    col_start = center_position[0] - sh // 2
-    row_start = center_position[1] - sw // 2
+    col_start = center_position[0] - sw // 2
+    row_start = center_position[1] - sh // 2
 
     # Clip: source region within small_image, dest region within large_image
     src_r0 = max(0, -row_start)
     src_c0 = max(0, -col_start)
     dst_r0 = max(0, row_start)
     dst_c0 = max(0, col_start)
-    dst_r1 = min(lr, row_start + sw)
-    dst_c1 = min(lc, col_start + sh)
+    dst_r1 = min(lr, row_start + sh)
+    dst_c1 = min(lc, col_start + sw)
     src_r1 = src_r0 + (dst_r1 - dst_r0)
     src_c1 = src_c0 + (dst_c1 - dst_c0)
 

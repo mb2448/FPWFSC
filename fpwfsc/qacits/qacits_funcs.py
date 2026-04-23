@@ -139,35 +139,33 @@ def compute_quad_cell_flux(image=None, x_center=None, y_center=None, min_radius=
     # Create annulus mask (pixels within min_radius to max_radius)
     annulus_mask = (distances >= min_radius) & (distances <= max_radius)
 
-    # Create quadrant masks within the annulus
-    # Top left: dx <= 0, dy >= 0 (dy positive means higher y coordinate, which is up in display)
-    top_left_mask = annulus_mask & (dx <= 0) & (dy >= 0)
+    # Create quadrant masks within the annulus.
+    # In numpy array coordinates, increasing y-index = downward on screen.
+    # dy >= 0 means larger row index = below center in display.
+    # Quadrant labeling (A/B/C/D) follows array index convention, not sky.
+    A_mask = annulus_mask & (dx <= 0) & (dy >= 0)  # left,  larger y-index
+    B_mask = annulus_mask & (dx > 0)  & (dy >= 0)  # right, larger y-index
+    C_mask = annulus_mask & (dx <= 0) & (dy < 0)   # left,  smaller y-index
+    D_mask = annulus_mask & (dx > 0)  & (dy < 0)   # right, smaller y-index
 
-    # Top right: dx > 0, dy >= 0
-    top_right_mask = annulus_mask & (dx > 0) & (dy >= 0)
+    # Flux in each quadrant
+    A = np.sum(image[A_mask])
+    B = np.sum(image[B_mask])
+    C = np.sum(image[C_mask])
+    D = np.sum(image[D_mask])
 
-    # Bottom left: dx <= 0, dy < 0 (dy negative means lower y coordinate, which is down in display)
-    bottom_left_mask = annulus_mask & (dx <= 0) & (dy < 0)
-
-    # Bottom right: dx > 0, dy < 0
-    bottom_right_mask = annulus_mask & (dx > 0) & (dy < 0)
-
-    # Calculate flux in each quadrant
-    A = np.sum(image[top_left_mask])      # Top left
-    B = np.sum(image[top_right_mask])     # Top right
-    C = np.sum(image[bottom_left_mask])   # Bottom left
-    D = np.sum(image[bottom_right_mask])  # Bottom right
-
-    # Calculate total flux
     total_flux = A + B + C + D
 
-    # Avoid division by zero
     if total_flux == 0:
         return 0.0, 0.0
 
-    # Calculate centroid offsets
-    y_offset = (A + B - C - D) / total_flux  # Positive = shift up
-    x_offset = (B + D - A - C) / total_flux  # Positive = shift right
+    # Centroid offsets in array-index convention:
+    #   x_offset > 0 = star is at larger column index (right in display)
+    #   y_offset > 0 = star is at larger row index (down in display)
+    # The PID + tip-tilt calibration (gain, angle, flips) handles the
+    # mapping from these offsets to the correct AO correction direction.
+    y_offset = (A + B - C - D) / total_flux
+    x_offset = (B + D - A - C) / total_flux
 
     return x_offset, y_offset
 

@@ -172,6 +172,7 @@ class QacitsConfigGUI(QWidget):
 
         # Queue for centroid offset updates to the running loop
         self.centroid_offset_queue = queue.Queue()
+        self._capture_on_first_iteration = False
         # Queue for feedback from the loop after applying an offset
         self.centroid_offset_feedback = queue.Queue()
 
@@ -347,22 +348,26 @@ class QacitsConfigGUI(QWidget):
             print(f"Error: invalid centroid offset values. {e}")
 
     def on_capture_offset_clicked(self):
-        """Tell the running loop to capture the current quad-cell reading as the PID setpoint."""
-        self.centroid_offset_queue.put(None)
+        """Tell the running loop to capture the current quad-cell reading as the PID setpoint.
+        Can be clicked before Run to arm capture on the first iteration."""
+        if self.is_running:
+            self.centroid_offset_queue.put(None)
+        else:
+            self._capture_on_first_iteration = True
         self.capture_offset_button.setText("Capturing...")
         self.capture_offset_button.setEnabled(False)
         self.capture_offset_button.setStyleSheet("background-color: #90CAF9; color: white;")
 
     def on_reset_dtt_clicked(self):
         """Handle reset DTT offset button click"""
-        if self.aosystem is not None:
-            try:
-                self.aosystem.zero_tiptilt()
-                print("DTT offset reset to zero.")
-            except Exception as e:
-                print(f"Error resetting DTT offset: {e}")
-        else:
-            print("No AO system loaded. Cannot reset DTT offset.")
+        if self.aosystem is None or isinstance(self.aosystem, str):
+            print("No AO system loaded (sim mode). Cannot reset DTT offset.")
+            return
+        try:
+            self.aosystem.zero_tiptilt()
+            print("DTT offset reset to zero.")
+        except Exception as e:
+            print(f"Error resetting DTT offset: {e}")
 
     def check_thread_status(self):
         """Check if algorithm thread is still running, and poll for centroid offset feedback"""
@@ -384,7 +389,10 @@ class QacitsConfigGUI(QWidget):
                 self.run_stop_button.setStyleSheet("background-color: green; color: white;")
                 self.update_setpoint_button.setEnabled(False)
                 self.apply_offset_button.setEnabled(False)
-                self.capture_offset_button.setEnabled(False)
+                # Keep capture_offset_button enabled so it can be pre-armed
+                self.capture_offset_button.setEnabled(True)
+                self.capture_offset_button.setText("Capture Offset")
+                self.capture_offset_button.setStyleSheet("background-color: #2196F3; color: white;")
                 self.cleanup_resources()
 
     @pyqtSlot(str)
@@ -420,7 +428,12 @@ class QacitsConfigGUI(QWidget):
                         q.get_nowait()
                     except queue.Empty:
                         break
-            
+
+            # Re-arm capture if it was pre-armed before Run
+            if self._capture_on_first_iteration:
+                self.centroid_offset_queue.put(None)
+                self._capture_on_first_iteration = False
+
             # Get initial setpoint from config
             self.update_config_from_gui()
             self.current_setpoint = (
@@ -436,7 +449,7 @@ class QacitsConfigGUI(QWidget):
             self.run_stop_button.setEnabled(False)
             self.update_setpoint_button.setEnabled(False)
             self.apply_offset_button.setEnabled(False)
-            self.capture_offset_button.setEnabled(False)
+            # Keep capture_offset_button enabled for pre-arming
             print("Stopping")
 
             if hasattr(self, '_stopping') and self._stopping:
@@ -633,7 +646,6 @@ class QacitsConfigGUI(QWidget):
                 self.capture_offset_button = QPushButton('Capture Offset')
                 self.capture_offset_button.setFont(QFont('Arial', 10, QFont.Bold))
                 self.capture_offset_button.clicked.connect(self.on_capture_offset_clicked)
-                self.capture_offset_button.setEnabled(False)
                 self.capture_offset_button.setStyleSheet("background-color: #2196F3; color: white;")
                 btn_layout.addWidget(self.capture_offset_button)
 
