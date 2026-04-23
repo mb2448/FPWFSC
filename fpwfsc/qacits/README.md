@@ -1,6 +1,6 @@
 # miniQACITS
 
-miniQACITS is a closed-loop tip-tilt correction system for coronagraphic imaging. It measures the position of a star on a detector using a quad cell flux method and applies corrections to the AO system (simulated DM or real Keck FSM) to keep the star centred on the coronagraph.
+miniQACITS is a closed-loop tip-tilt correction system for coronagraphic (or non-coronagraphic) imaging. It measures the position of a star on a detector using a quad cell flux method and applies corrections to the AO system to keep the star centered at a particular location.
 
 ---
 
@@ -8,13 +8,13 @@ miniQACITS is a closed-loop tip-tilt correction system for coronagraphic imaging
 
 Each iteration of the control loop:
 
-1. **Acquires an image** from the camera (or reads one from disk in hitchhiker mode)
-2. **Applies calibrations** — background subtraction, flat fielding, bad pixel correction
-3. **Crops the image** to a square region around the expected star position (size = 2 * outer_radius + 1)
+1. **Acquires an image** from the camera (or reads the latest one from disk in "hitchhiker mode")
+2. **Applies calibrations (optional)** — background subtraction, flat fielding, bad pixel correction
+3. **Crops the image** to a square region around the expected star position
 4. **Measures the centroid offset** using a quad cell flux calculation over an annular region
-5. **Feeds the offset into a PID controller** to compute a correction in centroid units
-6. **Applies rotation/flip calibration** via `dm.rotate_flip_tt` to convert from detector frame to AO frame
-7. **Sends the correction** to the AO system via `offset_tiptilt(x, y)`
+5. **Feeds the offset into a PID loop** to compute a correction in centroid units
+6. **Applies rotation/flip calibration** to convert from detector frame to AO frame
+7. **Sends the correction** to the AO system 
 
 ### Quad cell measurement
 
@@ -25,11 +25,11 @@ x_offset = (B + D - A - C) / (A + B + C + D)
 y_offset = (A + B - C - D) / (A + B + C + D)
 ```
 
-Offsets are in **array-index convention**: positive x_offset means the star is at a larger column index (right in display); positive y_offset means larger row index (down in display). The result is dimensionless (normalised by total flux). The PID + tip-tilt calibration (gain, angle, flips) handles the mapping from these offsets to the correct AO correction direction.
+Offsets are in **array-index convention**: positive x_offset means the star is at a larger column index (right in display); positive y_offset means larger row index (up in display). The result is dimensionless (normalised by total flux), so should be the same all stars (assuming good background subtraction). The PID + tip-tilt calibration (gain, angle, flips) handles the mapping from these offsets to the correct AO correction direction.
 
 ### Background subtraction
 
-When a background FITS file is provided, it is subtracted from each frame. When no background file is provided, a 2D background is estimated automatically from the border rows and columns of the full frame (column medians from the outer 5 rows, then row medians from the outer 5 columns of the column-subtracted image). This captures channel-dependent bias offsets and row gradients common on IR detectors. The background is estimated from the **full frame** before cropping, so the PSF does not contaminate the estimate.
+When a background FITS file is provided, it is subtracted from each frame. When no background file is provided, a 2D background is estimated automatically from the border rows and columns of the full frame (column medians from the outer 5 rows, then row medians from the outer 5 columns of the column-subtracted image). The background is estimated from the **full frame** before cropping, so the PSF does not contaminate the estimate.
 
 ---
 
@@ -74,8 +74,8 @@ python qacits_GUI.py
 
 ### Live image plotter
 
-When `plot = True`, a separate pyqtgraph window opens showing the cropped image with:
-- Inner and outer annulus circles (red). Inner circle hides when inner radius = 0.
+When `plot = True`, a separate window opens showing the cropped image with:
+- Inner and outer annulus circles (red). Inner circle can be 0.
 - Crosshair lines between the annuli
 - Center point marker
 - Title showing the current centroid offset (x, y)
