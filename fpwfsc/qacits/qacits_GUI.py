@@ -358,6 +358,14 @@ class QacitsConfigGUI(QWidget):
         self.capture_offset_button.setEnabled(False)
         self.capture_offset_button.setStyleSheet("background-color: #90CAF9; color: white;")
 
+    def on_zero_offset_clicked(self):
+        """Reset centroid offset to (0, 0) — return to normal centering."""
+        self.x_centroid_offset_widget.setText("0.0")
+        self.y_centroid_offset_widget.setText("0.0")
+        if self.is_running:
+            self.centroid_offset_queue.put((0.0, 0.0))
+        print("Centroid offset zeroed")
+
     def on_reset_dtt_clicked(self):
         """Handle reset DTT offset button click"""
         if self.aosystem is None or isinstance(self.aosystem, str):
@@ -648,6 +656,12 @@ class QacitsConfigGUI(QWidget):
                 self.capture_offset_button.clicked.connect(self.on_capture_offset_clicked)
                 self.capture_offset_button.setStyleSheet("background-color: #2196F3; color: white;")
                 btn_layout.addWidget(self.capture_offset_button)
+
+                self.zero_offset_button = QPushButton('Zero Offset')
+                self.zero_offset_button.setFont(QFont('Arial', 10, QFont.Bold))
+                self.zero_offset_button.clicked.connect(self.on_zero_offset_clicked)
+                self.zero_offset_button.setStyleSheet("background-color: #9E9E9E; color: white;")
+                btn_layout.addWidget(self.zero_offset_button)
 
                 section_layout.addWidget(btn_row)
                 section_layout.addSpacing(4)

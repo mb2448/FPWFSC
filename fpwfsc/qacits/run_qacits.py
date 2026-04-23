@@ -13,13 +13,15 @@ import fpwfsc.qacits.PID as PID
 def printstatus(iteration=None,
                 setpoint=None,
                 quad_cell=None,
+                centroid_setpoint=None,
                 correction=None,
                 control=None):
     print("\n\n")
     print("Iteration: ", iteration)
     print("Setpoint (px): ", setpoint)
     print("Quad cell (x, y): ", quad_cell)
-    print("PID output (px): ", correction)
+    print("PID setpoint (centroid): ", centroid_setpoint)
+    print("PID output (centroid): ", correction)
     print("Control (t/t): ", control)
     return
 
@@ -210,6 +212,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         printstatus(iteration=i,
                     setpoint=setpoint,
                     quad_cell=np.array([xo, yo]),
+                    centroid_setpoint=Controller.setpoint,
                     correction=correction,
                     control=control)
         
