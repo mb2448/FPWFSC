@@ -198,13 +198,11 @@ class QacitsConfigGUI(QWidget):
                 self.algorithm_thread.plot_update_signal.disconnect()
             except Exception:
                 pass
-            try:
-                self.algorithm_thread.terminate()
-            except Exception:
-                pass
+            print("Waiting for algorithm thread to finish...")
+            self.algorithm_thread.wait(3000)
 
         event.accept()
-        os._exit(0)
+        QApplication.quit()
 
     def initUI(self):
         self.setWindowTitle('miniQACITS')
