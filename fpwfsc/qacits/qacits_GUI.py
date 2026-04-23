@@ -850,9 +850,11 @@ class QacitsConfigGUI(QWidget):
                         else:
                             item_layout = item.layout()
                             if item_layout and item_layout.count() == 2:
-                                key = item_layout.itemAt(0).widget().text()
-                                value = self.get_widget_value(item_layout.itemAt(1).widget())
-                                self.config[section][key] = value
+                                first_widget = item_layout.itemAt(0).widget()
+                                if isinstance(first_widget, QLabel):
+                                    key = first_widget.text()
+                                    value = self.get_widget_value(item_layout.itemAt(1).widget())
+                                    self.config[section][key] = value
 
         # Custom inline widgets not found by the generic walker
         if self.x_setpoint_widget is not None:
