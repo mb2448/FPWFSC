@@ -27,8 +27,8 @@ def printstatus(iteration=None,
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_event=None, plotter=None, plot_signal=None,
-        setpoint_queue=None, centroid_offset_queue=None,
-        centroid_offset_feedback=None):
+        param_update_queue=None, centroid_offset_queue=None,
+        centroid_offset_feedback=None, warning_queue=None):
     """
     Run the QACITS tracking loop
 
@@ -42,8 +42,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     plotter : DEPRECATED - use plot_signal instead
     plot_signal : PyQt signal for thread-safe plotting (emits: image, x_center, y_center,
                   min_radius, max_radius, x_coords, y_coords, title)
-    setpoint_queue : queue.Queue, optional
-        Queue for receiving setpoint updates from GUI without resetting PID
+    param_update_queue : queue.Queue, optional
+        Queue for receiving parameter updates from GUI (dict of key:value).
+        Supports: setpointx, setpointy, inner_rad, outer_rad,
+        Kp, Ki, Kd, output_limits, tt_gain, tt_rot_deg, tt_flipx, tt_flipy.
     centroid_offset_queue : queue.Queue, optional
         Queue for receiving centroid offset updates. Send (x, y) to set a
         specific offset, or None to capture the current quad-cell reading.
@@ -131,23 +133,56 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
     print(f"Starting control loop with initial setpoint: X={setpointx:.2f}, Y={setpointy:.2f}")
 
-    for i in range(n_iter):
+    i = 0
+    while i < n_iter:
         # Check if stop event is set
         if my_event is not None and my_event.is_set():
             print('Stop event detected, stopping loop')
             break
         
-        # Check for setpoint updates from queue
-        if setpoint_queue is not None:
+        # Check for parameter updates from GUI
+        if param_update_queue is not None:
             try:
-                # Non-blocking get - only update if there's a new setpoint
-                new_setpoint = setpoint_queue.get_nowait()
-                setpointy, setpointx = new_setpoint  # Queue has (y, x) order
+                params = param_update_queue.get_nowait()
+                n_iter = params.get('n_iter', n_iter)
+                setpointx = params.get('setpointx', setpointx)
+                setpointy = params.get('setpointy', setpointy)
                 setpoint = np.array([setpointy, setpointx])
-                print(f"✓ Setpoint updated mid-loop: X={setpointx:.2f}, Y={setpointy:.2f}")
-                # Note: We DO NOT reset the PID controller - it maintains its state
+                inner_rad = params.get('inner_rad', inner_rad)
+                outer_rad = params.get('outer_rad', outer_rad)
+                Controller.Kp = params.get('Kp', Controller.Kp)
+                Controller.Ki = params.get('Ki', Controller.Ki)
+                Controller.Kd = params.get('Kd', Controller.Kd)
+                Controller.output_limits = params.get('output_limits', Controller.output_limits)
+                tt_gain = params.get('tt_gain', tt_gain)
+                tt_rot_deg = params.get('tt_rot_deg', tt_rot_deg)
+                tt_flipx = params.get('tt_flipx', tt_flipx)
+                tt_flipy = params.get('tt_flipy', tt_flipy)
+                if 'centroid_offset_x' in params or 'centroid_offset_y' in params:
+                    centroid_setpoint = np.array([
+                        params.get('centroid_offset_x', centroid_setpoint[0]),
+                        params.get('centroid_offset_y', centroid_setpoint[1])])
+                    Controller.update_setpoint(centroid_setpoint)
+                # Reload calibration files if paths changed
+                if any(k in params for k in ('background_file', 'masterflat_file', 'badpix_file')):
+                    new_bgds = {
+                        'bkgd':       sf.load_fits_or_none(params.get('background_file', '')),
+                        'masterflat': sf.load_fits_or_none(params.get('masterflat_file', '')),
+                        'badpix':     sf.load_fits_or_none(params.get('badpix_file', '')),
+                    }
+                    # Check shapes, warn and drop mismatched files
+                    for key, arr in new_bgds.items():
+                        if arr is not None and arr.shape != data_speck_raw.shape:
+                            msg = f"Calibration '{key}' shape {arr.shape} doesn't match image {data_speck_raw.shape} — ignoring"
+                            print(f"WARNING: {msg}")
+                            if warning_queue is not None:
+                                warning_queue.put(msg)
+                            new_bgds[key] = None
+                    bgds = new_bgds
+                    print(f"Calibration files reloaded")
+                print(f"Loop parameters updated: setpoint=({setpointx:.1f}, {setpointy:.1f}), "
+                      f"radii=({inner_rad}, {outer_rad}), Kp={Controller.Kp}, Ki={Controller.Ki}")
             except queue.Empty:
-                # No new setpoint, continue with current
                 pass
         
         if settings['HITCHHIKER MODE']['hitchhike']:
@@ -197,11 +232,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         # Use signal for thread-safe plotting (new method)
         if plot_signal is not None:
-            plottitle = '%.4f'%xo +', '+'%.4f'%yo
+            plottitle = f"Centroid: {xo:.4f}, {yo:.4f}  |  It: {i+1}/{n_iter}"
             plot_signal.emit(cropped, setpointx, setpointy, inner_rad, outer_rad, xs, ys, plottitle)
         # Legacy support for direct plotter (not thread-safe on macOS)
         elif plotter is not None:
-            plottitle = '%.4f'%xo +', '+'%.4f'%yo
+            plottitle = f"Centroid: {xo:.4f}, {yo:.4f}  |  It: {i+1}/{n_iter}"
             plotter.update(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys, title=plottitle)
 
@@ -220,7 +255,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                        flipx=tt_flipx, flipy=tt_flipy)
         AOSystem.offset_tiptilt(x_ao, y_ao)
 
-    print(f"Control loop ended after {i+1 if n_iter > 0 else 0} iterations")
+        i += 1
+
+    print(f"Control loop ended after {i} iterations")
     
     # Only call execute if running standalone with a plotter
     if plotter is not None and plot_signal is None:

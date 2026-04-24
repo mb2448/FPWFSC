@@ -91,6 +91,7 @@ class QacitsPlotter(QtWidgets.QWidget):
         # Store current image for percentile calculations
         self.current_image = None
         self._last_overlay_params = {}
+        self._iteration_count = 0
 
         # Initialize overlay elements
         self.inner_circle = pg.CircleROI([0, 0], [0, 0], pen=pg.mkPen('k', width=2), movable=False)
