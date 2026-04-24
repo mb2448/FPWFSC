@@ -9,9 +9,9 @@
 [PID]
     x centroid offset = float(min=-1, max=1, default=0)
     y centroid offset = float(min=-1, max=1, default=0)
-    Kp = float(min=0, default=0.5)
-    Ki = float(min=0, default=0.1)
-    Kd = float(min=0, default=0)
+    Kp = float(min=-1, max=1, default=0.5)
+    Ki = float(min=-1, max=1, default=0.1)
+    Kd = float(min=-1, max=1, default=0)
     output_limits = float(default=0.5)
 
 [CAMERA CALIBRATION]

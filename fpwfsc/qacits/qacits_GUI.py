@@ -271,12 +271,23 @@ class QacitsConfigGUI(QWidget):
 
         button_layout.addSpacing(5)
 
-        # Reset DTT Offset button
+        # Bottom row: Reset DTT + Take Test Image side by side
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(5)
+
         self.reset_dtt_button = QPushButton('Reset DTT Offset')
         self.reset_dtt_button.setFont(QFont('Arial', 10, QFont.Bold))
         self.reset_dtt_button.clicked.connect(self.on_reset_dtt_clicked)
         self.reset_dtt_button.setStyleSheet("background-color: #FF9800; color: white;")
-        button_layout.addWidget(self.reset_dtt_button)
+        bottom_row.addWidget(self.reset_dtt_button)
+
+        self.test_image_button = QPushButton('Take Test Image')
+        self.test_image_button.setFont(QFont('Arial', 10, QFont.Bold))
+        self.test_image_button.clicked.connect(self.on_test_image_clicked)
+        self.test_image_button.setStyleSheet("background-color: #607D8B; color: white;")
+        bottom_row.addWidget(self.test_image_button)
+
+        button_layout.addLayout(bottom_row)
 
         main_layout.addLayout(button_layout)
 
@@ -363,6 +374,64 @@ class QacitsConfigGUI(QWidget):
         if self.is_running:
             self.centroid_offset_queue.put((0.0, 0.0))
         print("Centroid offset zeroed")
+
+    def on_test_image_clicked(self):
+        """Take a single image and display the cropped region around the setpoint."""
+        self.test_image_button.setText("Taking...")
+        self.test_image_button.setEnabled(False)
+        QApplication.processEvents()
+
+        try:
+            from pathlib import Path
+            import fpwfsc.common.support_functions as sf
+            import fpwfsc.qacits.qacits_funcs as qf
+
+            # Get or build camera
+            if self.camera == 'Sim':
+                import fpwfsc.common.fake_hardware as fhw
+                sim_dir = Path(__file__).parent.absolute().parent / "sim"
+                hw = sf.validate_config(str(sim_dir / "sim_config.ini"),
+                                        str(sim_dir / "sim_config.spec"))
+                CSM = fhw.FakeCoronagraphOpticalSystem(**hw['SIMULATION']['OPTICAL_PARAMS'])
+                cam = fhw.FakeDetector(opticalsystem=CSM, **hw['SIMULATION']['CAMERA_PARAMS'])
+            else:
+                cam = self.camera
+
+            # Read config from GUI
+            self.update_config_from_gui()
+            setpointx = float(self.config['EXECUTION']['x setpoint'])
+            setpointy = float(self.config['EXECUTION']['y setpoint'])
+            inner_rad = int(self.config['EXECUTION']['inner radius'])
+            outer_rad = int(self.config['EXECUTION']['outer radius'])
+
+            bgds = {
+                'bkgd':       sf.load_fits_or_none(self.config['CAMERA CALIBRATION']['background file']),
+                'masterflat': sf.load_fits_or_none(self.config['CAMERA CALIBRATION']['masterflat file']),
+                'badpix':     sf.load_fits_or_none(self.config['CAMERA CALIBRATION']['badpix file']),
+            }
+
+            # Take image, calibrate, crop
+            raw = cam.take_image()
+            calibrated = sf.equalize_image(raw, **bgds)
+
+            xs, ys, cropped = qf.crop_to_square(calibrated, cx=setpointx, cy=setpointy,
+                                                 size=outer_rad * 2 + 1)
+
+            # Display in a popup plotter
+            from fpwfsc.qacits.qacits_plotter_qt import QacitsPlotter
+            self._test_plotter = QacitsPlotter(figsize=(400, 400))
+            self._test_plotter.setWindowTitle("Take Test Image")
+            self._test_plotter.update(image=cropped, x_center=setpointx, y_center=setpointy,
+                                      min_radius=inner_rad, max_radius=outer_rad,
+                                      x_coords=xs, y_coords=ys, title="Take Test Image")
+
+        except Exception as e:
+            print(f"Test image error: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            self.test_image_button.setText("Take Test Image")
+            self.test_image_button.setEnabled(True)
 
     def on_reset_dtt_clicked(self):
         """Handle reset DTT offset button click"""

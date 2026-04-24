@@ -197,11 +197,11 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         # Use signal for thread-safe plotting (new method)
         if plot_signal is not None:
-            plottitle = '%.2f'%xo +', '+'%.2f'%yo
+            plottitle = '%.4f'%xo +', '+'%.4f'%yo
             plot_signal.emit(cropped, setpointx, setpointy, inner_rad, outer_rad, xs, ys, plottitle)
         # Legacy support for direct plotter (not thread-safe on macOS)
         elif plotter is not None:
-            plottitle = '%.2f'%xo +', '+'%.2f'%yo
+            plottitle = '%.4f'%xo +', '+'%.4f'%yo
             plotter.update(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys, title=plottitle)
 
