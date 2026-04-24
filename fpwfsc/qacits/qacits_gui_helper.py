@@ -10,6 +10,15 @@ config_info = {
             "help": "Enable live image plotting during the loop",
             "expert": False
         },
+        "log": {
+            "help": "Enable logging of telemetry to a text file each run",
+            "expert": False
+        },
+        "logdir": {
+            "help": "Directory to write log files into",
+            "expert": False,
+            "directory": True
+        },
         "N iterations": {
             "help": "Number of control loop iterations to run",
             "expert": False

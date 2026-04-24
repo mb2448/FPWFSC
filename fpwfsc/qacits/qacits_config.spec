@@ -1,5 +1,7 @@
 [EXECUTION]
     plot = boolean(default=True)
+    log = boolean(default=False)
+    logdir = string(default='.')
     N iterations = integer(min=1, default=100)
     x setpoint = float(default=512.0)
     y setpoint = float(default=512.0)

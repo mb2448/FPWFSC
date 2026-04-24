@@ -131,6 +131,31 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                          output_limits=output_limit,
                          setpoint=centroid_setpoint)
 
+    # Set up logging
+    import time as _time
+    logfile = None
+    if settings['EXECUTION']['log']:
+        import os
+        logdir = settings['EXECUTION']['logdir']
+        if not os.path.isdir(logdir):
+            raise FileNotFoundError(f"Log directory does not exist: {logdir}")
+        logname = f"miniqacits_log_{_time.strftime('%Y%m%d_%H%M%S')}.txt"
+        logpath = os.path.join(logdir, logname)
+        logfile = open(logpath, 'w')
+        # Write config header
+        logfile.write(f"# miniQACITS log — {_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        logfile.write("#\n# Configuration:\n")
+        for section in settings.sections:
+            logfile.write(f"# [{section}]\n")
+            for key, value in settings[section].items():
+                logfile.write(f"#     {key} = {value}\n")
+        logfile.write("#\n")
+        logfile.write("# iteration, timestamp, setpoint_x, setpoint_y, quad_cell_x, quad_cell_y, "
+                      "pid_setpoint_x, pid_setpoint_y, correction_x, correction_y, "
+                      "control_x, control_y\n")
+        logfile.flush()
+        print(f"Logging to: {logpath}")
+
     print(f"Starting control loop with initial setpoint: X={setpointx:.2f}, Y={setpointy:.2f}")
 
     i = 0
@@ -255,9 +280,20 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                        flipx=tt_flipx, flipy=tt_flipy)
         AOSystem.offset_tiptilt(x_ao, y_ao)
 
+        if logfile is not None:
+            logfile.write(f"{i}, {_time.strftime('%H:%M:%S')}, "
+                          f"{setpointx}, {setpointy}, {xo}, {yo}, "
+                          f"{Controller.setpoint[0]}, {Controller.setpoint[1]}, "
+                          f"{correction[0]}, {correction[1]}, "
+                          f"{control[0]}, {control[1]}\n")
+            logfile.flush()
+
         i += 1
 
     print(f"Control loop ended after {i} iterations")
+    if logfile is not None:
+        logfile.close()
+        print(f"Log file closed")
     
     # Only call execute if running standalone with a plotter
     if plotter is not None and plot_signal is None:

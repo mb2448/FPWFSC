@@ -210,7 +210,7 @@ class QacitsConfigGUI(QWidget):
 
     def initUI(self):
         self.setWindowTitle('miniQACITS')
-        self.resize(325, 585)
+        self.resize(325, 610)
 
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)
@@ -646,15 +646,51 @@ class QacitsConfigGUI(QWidget):
 
             for key, value in regular_options:
                 # Skip items rendered custom below
-                if section == 'EXECUTION' and key in ('x setpoint', 'y setpoint'):
+                if section == 'EXECUTION' and key in ('x setpoint', 'y setpoint', 'log', 'logdir'):
                     continue
                 if section == 'PID' and key in ('x centroid offset', 'y centroid offset'):
                     continue
                 item_widget = self.create_item_widget(key, value, section)
                 section_layout.addWidget(item_widget)
 
-            # Custom inline setpoint row + Apply button for EXECUTION
+            # Custom rows for EXECUTION section
             if section == 'EXECUTION':
+                # Log row: log [...][dir text][True/False] — right under plot
+                log_row = QWidget()
+                log_row.setFixedHeight(24)
+                log_layout = QHBoxLayout(log_row)
+                log_layout.setContentsMargins(0, 0, 0, 0)
+                log_layout.setSpacing(3)
+                log_layout.addWidget(QLabel("log"))
+
+                log_browse = QPushButton()
+                log_browse.setIcon(self.style().standardIcon(self.style().SP_DirOpenIcon))
+                log_browse.setFixedSize(22, 22)
+                self.logdir_widget = QLineEdit(str(self.config['EXECUTION']['logdir']))
+                self.logdir_widget.setFixedHeight(20)
+                self.logdir_widget.setMaximumWidth(140)
+                self.logdir_widget.setReadOnly(True)
+                self.logdir_widget.setToolTip(helper.get_help_message('EXECUTION', 'logdir'))
+
+                def browse_logdir(tf=self.logdir_widget):
+                    d = QFileDialog.getExistingDirectory(None, "Log directory", tf.text())
+                    if d:
+                        tf.setText(d)
+                log_browse.clicked.connect(lambda _: browse_logdir())
+
+                log_layout.addWidget(log_browse)
+                log_layout.addWidget(self.logdir_widget)
+
+                self.log_toggle_widget = QComboBox()
+                self.log_toggle_widget.addItems(['True', 'False'])
+                self.log_toggle_widget.setCurrentText(str(self.config['EXECUTION']['log']))
+                self.log_toggle_widget.setFixedHeight(20)
+                self.log_toggle_widget.setToolTip(helper.get_help_message('EXECUTION', 'log'))
+                log_layout.addWidget(self.log_toggle_widget)
+
+                section_layout.addWidget(log_row)
+
+                # Setpoint row: setpoint: x:[ ] y:[ ]
                 sp_row = QWidget()
                 sp_layout = QHBoxLayout(sp_row)
                 sp_layout.setContentsMargins(0, 0, 0, 0)
@@ -774,12 +810,13 @@ class QacitsConfigGUI(QWidget):
             text_field = QLineEdit(str(value))
             text_field.setFixedHeight(20)
             text_field.setPlaceholderText("(none)")
+            text_field.setReadOnly(True)
             text_field.textChanged.connect(lambda text, tf=text_field: self._validate_file_path(tf))
             self._validate_file_path(text_field)  # check initial value
 
-            browse_button = QPushButton("...")
-            browse_button.setFixedWidth(30)
-            browse_button.setFixedHeight(20)
+            browse_button = QPushButton()
+            browse_button.setIcon(self.style().standardIcon(self.style().SP_FileIcon))
+            browse_button.setFixedSize(22, 22)
 
             def browse_file(tf=text_field):
                 start_path = tf.text() if tf.text() else str(Path.home())
@@ -807,10 +844,11 @@ class QacitsConfigGUI(QWidget):
 
             text_field = QLineEdit(str(value))
             text_field.setFixedHeight(20)
+            text_field.setReadOnly(True)
 
-            browse_button = QPushButton("...")
-            browse_button.setFixedWidth(30)
-            browse_button.setFixedHeight(20)
+            browse_button = QPushButton()
+            browse_button.setIcon(self.style().standardIcon(self.style().SP_DirOpenIcon))
+            browse_button.setFixedSize(22, 22)
 
             def browse_directory(tf=text_field):
                 directory = QFileDialog.getExistingDirectory(
@@ -918,6 +956,10 @@ class QacitsConfigGUI(QWidget):
             self.config['PID']['x centroid offset'] = self.x_centroid_offset_widget.text()
         if self.y_centroid_offset_widget is not None:
             self.config['PID']['y centroid offset'] = self.y_centroid_offset_widget.text()
+        if hasattr(self, 'log_toggle_widget'):
+            self.config['EXECUTION']['log'] = self.log_toggle_widget.currentText()
+        if hasattr(self, 'logdir_widget'):
+            self.config['EXECUTION']['logdir'] = self.logdir_widget.text()
 
     def _validate_file_path(self, text_field):
         """Highlight file path text fields orange if the file is missing."""
@@ -975,6 +1017,10 @@ class QacitsConfigGUI(QWidget):
             self.x_centroid_offset_widget.setText(str(self.config['PID']['x centroid offset']))
         if self.y_centroid_offset_widget is not None:
             self.y_centroid_offset_widget.setText(str(self.config['PID']['y centroid offset']))
+        if hasattr(self, 'log_toggle_widget'):
+            self.log_toggle_widget.setCurrentText(str(self.config['EXECUTION']['log']))
+        if hasattr(self, 'logdir_widget'):
+            self.logdir_widget.setText(str(self.config['EXECUTION']['logdir']))
 
     def update_section_widgets(self, section_layout, config_section):
         """Update widgets in a section with values from the config"""
