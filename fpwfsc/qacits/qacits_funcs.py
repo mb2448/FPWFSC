@@ -1,35 +1,5 @@
 import numpy as np
 
-def test_crop_visualization(test_img=None, cx=None, cy=None, size=None):
-    """Test function to visualize original and cropped images with coordinate verification."""
-    import matplotlib.pyplot as plt
-
-    # Perform the crop
-    x_coords, y_coords, cropped_img = crop_to_square(image=test_img, cx=cx, cy=cy, size=size)
-
-    # Create side-by-side plots
-    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-    # Original image with crop region
-    ax1.imshow(test_img, cmap='viridis')
-    ax1.axhline(cy, color='red', linestyle='--', alpha=0.7)
-    ax1.axvline(cx, color='red', linestyle='--', alpha=0.7)
-    half_size = size // 2
-    from matplotlib.patches import Rectangle
-    rect = Rectangle((cx-half_size, cy-half_size), size, size, linewidth=2, edgecolor='red', facecolor='none')
-    ax1.add_patch(rect)
-    ax1.set_title('Original Image')
-
-    # Cropped image with original coordinates
-    ax2.imshow(cropped_img, cmap='viridis', extent=[x_coords.min(), x_coords.max(), y_coords.max(), y_coords.min()])
-    ax2.axhline(cy, color='red', linestyle='--', alpha=0.7)
-    ax2.axvline(cx, color='red', linestyle='--', alpha=0.7)
-    ax2.set_title('Cropped (Original Coordinates)')
-
-    plt.tight_layout()
-    plt.show()
-    return x_coords, y_coords, cropped_img
-
 def crop_to_square(image=None, cx=None, cy=None, size=None):
     """
     Crops an image to a square centered at specified coordinates.
@@ -139,66 +109,35 @@ def compute_quad_cell_flux(image=None, x_center=None, y_center=None, min_radius=
     # Create annulus mask (pixels within min_radius to max_radius)
     annulus_mask = (distances >= min_radius) & (distances <= max_radius)
 
-    # Create quadrant masks within the annulus
-    # Top left: dx <= 0, dy >= 0 (dy positive means higher y coordinate, which is up in display)
-    top_left_mask = annulus_mask & (dx <= 0) & (dy >= 0)
+    # Create quadrant masks within the annulus.
+    # In numpy array coordinates, increasing y-index = downward on screen.
+    # dy >= 0 means larger row index = below center in display.
+    # Quadrant labeling (A/B/C/D) follows array index convention, not sky.
+    A_mask = annulus_mask & (dx <= 0) & (dy >= 0)  # left,  larger y-index
+    B_mask = annulus_mask & (dx > 0)  & (dy >= 0)  # right, larger y-index
+    C_mask = annulus_mask & (dx <= 0) & (dy < 0)   # left,  smaller y-index
+    D_mask = annulus_mask & (dx > 0)  & (dy < 0)   # right, smaller y-index
 
-    # Top right: dx > 0, dy >= 0
-    top_right_mask = annulus_mask & (dx > 0) & (dy >= 0)
+    # Flux in each quadrant
+    A = np.sum(image[A_mask])
+    B = np.sum(image[B_mask])
+    C = np.sum(image[C_mask])
+    D = np.sum(image[D_mask])
 
-    # Bottom left: dx <= 0, dy < 0 (dy negative means lower y coordinate, which is down in display)
-    bottom_left_mask = annulus_mask & (dx <= 0) & (dy < 0)
-
-    # Bottom right: dx > 0, dy < 0
-    bottom_right_mask = annulus_mask & (dx > 0) & (dy < 0)
-
-    # Calculate flux in each quadrant
-    A = np.sum(image[top_left_mask])      # Top left
-    B = np.sum(image[top_right_mask])     # Top right
-    C = np.sum(image[bottom_left_mask])   # Bottom left
-    D = np.sum(image[bottom_right_mask])  # Bottom right
-
-    # Calculate total flux
     total_flux = A + B + C + D
 
-    # Avoid division by zero
     if total_flux == 0:
         return 0.0, 0.0
 
-    # Calculate centroid offsets
-    y_offset = (A + B - C - D) / total_flux  # Positive = shift up
-    x_offset = (B + D - A - C) / total_flux  # Positive = shift right
+    # Centroid offsets in array-index convention:
+    #   x_offset > 0 = star is at larger column index (right in display)
+    #   y_offset > 0 = star is at larger row index (down in display)
+    # The PID + tip-tilt calibration (gain, angle, flips) handles the
+    # mapping from these offsets to the correct AO correction direction.
+    y_offset = (A + B - C - D) / total_flux
+    x_offset = (B + D - A - C) / total_flux
 
     return x_offset, y_offset
-
-
-def visualize_quad_cell(image=None, x_center=None, y_center=None, min_radius=None, max_radius=None, x_coords=None, y_coords=None):
-    """Simple visualization of quad cell mask overlay."""
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Circle
-
-    # Create coordinate arrays if not provided
-    if x_coords is None or y_coords is None:
-        height, width = image.shape[:2]
-        y_indices, x_indices = np.mgrid[0:height, 0:width]
-        x_coords = x_indices if x_coords is None else x_coords
-        y_coords = y_indices if y_coords is None else y_coords
-
-    # Show image with mask outline
-    plt.figure(figsize=(8, 6))
-    plt.imshow(image, cmap='viridis', extent=[x_coords.min(), x_coords.max(), y_coords.max(), y_coords.min()])
-
-    # Add circles and crosshair
-    circle_inner = Circle((x_center, y_center), min_radius, fill=False, color='red', linewidth=2)
-    circle_outer = Circle((x_center, y_center), max_radius, fill=False, color='red', linewidth=2)
-    plt.gca().add_patch(circle_inner)
-    plt.gca().add_patch(circle_outer)
-    plt.axhline(y_center, color='red', linestyle='--', alpha=0.7)
-    plt.axvline(x_center, color='red', linestyle='--', alpha=0.7)
-    plt.plot(x_center, y_center, 'r+', markersize=10, markeredgewidth=2)
-
-    plt.title('Quad Cell Mask Overlay')
-    plt.show()
 
 
 if __name__ == "__main__":

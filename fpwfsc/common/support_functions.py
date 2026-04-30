@@ -417,10 +417,11 @@ def equalize_image(data, bkgd=None, masterflat=None, badpix=None):
         bkgd = estimate_background_from_border(data)
     if masterflat is None:
         masterflat = 1
+    calibrated = (data-bkgd)/masterflat
     if badpix is None:
-        return (data-bkgd)/masterflat
+        return calibrated
     else:
-        return removebadpix(data-bkgd, badpix)/masterflat
+        return removebadpix(calibrated, badpix)
 
 def square_crop(image, npix, xcen, ycen):
     """Crop an image to npix x npix, about the point xcen, ycen."""
@@ -1152,6 +1153,9 @@ def setup_bgd_dict(directory_path):
 
 def load_fits_or_none(path):
     """Load the primary HDU data from a FITS file, or return None if path is empty or missing."""
-    if path and os.path.isfile(path):
+    if not path:
+        return None
+    if os.path.isfile(path):
         return fits.getdata(path)
+    print(f"WARNING: calibration file not found: {path}")
     return None

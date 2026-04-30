@@ -54,7 +54,7 @@ class PID:
         self.output_limits = output_limits
 
         # Internal state
-        self._integral = 0.0
+        self._integral = None
         self._last_input = None
 
     def iterate(self, current_position):
@@ -86,7 +86,7 @@ class PID:
         proportional = self.Kp * error
 
         # Integral term with anti-windup
-        if self._integral is None or (position.ndim > 0 and np.isscalar(self._integral)):
+        if self._integral is None:
             self._integral = np.zeros_like(position)
 
         self._integral += self.Ki * error
@@ -121,7 +121,7 @@ class PID:
 
     def reset(self):
         """Reset PID internal state."""
-        self._integral = 0.0
+        self._integral = None
         self._last_input = None
 
     @property

@@ -43,20 +43,20 @@ def center_image(small_image, large_size, center_position):
         The larger image with the small image centered at the specified position
     """
     large_image = np.zeros(large_size, dtype=small_image.dtype)
-    sh, sw = small_image.shape[:2]
+    sh, sw = small_image.shape[:2]  # sh = rows, sw = cols
     lr, lc = large_size[:2]
 
     # center_position is (x, y) = (col, row)
-    col_start = center_position[0] - sh // 2
-    row_start = center_position[1] - sw // 2
+    col_start = center_position[0] - sw // 2
+    row_start = center_position[1] - sh // 2
 
     # Clip: source region within small_image, dest region within large_image
     src_r0 = max(0, -row_start)
     src_c0 = max(0, -col_start)
     dst_r0 = max(0, row_start)
     dst_c0 = max(0, col_start)
-    dst_r1 = min(lr, row_start + sw)
-    dst_c1 = min(lc, col_start + sh)
+    dst_r1 = min(lr, row_start + sh)
+    dst_c1 = min(lc, col_start + sw)
     src_r1 = src_r0 + (dst_r1 - dst_r0)
     src_c1 = src_c0 + (dst_c1 - dst_c0)
 
@@ -337,7 +337,8 @@ class FakeDetector:
              field_center_y = None,
              rotation_angle_deg = None, #not yet implemented
              opticalsystem=None,
-             output_directory=None):
+             output_directory=None,
+             readout_delay=0):
         self.flux = flux
         self.input_grid = opticalsystem.focal_grid
         self.read_noise = read_noise
@@ -351,6 +352,7 @@ class FakeDetector:
         self.field_center_y = field_center_y
         self.rotation_angle_deg = rotation_angle_deg
         self.output_directory = output_directory
+        self.readout_delay = readout_delay
 
         # passed by reference...so the latest efields will update
         self.opticalsystem = opticalsystem
@@ -408,6 +410,9 @@ class FakeDetector:
         output_image += self.bias_offset
         if self.badpixelmask is not None:
             output_image[self.badpixelmask] = np.random.uniform(0.9, 1.1, size=self.nbadpix)*100*np.std(output_image)
+
+        if self.readout_delay > 0:
+            time.sleep(self.readout_delay)
 
         print(f"Sim image acquired at {time.strftime('%H:%M:%S')}  shape={output_image.shape}")
 

@@ -13,19 +13,22 @@ import fpwfsc.qacits.PID as PID
 def printstatus(iteration=None,
                 setpoint=None,
                 quad_cell=None,
+                centroid_setpoint=None,
                 correction=None,
                 control=None):
     print("\n\n")
     print("Iteration: ", iteration)
     print("Setpoint (px): ", setpoint)
     print("Quad cell (x, y): ", quad_cell)
-    print("PID output (px): ", correction)
+    print("PID setpoint (centroid): ", centroid_setpoint)
+    print("PID output (centroid): ", correction)
     print("Control (t/t): ", control)
     return
 
 def run(camera=None, aosystem=None, config=None, configspec=None,
         my_event=None, plotter=None, plot_signal=None,
-        setpoint_queue=None):
+        param_update_queue=None, centroid_offset_queue=None,
+        centroid_offset_feedback=None, warning_queue=None):
     """
     Run the QACITS tracking loop
 
@@ -39,8 +42,15 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     plotter : DEPRECATED - use plot_signal instead
     plot_signal : PyQt signal for thread-safe plotting (emits: image, x_center, y_center,
                   min_radius, max_radius, x_coords, y_coords, title)
-    setpoint_queue : queue.Queue, optional
-        Queue for receiving setpoint updates from GUI without resetting PID
+    param_update_queue : queue.Queue, optional
+        Queue for receiving parameter updates from GUI (dict of key:value).
+        Supports: setpointx, setpointy, inner_rad, outer_rad,
+        Kp, Ki, Kd, output_limits, tt_gain, tt_rot_deg, tt_flipx, tt_flipy.
+    centroid_offset_queue : queue.Queue, optional
+        Queue for receiving centroid offset updates. Send (x, y) to set a
+        specific offset, or None to capture the current quad-cell reading.
+    centroid_offset_feedback : queue.Queue, optional
+        Queue for sending back applied centroid offsets to the GUI.
     """
     if my_event is None:
         my_event = threading.Event()
@@ -91,6 +101,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     if outer_rad <= inner_rad:
         raise ValueError(f"outer radius ({outer_rad}) must be strictly greater than inner radius ({inner_rad})")
 
+    centroid_offset_x = settings['PID']['x centroid offset']
+    centroid_offset_y = settings['PID']['y centroid offset']
     Kp = settings['PID']['Kp']
     Ki = settings['PID']['Ki']
     Kd = settings['PID']['Kd']
@@ -108,36 +120,94 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                                timeout=settings['HITCHHIKER MODE']['timeout'])
 
     if simmode:
-        # Inject an initial offset so the loop has something to correct
-        x0, y0 = dm.rotate_flip_tt(3e-6, -3e-6, rot_deg=tt_rot_deg,
-                                   flipx=tt_flipx, flipy=tt_flipy)
-        AOSystem.offset_tiptilt(x0, y0)
+        # Inject a fixed physical tilt so the loop has something to correct.
+        # This is independent of the controller's rotation/flip calibration.
+        AOSystem.offset_tiptilt(3e-6, -3e-6)
 
+    centroid_setpoint = np.array([centroid_offset_x, centroid_offset_y])
     Controller = PID.PID(Kp=Kp,
                          Ki=Ki,
                          Kd=Kd,
                          output_limits=output_limit,
-                         setpoint=np.array([0,0]))
+                         setpoint=centroid_setpoint)
+
+    # Set up logging
+    import time as _time
+    logfile = None
+    if settings['EXECUTION']['log']:
+        import os
+        logdir = settings['EXECUTION']['logdir']
+        if not os.path.isdir(logdir):
+            raise FileNotFoundError(f"Log directory does not exist: {logdir}")
+        logname = f"miniqacits_log_{_time.strftime('%Y%m%d_%H%M%S')}.txt"
+        logpath = os.path.join(logdir, logname)
+        logfile = open(logpath, 'w')
+        # Write config header
+        logfile.write(f"# miniQACITS log — {_time.strftime('%Y-%m-%d %H:%M:%S')}\n")
+        logfile.write("#\n# Configuration:\n")
+        for section in settings.sections:
+            logfile.write(f"# [{section}]\n")
+            for key, value in settings[section].items():
+                logfile.write(f"#     {key} = {value}\n")
+        logfile.write("#\n")
+        logfile.write("# iteration, timestamp, setpoint_x, setpoint_y, quad_cell_x, quad_cell_y, "
+                      "pid_setpoint_x, pid_setpoint_y, correction_x, correction_y, "
+                      "control_x, control_y\n")
+        logfile.flush()
+        print(f"Logging to: {logpath}")
 
     print(f"Starting control loop with initial setpoint: X={setpointx:.2f}, Y={setpointy:.2f}")
 
-    for i in range(n_iter):
+    i = 0
+    while i < n_iter:
         # Check if stop event is set
         if my_event is not None and my_event.is_set():
             print('Stop event detected, stopping loop')
             break
         
-        # Check for setpoint updates from queue
-        if setpoint_queue is not None:
+        # Check for parameter updates from GUI
+        if param_update_queue is not None:
             try:
-                # Non-blocking get - only update if there's a new setpoint
-                new_setpoint = setpoint_queue.get_nowait()
-                setpointy, setpointx = new_setpoint  # Queue has (y, x) order
+                params = param_update_queue.get_nowait()
+                n_iter = params.get('n_iter', n_iter)
+                setpointx = params.get('setpointx', setpointx)
+                setpointy = params.get('setpointy', setpointy)
                 setpoint = np.array([setpointy, setpointx])
-                print(f"✓ Setpoint updated mid-loop: X={setpointx:.2f}, Y={setpointy:.2f}")
-                # Note: We DO NOT reset the PID controller - it maintains its state
+                inner_rad = params.get('inner_rad', inner_rad)
+                outer_rad = params.get('outer_rad', outer_rad)
+                Controller.Kp = params.get('Kp', Controller.Kp)
+                Controller.Ki = params.get('Ki', Controller.Ki)
+                Controller.Kd = params.get('Kd', Controller.Kd)
+                Controller.output_limits = params.get('output_limits', Controller.output_limits)
+                tt_gain = params.get('tt_gain', tt_gain)
+                tt_rot_deg = params.get('tt_rot_deg', tt_rot_deg)
+                tt_flipx = params.get('tt_flipx', tt_flipx)
+                tt_flipy = params.get('tt_flipy', tt_flipy)
+                if 'centroid_offset_x' in params or 'centroid_offset_y' in params:
+                    centroid_setpoint = np.array([
+                        params.get('centroid_offset_x', centroid_setpoint[0]),
+                        params.get('centroid_offset_y', centroid_setpoint[1])])
+                    Controller.update_setpoint(centroid_setpoint)
+                # Reload calibration files if paths changed
+                if any(k in params for k in ('background_file', 'masterflat_file', 'badpix_file')):
+                    new_bgds = {
+                        'bkgd':       sf.load_fits_or_none(params.get('background_file', '')),
+                        'masterflat': sf.load_fits_or_none(params.get('masterflat_file', '')),
+                        'badpix':     sf.load_fits_or_none(params.get('badpix_file', '')),
+                    }
+                    # Check shapes, warn and drop mismatched files
+                    for key, arr in new_bgds.items():
+                        if arr is not None and arr.shape != data_speck_raw.shape:
+                            msg = f"Calibration '{key}' shape {arr.shape} doesn't match image {data_speck_raw.shape} — ignoring"
+                            print(f"WARNING: {msg}")
+                            if warning_queue is not None:
+                                warning_queue.put(msg)
+                            new_bgds[key] = None
+                    bgds = new_bgds
+                    print(f"Calibration files reloaded")
+                print(f"Loop parameters updated: setpoint=({setpointx:.1f}, {setpointy:.1f}), "
+                      f"radii=({inner_rad}, {outer_rad}), Kp={Controller.Kp}, Ki={Controller.Ki}")
             except queue.Empty:
-                # No new setpoint, continue with current
                 pass
         
         if settings['HITCHHIKER MODE']['hitchhike']:
@@ -169,13 +239,29 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         xo, yo = qf.compute_quad_cell_flux(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys)
 
+        # Check for centroid offset updates
+        if centroid_offset_queue is not None:
+            try:
+                new_offset = centroid_offset_queue.get_nowait()
+                if new_offset is None:
+                    # Capture current reading
+                    centroid_setpoint = np.array([xo, yo])
+                else:
+                    centroid_setpoint = np.array(new_offset)
+                Controller.update_setpoint(centroid_setpoint)
+                print(f"Centroid offset set to: x={centroid_setpoint[0]:.4f}, y={centroid_setpoint[1]:.4f}")
+                if centroid_offset_feedback is not None:
+                    centroid_offset_feedback.put((centroid_setpoint[0], centroid_setpoint[1]))
+            except queue.Empty:
+                pass
+
         # Use signal for thread-safe plotting (new method)
         if plot_signal is not None:
-            plottitle = '%.2f'%xo +', '+'%.2f'%yo
+            plottitle = f"Centroid: {xo:.4f}, {yo:.4f}  |  It: {i+1}/{n_iter}"
             plot_signal.emit(cropped, setpointx, setpointy, inner_rad, outer_rad, xs, ys, plottitle)
         # Legacy support for direct plotter (not thread-safe on macOS)
         elif plotter is not None:
-            plottitle = '%.2f'%xo +', '+'%.2f'%yo
+            plottitle = f"Centroid: {xo:.4f}, {yo:.4f}  |  It: {i+1}/{n_iter}"
             plotter.update(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys, title=plottitle)
 
@@ -186,14 +272,28 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         printstatus(iteration=i,
                     setpoint=setpoint,
                     quad_cell=np.array([xo, yo]),
+                    centroid_setpoint=Controller.setpoint,
                     correction=correction,
                     control=control)
         
         x_ao, y_ao = dm.rotate_flip_tt(control[0], control[1], rot_deg=tt_rot_deg,
                                        flipx=tt_flipx, flipy=tt_flipy)
         AOSystem.offset_tiptilt(x_ao, y_ao)
-    
-    print(f"Control loop ended after {i+1 if n_iter > 0 else 0} iterations")
+
+        if logfile is not None:
+            logfile.write(f"{i}, {_time.strftime('%H:%M:%S')}, "
+                          f"{setpointx}, {setpointy}, {xo}, {yo}, "
+                          f"{Controller.setpoint[0]}, {Controller.setpoint[1]}, "
+                          f"{correction[0]}, {correction[1]}, "
+                          f"{control[0]}, {control[1]}\n")
+            logfile.flush()
+
+        i += 1
+
+    print(f"Control loop ended after {i} iterations")
+    if logfile is not None:
+        logfile.close()
+        print(f"Log file closed")
     
     # Only call execute if running standalone with a plotter
     if plotter is not None and plot_signal is None:

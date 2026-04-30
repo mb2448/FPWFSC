@@ -32,34 +32,42 @@ class AlgorithmThread(QThread):
     
     # Signal to update the plot from the main thread
     plot_update_signal = pyqtSignal(object, float, float, float, float, object, object, str)
+    error_signal = pyqtSignal(str)
     
-    def __init__(self, camera, aosystem, config, spec_file, my_event, main_window, setpoint_queue):
+    def __init__(self, camera, aosystem, config, spec_file, my_event, main_window,
+                 param_update_queue, centroid_offset_queue, centroid_offset_feedback,
+                 warning_queue):
         super().__init__()
         self.camera = camera
         self.aosystem = aosystem
         self.config = config
         self.spec_file = spec_file
         self.my_event = my_event
-        self.main_window = main_window  # Reference to main window, not plotter directly
-        self.setpoint_queue = setpoint_queue  # Queue for setpoint updates
+        self.main_window = main_window
+        self.param_update_queue = param_update_queue
+        self.centroid_offset_queue = centroid_offset_queue
+        self.centroid_offset_feedback = centroid_offset_feedback
+        self.warning_queue = warning_queue
 
     def run(self):
         try:
-            # Run the qacits tracking algorithm in this thread
-            # Pass the signal and the queue
             original_run(camera=self.camera,
                          aosystem=self.aosystem,
                          config=self.config,
                          configspec=self.spec_file,
                          my_event=self.my_event,
-                         plotter=None,  # Don't pass plotter directly
+                         plotter=None,
                          plot_signal=self.plot_update_signal if self.main_window.plotter else None,
-                         setpoint_queue=self.setpoint_queue)  # Pass the queue
+                         param_update_queue=self.param_update_queue,
+                         centroid_offset_queue=self.centroid_offset_queue,
+                         centroid_offset_feedback=self.centroid_offset_feedback,
+                         warning_queue=self.warning_queue)
         except Exception as e:
             import traceback
             print(f"Error in algorithm thread: {str(e)}")
             print("Full traceback:")
             traceback.print_exc()
+            self.error_signal.emit(str(e))
         finally:
             print("Algorithm thread finished")
 
@@ -161,13 +169,22 @@ class QacitsConfigGUI(QWidget):
         self.plotter = None
         self._stopping = False
         
-        # Queue for thread-safe setpoint updates
-        self.setpoint_queue = queue.Queue()
-        self.current_setpoint = None  # Will be set from config when loop starts
-        
+        # Queue for parameter updates to the running loop
+        self.param_update_queue = queue.Queue()
+
+        # Queue for centroid offset updates to the running loop
+        self.centroid_offset_queue = queue.Queue()
+        self._capture_on_first_iteration = False
+        # Queue for feedback from the loop after applying an offset
+        self.centroid_offset_feedback = queue.Queue()
+        # Queue for non-fatal warnings from the loop
+        self.warning_queue = queue.Queue()
+
         # References to setpoint input widgets (set during create_widgets)
         self.x_setpoint_widget = None
         self.y_setpoint_widget = None
+        self.x_centroid_offset_widget = None
+        self.y_centroid_offset_widget = None
 
         self.initUI()
 
@@ -185,17 +202,15 @@ class QacitsConfigGUI(QWidget):
                 self.algorithm_thread.plot_update_signal.disconnect()
             except Exception:
                 pass
-            try:
-                self.algorithm_thread.terminate()
-            except Exception:
-                pass
+            print("Waiting for algorithm thread to finish...")
+            self.algorithm_thread.wait(3000)
 
         event.accept()
-        os._exit(0)
+        QApplication.quit()
 
     def initUI(self):
         self.setWindowTitle('miniQACITS')
-        self.resize(325, 575)
+        self.resize(325, 610)
 
         main_layout = QVBoxLayout(self)
         main_layout.setSpacing(4)
@@ -252,20 +267,40 @@ class QacitsConfigGUI(QWidget):
         button_layout.addLayout(config_buttons_layout)
         button_layout.addSpacing(5)
 
+        self.update_params_button = QPushButton('Update Loop Parameters')
+        self.update_params_button.setFont(QFont('Arial', 12, QFont.Bold))
+        self.update_params_button.clicked.connect(self.on_update_params_clicked)
+        self.update_params_button.setEnabled(False)
+        self.update_params_button.setStyleSheet("background-color: #4CAF50; color: white;")
+        button_layout.addWidget(self.update_params_button)
+
+        button_layout.addSpacing(5)
+
         self.run_stop_button = QPushButton('Run')
-        self.run_stop_button.setFont(QFont('Arial', 10, QFont.Bold))
+        self.run_stop_button.setFont(QFont('Arial', 12, QFont.Bold))
         self.run_stop_button.clicked.connect(self.toggle_run_stop)
         self.run_stop_button.setStyleSheet("background-color: green; color: white;")
         button_layout.addWidget(self.run_stop_button)
 
         button_layout.addSpacing(5)
 
-        # Reset DTT Offset button
+        # Bottom row: Reset DTT + Take Test Image side by side
+        bottom_row = QHBoxLayout()
+        bottom_row.setSpacing(5)
+
         self.reset_dtt_button = QPushButton('Reset DTT Offset')
-        self.reset_dtt_button.setFont(QFont('Arial', 10, QFont.Bold))
+        self.reset_dtt_button.setFont(QFont('Arial', 12, QFont.Bold))
         self.reset_dtt_button.clicked.connect(self.on_reset_dtt_clicked)
         self.reset_dtt_button.setStyleSheet("background-color: #FF9800; color: white;")
-        button_layout.addWidget(self.reset_dtt_button)
+        bottom_row.addWidget(self.reset_dtt_button)
+
+        self.test_image_button = QPushButton('Take Test Image')
+        self.test_image_button.setFont(QFont('Arial', 12, QFont.Bold))
+        self.test_image_button.clicked.connect(self.on_test_image_clicked)
+        self.test_image_button.setStyleSheet("background-color: #607D8B; color: white;")
+        bottom_row.addWidget(self.test_image_button)
+
+        button_layout.addLayout(bottom_row)
 
         main_layout.addLayout(button_layout)
 
@@ -292,54 +327,162 @@ class QacitsConfigGUI(QWidget):
                 self.hardware_select.blockSignals(False)
                 self.camera, self.aosystem = helper.load_instruments('Sim')
 
-    def on_update_setpoint_clicked(self):
-        """Handle update setpoint button click - reads from GUI text fields"""
-        # Check if widgets are available
-        if self.x_setpoint_widget is None or self.y_setpoint_widget is None:
-            print("Error: Setpoint widgets not found. Cannot update setpoint.")
-            return
-        
+    def on_update_params_clicked(self):
+        """Push all current GUI values to the running loop."""
         try:
-            # Get values from the GUI text fields
-            x_value = self.get_widget_value(self.x_setpoint_widget)
-            y_value = self.get_widget_value(self.y_setpoint_widget)
-            
-            # Convert to float
-            new_x = float(x_value)
-            new_y = float(y_value)
-            
-            # Send to control loop via queue (note: y, x order to match numpy array convention)
-            self.setpoint_queue.put((new_y, new_x))
-            
-            # Update stored value
-            self.current_setpoint = (new_x, new_y)
-            
-            print(f"✓ Setpoint update queued from GUI: X={new_x:.2f}, Y={new_y:.2f}")
-            
+            self.update_config_from_gui()
+            params = {
+                'n_iter': int(self.config['EXECUTION']['N iterations']),
+                'setpointx': float(self.config['EXECUTION']['x setpoint']),
+                'setpointy': float(self.config['EXECUTION']['y setpoint']),
+                'inner_rad': int(self.config['EXECUTION']['inner radius']),
+                'outer_rad': int(self.config['EXECUTION']['outer radius']),
+                'Kp': float(self.config['PID']['Kp']),
+                'Ki': float(self.config['PID']['Ki']),
+                'Kd': float(self.config['PID']['Kd']),
+                'output_limits': float(self.config['PID']['output_limits']),
+                'tt_gain': float(self.config['AO']['tip tilt gain']),
+                'tt_rot_deg': float(self.config['AO']['tip tilt angle (deg)']),
+                'tt_flipx': str(self.config['AO']['tip tilt flip x']).lower() == 'true',
+                'tt_flipy': str(self.config['AO']['tip tilt flip y']).lower() == 'true',
+                'centroid_offset_x': float(self.config['PID']['x centroid offset']),
+                'centroid_offset_y': float(self.config['PID']['y centroid offset']),
+                'background_file': self.config['CAMERA CALIBRATION']['background file'],
+                'masterflat_file': self.config['CAMERA CALIBRATION']['masterflat file'],
+                'badpix_file': self.config['CAMERA CALIBRATION']['badpix file'],
+            }
+            self.param_update_queue.put(params)
+            print(f"Loop parameters queued for update")
         except (ValueError, TypeError) as e:
-            print(f"Error: Invalid setpoint values in GUI fields. Please check x setpoint and y setpoint are valid numbers.")
-            print(f"Details: {e}")
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Invalid parameter", str(e))
+
+    def on_capture_offset_clicked(self):
+        """Tell the running loop to capture the current quad-cell reading as the PID setpoint.
+        Can be clicked before Run to arm capture on the first iteration."""
+        if self.is_running:
+            self.centroid_offset_queue.put(None)
+        else:
+            self._capture_on_first_iteration = True
+        self.capture_offset_button.setText("Capturing...")
+        self.capture_offset_button.setEnabled(False)
+        self.capture_offset_button.setStyleSheet("background-color: #90CAF9; color: white;")
+
+    def on_zero_offset_clicked(self):
+        """Reset centroid offset to (0, 0) — return to normal centering."""
+        self.x_centroid_offset_widget.setText("0.0")
+        self.y_centroid_offset_widget.setText("0.0")
+        if self.is_running:
+            self.centroid_offset_queue.put((0.0, 0.0))
+        print("Centroid offset zeroed")
+
+    def on_test_image_clicked(self):
+        """Take a single image and display the cropped region around the setpoint."""
+        self.test_image_button.setText("Taking...")
+        self.test_image_button.setEnabled(False)
+        QApplication.processEvents()
+
+        try:
+            from pathlib import Path
+            import fpwfsc.common.support_functions as sf
+            import fpwfsc.qacits.qacits_funcs as qf
+
+            # Get or build camera
+            if self.camera == 'Sim':
+                import fpwfsc.common.fake_hardware as fhw
+                sim_dir = Path(__file__).parent.absolute().parent / "sim"
+                hw = sf.validate_config(str(sim_dir / "sim_config.ini"),
+                                        str(sim_dir / "sim_config.spec"))
+                CSM = fhw.FakeCoronagraphOpticalSystem(**hw['SIMULATION']['OPTICAL_PARAMS'])
+                cam = fhw.FakeDetector(opticalsystem=CSM, **hw['SIMULATION']['CAMERA_PARAMS'])
+            else:
+                cam = self.camera
+
+            # Read config from GUI
+            self.update_config_from_gui()
+            setpointx = float(self.config['EXECUTION']['x setpoint'])
+            setpointy = float(self.config['EXECUTION']['y setpoint'])
+            inner_rad = int(self.config['EXECUTION']['inner radius'])
+            outer_rad = int(self.config['EXECUTION']['outer radius'])
+
+            bgds = {
+                'bkgd':       sf.load_fits_or_none(self.config['CAMERA CALIBRATION']['background file']),
+                'masterflat': sf.load_fits_or_none(self.config['CAMERA CALIBRATION']['masterflat file']),
+                'badpix':     sf.load_fits_or_none(self.config['CAMERA CALIBRATION']['badpix file']),
+            }
+
+            # Take image, calibrate, crop
+            raw = cam.take_image()
+            calibrated = sf.equalize_image(raw, **bgds)
+
+            xs, ys, cropped = qf.crop_to_square(calibrated, cx=setpointx, cy=setpointy,
+                                                 size=outer_rad * 2 + 1)
+
+            # Display in a popup plotter
+            from fpwfsc.qacits.qacits_plotter_qt import QacitsPlotter
+            self._test_plotter = QacitsPlotter(figsize=(400, 400))
+            self._test_plotter.setWindowTitle("Take Test Image")
+            self._test_plotter.update(image=cropped, x_center=setpointx, y_center=setpointy,
+                                      min_radius=inner_rad, max_radius=outer_rad,
+                                      x_coords=xs, y_coords=ys, title="Take Test Image")
+
+        except Exception as e:
+            print(f"Test image error: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            self.test_image_button.setText("Take Test Image")
+            self.test_image_button.setEnabled(True)
 
     def on_reset_dtt_clicked(self):
         """Handle reset DTT offset button click"""
-        if self.aosystem is not None:
-            try:
-                self.aosystem.zero_tiptilt()
-                print("DTT offset reset to zero.")
-            except Exception as e:
-                print(f"Error resetting DTT offset: {e}")
-        else:
-            print("No AO system loaded. Cannot reset DTT offset.")
+        if self.aosystem is None or isinstance(self.aosystem, str):
+            print("No AO system loaded (sim mode). Cannot reset DTT offset.")
+            return
+        try:
+            self.aosystem.zero_tiptilt()
+            print("DTT offset reset to zero.")
+        except Exception as e:
+            print(f"Error resetting DTT offset: {e}")
 
     def check_thread_status(self):
-        """Check if algorithm thread is still running"""
+        """Check if algorithm thread is still running, and poll for feedback/warnings"""
+        # Check for warnings from the loop
+        try:
+            msg = self.warning_queue.get_nowait()
+            from PyQt5.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Warning", msg)
+        except queue.Empty:
+            pass
+
+        # Check for centroid offset feedback from the loop
+        try:
+            xo, yo = self.centroid_offset_feedback.get_nowait()
+            self.x_centroid_offset_widget.setText(f"{xo:.4f}")
+            self.y_centroid_offset_widget.setText(f"{yo:.4f}")
+            self.capture_offset_button.setText("Capture Offset")
+            self.capture_offset_button.setEnabled(True)
+            self.capture_offset_button.setStyleSheet("background-color: #2196F3; color: white;")
+        except queue.Empty:
+            pass
+
         if hasattr(self, 'algorithm_thread'):
             if not self.algorithm_thread.isRunning() and (self.is_running or self._stopping):
                 self.is_running = False
                 self.run_stop_button.setText('Run')
                 self.run_stop_button.setStyleSheet("background-color: green; color: white;")
-                self.update_setpoint_button.setEnabled(False)  # Disable when stopped
+                self.update_params_button.setEnabled(False)
+                # Keep capture_offset_button enabled so it can be pre-armed
+                self.capture_offset_button.setEnabled(True)
+                self.capture_offset_button.setText("Capture Offset")
+                self.capture_offset_button.setStyleSheet("background-color: #2196F3; color: white;")
                 self.cleanup_resources()
+
+    @pyqtSlot(str)
+    def handle_thread_error(self, message):
+        """Show algorithm thread errors as a popup in the GUI."""
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.warning(self, "Algorithm Error", message)
 
     @pyqtSlot(object, float, float, float, float, object, object, str)
     def handle_plot_update(self, image, x_center, y_center, min_radius, max_radius, x_coords, y_coords, title):
@@ -355,31 +498,35 @@ class QacitsConfigGUI(QWidget):
             self.is_running = True
             self.run_stop_button.setText('Stop')
             self.run_stop_button.setStyleSheet("background-color: red; color: white;")
-            self.update_setpoint_button.setEnabled(True)  # Enable when running
+            self.update_params_button.setEnabled(True)
+            self.capture_offset_button.setEnabled(True)
             print("Running")
             self.my_event = threading.Event()
-            
-            # Clear the queue and update current setpoint from config before starting
-            while not self.setpoint_queue.empty():
-                try:
-                    self.setpoint_queue.get_nowait()
-                except queue.Empty:
-                    break
-            
-            # Get initial setpoint from config
+
+            # Clear queues before starting
+            for q in (self.param_update_queue, self.centroid_offset_queue, self.centroid_offset_feedback, self.warning_queue):
+                while not q.empty():
+                    try:
+                        q.get_nowait()
+                    except queue.Empty:
+                        break
+
+            # Re-arm capture if it was pre-armed before Run
+            if self._capture_on_first_iteration:
+                self.centroid_offset_queue.put(None)
+                self._capture_on_first_iteration = False
+
+            # Update config from GUI before starting
             self.update_config_from_gui()
-            self.current_setpoint = (
-                float(self.config['EXECUTION']['x setpoint']),
-                float(self.config['EXECUTION']['y setpoint'])
-            )
-            
+
             self.run_config()
         else:
             self.is_running = False
             self.run_stop_button.setText('Run')
             self.run_stop_button.setStyleSheet("background-color: green; color: white;")
             self.run_stop_button.setEnabled(False)
-            self.update_setpoint_button.setEnabled(False)  # Disable when stopping
+            self.update_params_button.setEnabled(False)
+            # Keep capture_offset_button enabled for pre-arming
             print("Stopping")
 
             if hasattr(self, '_stopping') and self._stopping:
@@ -498,19 +645,115 @@ class QacitsConfigGUI(QWidget):
                     regular_options.append((key, value))
 
             for key, value in regular_options:
+                # Skip items rendered custom below
+                if section == 'EXECUTION' and key in ('x setpoint', 'y setpoint', 'log', 'logdir'):
+                    continue
+                if section == 'PID' and key in ('x centroid offset', 'y centroid offset'):
+                    continue
                 item_widget = self.create_item_widget(key, value, section)
                 section_layout.addWidget(item_widget)
 
-            # Place the "Apply Setpoint" button right under the setpoint fields
+            # Custom rows for EXECUTION section
             if section == 'EXECUTION':
-                section_layout.addSpacing(8)
-                self.update_setpoint_button = QPushButton('Apply Setpoint (live)')
-                self.update_setpoint_button.setFont(QFont('Arial', 10, QFont.Bold))
-                self.update_setpoint_button.clicked.connect(self.on_update_setpoint_clicked)
-                self.update_setpoint_button.setEnabled(False)
-                self.update_setpoint_button.setStyleSheet("background-color: #4CAF50; color: white;")
-                section_layout.addWidget(self.update_setpoint_button)
-                section_layout.addSpacing(8)
+                # Log row: log [...][dir text][True/False] — right under plot
+                log_row = QWidget()
+                log_row.setFixedHeight(24)
+                log_layout = QHBoxLayout(log_row)
+                log_layout.setContentsMargins(0, 0, 0, 0)
+                log_layout.setSpacing(3)
+                log_layout.addWidget(QLabel("log"))
+
+                log_browse = QPushButton()
+                log_browse.setIcon(self.style().standardIcon(self.style().SP_DirOpenIcon))
+                log_browse.setFixedSize(22, 22)
+                self.logdir_widget = QLineEdit(str(self.config['EXECUTION']['logdir']))
+                self.logdir_widget.setFixedHeight(20)
+                self.logdir_widget.setMaximumWidth(140)
+                self.logdir_widget.setReadOnly(True)
+                self.logdir_widget.setToolTip(helper.get_help_message('EXECUTION', 'logdir'))
+
+                def browse_logdir(tf=self.logdir_widget):
+                    d = QFileDialog.getExistingDirectory(None, "Log directory", tf.text())
+                    if d:
+                        tf.setText(d)
+                log_browse.clicked.connect(lambda _: browse_logdir())
+
+                log_layout.addWidget(log_browse)
+                log_layout.addWidget(self.logdir_widget)
+
+                self.log_toggle_widget = QComboBox()
+                self.log_toggle_widget.addItems(['True', 'False'])
+                self.log_toggle_widget.setCurrentText(str(self.config['EXECUTION']['log']))
+                self.log_toggle_widget.setFixedHeight(20)
+                self.log_toggle_widget.setToolTip(helper.get_help_message('EXECUTION', 'log'))
+                log_layout.addWidget(self.log_toggle_widget)
+
+                section_layout.addWidget(log_row)
+
+                # Setpoint row: setpoint: x:[ ] y:[ ]
+                sp_row = QWidget()
+                sp_layout = QHBoxLayout(sp_row)
+                sp_layout.setContentsMargins(0, 0, 0, 0)
+                sp_layout.addWidget(QLabel("setpoint:"))
+                sp_layout.addWidget(QLabel("x:"))
+                self.x_setpoint_widget = QLineEdit(str(self.config['EXECUTION']['x setpoint']))
+                self.x_setpoint_widget.setFixedHeight(20)
+                self.x_setpoint_widget.setFixedWidth(60)
+                self.x_setpoint_widget.setToolTip(helper.get_help_message('EXECUTION', 'x setpoint'))
+                sp_layout.addWidget(self.x_setpoint_widget)
+                sp_layout.addWidget(QLabel("y:"))
+                self.y_setpoint_widget = QLineEdit(str(self.config['EXECUTION']['y setpoint']))
+                self.y_setpoint_widget.setFixedHeight(20)
+                self.y_setpoint_widget.setFixedWidth(60)
+                self.y_setpoint_widget.setToolTip(helper.get_help_message('EXECUTION', 'y setpoint'))
+                sp_layout.addWidget(self.y_setpoint_widget)
+                sp_layout.addStretch()
+                section_layout.addWidget(sp_row)
+
+            # Custom centroid offset row + Capture Offset button for PID section
+            if section == 'PID':
+                # centroid offset: x:[  ] y:[  ]
+                offset_row = QWidget()
+                offset_layout = QHBoxLayout(offset_row)
+                offset_layout.setContentsMargins(0, 0, 0, 0)
+                offset_layout.addWidget(QLabel("centroid offset:"))
+                offset_layout.addWidget(QLabel("x:"))
+                self.x_centroid_offset_widget = QLineEdit(str(self.config['PID']['x centroid offset']))
+                self.x_centroid_offset_widget.setFixedHeight(20)
+                self.x_centroid_offset_widget.setFixedWidth(60)
+                self.x_centroid_offset_widget.setToolTip(helper.get_help_message('PID', 'x centroid offset'))
+                offset_layout.addWidget(self.x_centroid_offset_widget)
+                offset_layout.addWidget(QLabel("y:"))
+                self.y_centroid_offset_widget = QLineEdit(str(self.config['PID']['y centroid offset']))
+                self.y_centroid_offset_widget.setFixedHeight(20)
+                self.y_centroid_offset_widget.setFixedWidth(60)
+                self.y_centroid_offset_widget.setToolTip(helper.get_help_message('PID', 'y centroid offset'))
+                offset_layout.addWidget(self.y_centroid_offset_widget)
+                offset_layout.addStretch()
+                section_layout.addWidget(offset_row)
+
+                section_layout.addSpacing(4)
+
+                # Two half-width buttons side by side
+                btn_row = QWidget()
+                btn_layout = QHBoxLayout(btn_row)
+                btn_layout.setContentsMargins(0, 0, 0, 0)
+                btn_layout.setSpacing(5)
+
+                self.capture_offset_button = QPushButton('Capture Offset')
+                self.capture_offset_button.setFont(QFont('Arial', 12, QFont.Bold))
+                self.capture_offset_button.clicked.connect(self.on_capture_offset_clicked)
+                self.capture_offset_button.setStyleSheet("background-color: #2196F3; color: white;")
+                btn_layout.addWidget(self.capture_offset_button)
+
+                self.zero_offset_button = QPushButton('Zero Offset')
+                self.zero_offset_button.setFont(QFont('Arial', 12, QFont.Bold))
+                self.zero_offset_button.clicked.connect(self.on_zero_offset_clicked)
+                self.zero_offset_button.setStyleSheet("background-color: #9E9E9E; color: white;")
+                btn_layout.addWidget(self.zero_offset_button)
+
+                section_layout.addWidget(btn_row)
+                section_layout.addSpacing(4)
 
             if expert_options:
                 expert_box = CollapsibleBox("Expert Options")
@@ -552,12 +795,6 @@ class QacitsConfigGUI(QWidget):
         label.setToolTip(tooltip)
         input_widget.setToolTip(tooltip)
         
-        # Store references to setpoint widgets for easy access
-        if section == 'EXECUTION' and key == 'x setpoint':
-            self.x_setpoint_widget = input_widget
-        elif section == 'EXECUTION' and key == 'y setpoint':
-            self.y_setpoint_widget = input_widget
-
         return widget
 
     def create_input_widget(self, section, key, value):
@@ -573,10 +810,13 @@ class QacitsConfigGUI(QWidget):
             text_field = QLineEdit(str(value))
             text_field.setFixedHeight(20)
             text_field.setPlaceholderText("(none)")
+            text_field.setReadOnly(True)
+            text_field.textChanged.connect(lambda text, tf=text_field: self._validate_file_path(tf))
+            self._validate_file_path(text_field)  # check initial value
 
-            browse_button = QPushButton("...")
-            browse_button.setFixedWidth(30)
-            browse_button.setFixedHeight(20)
+            browse_button = QPushButton()
+            browse_button.setIcon(self.style().standardIcon(self.style().SP_FileIcon))
+            browse_button.setFixedSize(22, 22)
 
             def browse_file(tf=text_field):
                 start_path = tf.text() if tf.text() else str(Path.home())
@@ -604,10 +844,11 @@ class QacitsConfigGUI(QWidget):
 
             text_field = QLineEdit(str(value))
             text_field.setFixedHeight(20)
+            text_field.setReadOnly(True)
 
-            browse_button = QPushButton("...")
-            browse_button.setFixedWidth(30)
-            browse_button.setFixedHeight(20)
+            browse_button = QPushButton()
+            browse_button.setIcon(self.style().standardIcon(self.style().SP_DirOpenIcon))
+            browse_button.setFixedSize(22, 22)
 
             def browse_directory(tf=text_field):
                 directory = QFileDialog.getExistingDirectory(
@@ -700,9 +941,33 @@ class QacitsConfigGUI(QWidget):
                         else:
                             item_layout = item.layout()
                             if item_layout and item_layout.count() == 2:
-                                key = item_layout.itemAt(0).widget().text()
-                                value = self.get_widget_value(item_layout.itemAt(1).widget())
-                                self.config[section][key] = value
+                                first_widget = item_layout.itemAt(0).widget()
+                                if isinstance(first_widget, QLabel):
+                                    key = first_widget.text()
+                                    value = self.get_widget_value(item_layout.itemAt(1).widget())
+                                    self.config[section][key] = value
+
+        # Custom inline widgets not found by the generic walker
+        if self.x_setpoint_widget is not None:
+            self.config['EXECUTION']['x setpoint'] = self.x_setpoint_widget.text()
+        if self.y_setpoint_widget is not None:
+            self.config['EXECUTION']['y setpoint'] = self.y_setpoint_widget.text()
+        if self.x_centroid_offset_widget is not None:
+            self.config['PID']['x centroid offset'] = self.x_centroid_offset_widget.text()
+        if self.y_centroid_offset_widget is not None:
+            self.config['PID']['y centroid offset'] = self.y_centroid_offset_widget.text()
+        if hasattr(self, 'log_toggle_widget'):
+            self.config['EXECUTION']['log'] = self.log_toggle_widget.currentText()
+        if hasattr(self, 'logdir_widget'):
+            self.config['EXECUTION']['logdir'] = self.logdir_widget.text()
+
+    def _validate_file_path(self, text_field):
+        """Highlight file path text fields orange if the file is missing."""
+        path = text_field.text().strip()
+        if path and not os.path.isfile(path):
+            text_field.setStyleSheet("background-color: #FFE0B2;")
+        else:
+            text_field.setStyleSheet("")
 
     def get_widget_value(self, widget):
         """Get the value from a widget"""
@@ -742,6 +1007,20 @@ class QacitsConfigGUI(QWidget):
                 section = section_label.text()
 
                 self.update_section_widgets(section_layout, self.config[section])
+
+        # Custom inline widgets not found by the generic walker
+        if self.x_setpoint_widget is not None:
+            self.x_setpoint_widget.setText(str(self.config['EXECUTION']['x setpoint']))
+        if self.y_setpoint_widget is not None:
+            self.y_setpoint_widget.setText(str(self.config['EXECUTION']['y setpoint']))
+        if self.x_centroid_offset_widget is not None:
+            self.x_centroid_offset_widget.setText(str(self.config['PID']['x centroid offset']))
+        if self.y_centroid_offset_widget is not None:
+            self.y_centroid_offset_widget.setText(str(self.config['PID']['y centroid offset']))
+        if hasattr(self, 'log_toggle_widget'):
+            self.log_toggle_widget.setCurrentText(str(self.config['EXECUTION']['log']))
+        if hasattr(self, 'logdir_widget'):
+            self.logdir_widget.setText(str(self.config['EXECUTION']['logdir']))
 
     def update_section_widgets(self, section_layout, config_section):
         """Update widgets in a section with values from the config"""
@@ -809,18 +1088,32 @@ class QacitsConfigGUI(QWidget):
             config=self.config,
             spec_file=self.spec_file,
             my_event=self.my_event,
-            main_window=self,  # Pass reference to main window
-            setpoint_queue=self.setpoint_queue  # Pass the queue
+            main_window=self,
+            param_update_queue=self.param_update_queue,
+            centroid_offset_queue=self.centroid_offset_queue,
+            centroid_offset_feedback=self.centroid_offset_feedback,
+            warning_queue=self.warning_queue
         )
         
-        # Connect the signal to the slot
+        # Connect signals
         self.algorithm_thread.plot_update_signal.connect(self.handle_plot_update)
+        self.algorithm_thread.error_signal.connect(self.handle_thread_error)
         
         self.algorithm_thread.start()
 
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+
+    # Global exception hook: show all uncaught errors as popups
+    def _exception_hook(exc_type, exc_value, exc_tb):
+        import traceback
+        traceback.print_exception(exc_type, exc_value, exc_tb)
+        from PyQt5.QtWidgets import QMessageBox
+        QMessageBox.critical(None, exc_type.__name__, str(exc_value))
+
+    sys.excepthook = _exception_hook
+
     ex = QacitsConfigGUI()
     ex.show()
     sys.exit(app.exec_())

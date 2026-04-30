@@ -1,10 +1,20 @@
 [EXECUTION]
     plot = boolean(default=True)
+    log = boolean(default=False)
+    logdir = string(default='.')
     N iterations = integer(min=1, default=100)
     x setpoint = float(default=512.0)
     y setpoint = float(default=512.0)
     inner radius = integer(min=0, default=10)
     outer radius = integer(min=3, default=100)
+
+[PID]
+    x centroid offset = float(min=-1, max=1, default=0)
+    y centroid offset = float(min=-1, max=1, default=0)
+    Kp = float(min=-1, max=1, default=0.5)
+    Ki = float(min=-1, max=1, default=0.1)
+    Kd = float(min=-1, max=1, default=0)
+    output_limits = float(default=0.5)
 
 [CAMERA CALIBRATION]
     background file = string(default='')
@@ -16,12 +26,6 @@
     poll interval = float(min=0.001, default=0.5)
     timeout = float(min=0.001, default=20)
     imagedir = string(default='/')
-
-[PID]
-    Kp = float(min=0, default=0.5)
-    Ki = float(min=0, default=0.1)
-    Kd = float(min=0, default=0)
-    output_limits = float(default=0.5)
 
 [AO]
     tip tilt gain = float(default=-250e-9)
