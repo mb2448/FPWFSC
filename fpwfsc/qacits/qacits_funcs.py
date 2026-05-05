@@ -151,10 +151,6 @@ if __name__ == "__main__":
 
     xs, ys, cropped = crop_to_square(image=test_img, cx=xc, cy=yc, size=cropsize)
 
-    #test_crop_visualization(test_img=test_img, cx=xc, cy=yc, size=cropsize)
-
-    #visualize_quad_cell(image=test_img, x_center=xc, y_center=yc, min_radius=inner_rad, max_radius=outer_rad)
-    visualize_quad_cell(image=cropped, x_center=xc, y_center=yc, min_radius=inner_rad, max_radius=outer_rad, x_coords=xs, y_coords=ys)
     xo, yo = compute_quad_cell_flux(image=cropped, x_center=xc, y_center=yc, min_radius=inner_rad, max_radius=outer_rad,
                           x_coords=xs, y_coords=ys)
     print(xo, yo)

@@ -62,7 +62,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         hwconfig_path = script_dir.parent / "sim" / "sim_config.ini"
         hwspec_path = script_dir.parent / "sim" / "sim_config.spec"
 
-        # Print paths for debugging
         print(f"Looking for config at: {hwconfig_path}")
         print(f"Looking for spec at: {hwspec_path}")
 
@@ -88,11 +87,13 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         'masterflat': sf.load_fits_or_none(settings['CAMERA CALIBRATION']['masterflat file']),
         'badpix':     sf.load_fits_or_none(settings['CAMERA CALIBRATION']['badpix file']),
     }
-    print(f"Background file: {settings['CAMERA CALIBRATION']['background file'] or '(none)'}")
-    print(f"Masterflat file: {settings['CAMERA CALIBRATION']['masterflat file'] or '(none)'}")
-    print(f"Bad pixel file:  {settings['CAMERA CALIBRATION']['badpix file'] or '(none)'}")
-
     n_iter    = settings['EXECUTION']['N iterations']
+    cal_bgd_path = settings['CAMERA CALIBRATION']['background file']
+    cal_flat_path = settings['CAMERA CALIBRATION']['masterflat file']
+    cal_badpix_path = settings['CAMERA CALIBRATION']['badpix file']
+    print(f"Background file: {cal_bgd_path or '(none)'}")
+    print(f"Masterflat file: {cal_flat_path or '(none)'}")
+    print(f"Bad pixel file:  {cal_badpix_path or '(none)'}")
     setpointx = settings['EXECUTION']['x setpoint']
     setpointy = settings['EXECUTION']['y setpoint']
     setpoint = np.array([setpointy, setpointx])
@@ -156,6 +157,22 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
         logfile.flush()
         print(f"Logging to: {logpath}")
 
+    # Helper to build full state dict for logging
+    def _current_state():
+        return {
+            'n_iter': n_iter, 'setpointx': setpointx, 'setpointy': setpointy,
+            'inner_rad': inner_rad, 'outer_rad': outer_rad,
+            'Kp': Controller.Kp, 'Ki': Controller.Ki, 'Kd': Controller.Kd,
+            'output_limits': Controller.output_limits,
+            'tt_gain': tt_gain, 'tt_rot_deg': tt_rot_deg,
+            'tt_flipx': tt_flipx, 'tt_flipy': tt_flipy,
+            'centroid_offset_x': float(centroid_setpoint[0]),
+            'centroid_offset_y': float(centroid_setpoint[1]),
+            'background_file': cal_bgd_path,
+            'masterflat_file': cal_flat_path,
+            'badpix_file': cal_badpix_path,
+        }
+
     print(f"Starting control loop with initial setpoint: X={setpointx:.2f}, Y={setpointy:.2f}")
 
     i = 0
@@ -190,10 +207,13 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                     Controller.update_setpoint(centroid_setpoint)
                 # Reload calibration files if paths changed
                 if any(k in params for k in ('background_file', 'masterflat_file', 'badpix_file')):
+                    cal_bgd_path = params.get('background_file', cal_bgd_path)
+                    cal_flat_path = params.get('masterflat_file', cal_flat_path)
+                    cal_badpix_path = params.get('badpix_file', cal_badpix_path)
                     new_bgds = {
-                        'bkgd':       sf.load_fits_or_none(params.get('background_file', '')),
-                        'masterflat': sf.load_fits_or_none(params.get('masterflat_file', '')),
-                        'badpix':     sf.load_fits_or_none(params.get('badpix_file', '')),
+                        'bkgd':       sf.load_fits_or_none(cal_bgd_path),
+                        'masterflat': sf.load_fits_or_none(cal_flat_path),
+                        'badpix':     sf.load_fits_or_none(cal_badpix_path),
                     }
                     # Check shapes, warn and drop mismatched files
                     for key, arr in new_bgds.items():
@@ -207,6 +227,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                     print(f"Calibration files reloaded")
                 print(f"Loop parameters updated: setpoint=({setpointx:.1f}, {setpointy:.1f}), "
                       f"radii=({inner_rad}, {outer_rad}), Kp={Controller.Kp}, Ki={Controller.Ki}")
+                if logfile is not None:
+                    logfile.write(f"# PARAMS UPDATED at {_time.strftime('%H:%M:%S')}: {_current_state()}\n")
+                    logfile.flush()
             except queue.Empty:
                 pass
         
@@ -250,6 +273,9 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
                     centroid_setpoint = np.array(new_offset)
                 Controller.update_setpoint(centroid_setpoint)
                 print(f"Centroid offset set to: x={centroid_setpoint[0]:.4f}, y={centroid_setpoint[1]:.4f}")
+                if logfile is not None:
+                    logfile.write(f"# PARAMS UPDATED at {_time.strftime('%H:%M:%S')}: {_current_state()}\n")
+                    logfile.flush()
                 if centroid_offset_feedback is not None:
                     centroid_offset_feedback.put((centroid_setpoint[0], centroid_setpoint[1]))
             except queue.Empty:
@@ -265,7 +291,6 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
             plotter.update(image=cropped, x_center=setpointx, y_center=setpointy, min_radius=inner_rad, max_radius=outer_rad,
                x_coords=xs, y_coords=ys, title=plottitle)
 
-        #correction = np.random.random(2)-0.5
         correction = Controller.iterate(np.array([xo, yo]))
         control = correction*tt_gain
 
@@ -282,10 +307,10 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
 
         if logfile is not None:
             logfile.write(f"{i}, {_time.strftime('%H:%M:%S')}, "
-                          f"{setpointx}, {setpointy}, {xo}, {yo}, "
-                          f"{Controller.setpoint[0]}, {Controller.setpoint[1]}, "
-                          f"{correction[0]}, {correction[1]}, "
-                          f"{control[0]}, {control[1]}\n")
+                          f"{setpointx:.4g}, {setpointy:.4g}, {xo:.4g}, {yo:.4g}, "
+                          f"{Controller.setpoint[0]:.4g}, {Controller.setpoint[1]:.4g}, "
+                          f"{correction[0]:.4g}, {correction[1]:.4g}, "
+                          f"{control[0]:.4g}, {control[1]:.4g}\n")
             logfile.flush()
 
         i += 1

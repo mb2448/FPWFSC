@@ -9,7 +9,6 @@ from PyQt5.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
 from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot, QParallelAnimationGroup, QPropertyAnimation, QAbstractAnimation, QTimer, QThread
 from PyQt5.QtGui import QFont
 
-import matplotlib.pyplot as plt
 from configobj import ConfigObj, ConfigObjError, flatten_errors
 import threading
 from pathlib import Path

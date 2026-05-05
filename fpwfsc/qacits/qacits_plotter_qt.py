@@ -2,7 +2,7 @@ import sys
 import numpy as np
 from PyQt5 import QtWidgets
 from PyQt5.QtCore import QTimer, Qt
-from PyQt5.QtGui import QTransform, QPainter
+from PyQt5.QtGui import QTransform
 import pyqtgraph as pg
 from pyqtgraph import ColorMap
 
@@ -81,12 +81,6 @@ class QacitsPlotter(QtWidgets.QWidget):
         # Initialize plot elements
         self.img_item = pg.ImageItem()
         self.main_plot.addItem(self.img_item)
-
-        # Semi-transparent overlay to shade non-annulus regions
-        self.mask_item = pg.ImageItem()
-        self.mask_item.setZValue(10)  # on top of the image
-        self.mask_item.setCompositionMode(QPainter.CompositionMode_SourceOver)
-        self.main_plot.addItem(self.mask_item)
 
         # Store current image for percentile calculations
         self.current_image = None
@@ -350,7 +344,6 @@ class QacitsPlotter(QtWidgets.QWidget):
             self.center_point.setData([x_center], [y_center])
             self.center_point.show()
 
-            self.mask_item.hide()
         else:
             # Hide overlays if no center/radii provided
             self.inner_circle.hide()
@@ -360,7 +353,6 @@ class QacitsPlotter(QtWidgets.QWidget):
             self.v_line_left.hide()
             self.v_line_right.hide()
             self.center_point.hide()
-            self.mask_item.hide()
 
         # Process events to update the plot and allow interaction
         if not self.closed:
