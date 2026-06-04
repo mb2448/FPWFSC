@@ -828,8 +828,17 @@ class QacitsConfigGUI(QWidget):
 
             browse_button.clicked.connect(lambda _: browse_file())
 
+            clear_button = QPushButton()
+            clear_button.setIcon(self.style().standardIcon(self.style().SP_DialogCloseButton))
+            clear_button.setFixedSize(22, 22)
+            clear_button.setToolTip("Clear this calibration file")
+            clear_button.clicked.connect(lambda _, tf=text_field: tf.setText(""))
+
             layout.addWidget(text_field, 1)
+            layout.addSpacing(4)
             layout.addWidget(browse_button, 0)
+            layout.addSpacing(4)
+            layout.addWidget(clear_button, 0)
 
             widget.text_field = text_field
             widget.setFixedHeight(22)
