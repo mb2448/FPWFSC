@@ -28,10 +28,12 @@ import shutil
 # sys.path.insert(0,"../common")
 from fpwfsc.common import support_functions as sf
 from fpwfsc.common import bench_hardware as hw
+from fpwfsc.common import dm
+
+# TODO: Update speckle nulling functions
+from fpwfsc.san.activation import neighbor_mask, arctan, tanh
 from fpwfsc.san import sn_functions as sn_f
 from fpwfsc.san import sn_classes as sn_c
-from fpwfsc.common import dm
-from fpwfsc.san.activation import neighbor_mask, arctan, tanh
 
 def clamp(ref_psf, control_region, clamp=0):
     """
@@ -128,7 +130,6 @@ if __name__ == "__main__":
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
-    #AOSystem = hw.AOSystemAlias()
 
     settings = sf.validate_config(folder+config, folder+configspec)
     bgds = sf.setup_bgd_dict(settings['CAMERA_CALIBRATION']['bgddir'])
@@ -176,6 +177,7 @@ if __name__ == "__main__":
 
     #DM Calibration
     parabola_params     = settings['DM_REGISTRATION']['INTENSITY_CAL']['parabola_parameters']
+
     # Draw a dark hole
 
     # convert IWA/OWA to pixels
@@ -215,7 +217,6 @@ if __name__ == "__main__":
     print("WROTE CONTROL REGION") 
 
     ## Build the probes
-
     control_indices = np.where(control_region)
     sine_modes = []
     cosine_modes = []
@@ -225,6 +226,7 @@ if __name__ == "__main__":
     
     anti_control_pix_x = []
     anti_control_pix_y = []
+    
 
     for yi, xi in zip(*control_indices):
         
@@ -251,7 +253,7 @@ if __name__ == "__main__":
                 centery=ycen,
                 angle=dm_angle,
                 lambdaoverd=lambdaoverd,
-                N=21,
+                N=60,
                 which="cos")
         
         cosine_modes.append(cos / speckle_amp * focal_amplitude)
@@ -265,7 +267,7 @@ if __name__ == "__main__":
                 centery=ycen,
                 angle=dm_angle,
                 lambdaoverd=lambdaoverd,
-                N=21,
+                N=60,
                 which="sin")
         
         sine_modes.append(sin / speckle_amp * focal_amplitude)
@@ -310,7 +312,7 @@ if __name__ == "__main__":
     hdu = fits.PrimaryHDU(current_dm_shape)
     hdu.writeto(os.path.join(dir_name,"starting_dm_shape.fits"), overwrite=True)
     contrast_curves = []
-
+    
     if AOSystem._closed:
         cos_probe = AOSystem.convert_voltage_to_cog(cos_probe)
         sin_probe = AOSystem.convert_voltage_to_cog(sin_probe)

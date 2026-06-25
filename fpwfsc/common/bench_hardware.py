@@ -1,18 +1,22 @@
 
 import sys
+sys.path.insert(0, '/usr/local/home/mcisse/PyAO/')
+import ipdb
 import warnings
 import hcipy
 import numpy as np
-
+from aoscripts.ao_systems.k2ao import K2AO as KeckAO
+from aosys.nirc2.nirc2 import Nirc2 as NIRC2
+from aoscripts.reconstructor_manager.reconstructor_manager import ReconstructorManager
 try:
+    import numpy
 
-    sys.path.insert(0, '/usr/local/home/cguthery/PyAO/')
-    from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
-
-    import aosys.xinetics_deformable_mirror as xd
-    from aosys.shwfs.shwfs import SHWFS
-    from aosys.shwfs_field_steering_mirror.shwfs_field_steering_mirror import SHWFSFieldSteeringMirror
-    from aosys.rotator.rotator import Rotator
+    
+    #from guis.fast_and_furious.hardware import NIRC2, OSIRIS, KeckAO
+    #import aosys.xinetics_deformable_mirror as xd
+    #from aosys.shwfs.shwfs import SHWFS
+    #from aosys.shwfs_field_steering_mirror.shwfs_field_steering_mirror import SHWFSFieldSteeringMirror
+    #from aosys.rotator.rotator import Rotator
     
 except ImportError:
     warnings.warn("Failed to import hardware modules")
@@ -35,12 +39,13 @@ class NIRC2Alias():
     NIRC2 Alias to make image aquisition compatible with FPWFSC API
     """
     def __init__(self):
-        self.camera = NIRC2()
+        self.camera = NIRC2('k2')
         #self.NIRC2.get_parameters()
         self._take_image = self.camera.take_image
 
     def take_image(self):
-        img_hdu = self._take_image()
+        img_hdu = self._take_image()[0]
+        print(type(img_hdu))
         return img_hdu.data
 
 
@@ -64,16 +69,20 @@ class ClosedAOSystemAlias:
         """
         Closed-loop AO System Interface
         """
-        self.AO = KeckAO()
-        self.dm = self.AO.xinetics
-        self.ttm = SHWFS
+        self.AO = KeckAO("k2", use_network_qfix=True)
+        self.AO.setup()
+        self.dm = self.AO.dm # Alpao DM
+        self.ttm = self.AO.shwfs 
+        self.current_cog_file = self.AO.shwfs.get_current_centroid_origins_filename()
+        self.cur_cog = self.AO.shwfs.get_centroid_origins_from_channels(shape_requested='vector')
+        
+        self.recon = ReconstructorManager(prefix=self.AO.prefix, ao=self.AO)
 
-        self.current_cog_file = self.AO.get_cog_filename()
-        self.cur_cog = self.AO.open_cog(self.current_cog_file, shape_requested='vector')
-
-        self.diameter_pupil_act = 21
-        self.center_pupil_act = [10,10]
-        self.Nact = 21
+        # Update to HAKA
+        self.dm_shape = self.AO.dm.get_actuators_map().shape
+        self.diameter_pupil_act = self.dm_shape[0] 
+        self.center_pupil_act = self.diameter_pupil_act // 2 
+        self.Nact = self.diameter_pupil_act
 
         self.rotation_angle_dm = rotation_angle_dm
         self.flip_x = flip_x
@@ -81,39 +90,32 @@ class ClosedAOSystemAlias:
       
         self._closed = True
         self.grid = hcipy.make_uniform_grid([self.Nact, self.Nact], 1, 0)
+        
+        # load influence functions
+        plate_scale = self.AO.shwfs.get_plate_scale()
+        if plate_scale == '57x1.50':
+            imat = self.AO.rec.default_im_filename_k2_150
+        elif plate_scale == '57x0.75':
+            imat = self.AO.rec.default_im_filename_k2_075
+        else:
+            imat = self.AO.rec.default_im_filename_k2_29
 
+        self.infmat_filename = f'{self.recon.get_interaction_matrices_folder_path()}/{imat}'
 
-    def set_dm_data(self, shape, modify_existing=False):
-        """
+    def set_dm_data(self, cog_data):
+        """Use 
         Parameters
         ----------
-        shape : array
+        cog_data : array
             array of centroid offsets to apply to the DM. 
         """
-        # make_dm_command function converts the estimated phase to a DM command
-        # but do not apply chang anything physically yet
-        dm_volts = self.AO.make_dm_command(shape,
-                                          self.diameter_pupil_act,
-                                          self.center_pupil_act,
-                                          self.Nact,
-                                          self.rotation_angle_dm,
-                                          self.flip_x,
-                                          self.flip_y)
-
-        binary_map = self.dm.get_binary_actuators_map()
-        mask = np.array(binary_map, dtype='bool')
-        dm_vec = dm_volts[mask]
-        infmat = self.AO.open_influence_matrix()
-
-        #Add the centroid changes to the current shape of the DM
-        centroids = np.dot(infmat, dm_vec)
-        new_centroids = self.cur_cog + centroids
-
         # now we need to write the cog file and load the cog file
-        saved_filename = self.AO.save_cog('SAN_Centroids', new_centroids)
-        self.AO.load_cog(saved_filename)
-        cogfile_data = self.AO.open_cog(fn)
-        return cogfile_data, dm_volts
+        #print(cog_data.shape)
+        #ipdb.set_trace()
+        saved_filename = self.AO.shwfs.save_centroid_origins_file(cog_data, filename='SAN_Centroids')
+        self.AO.shwfs.set_centroid_origins_to_channels(cog_data)
+        self.AO.shwfs.load_centroid_origins(saved_filename)
+        return
 
     def get_dm_data(self):
         """
@@ -124,30 +126,42 @@ class ClosedAOSystemAlias:
         ndarray
             current "cog", centroid offsets
         """
-
-        current_cog_file = self.AO.get_cog_filename()                                                                                             
-        cogfile_data = self.AO.open_cog(current_cog_file, shape_requested='vector')
+        
+        cogfile_data = self.AO.shwfs.get_centroid_origins_from_channels(shape_requested="vector")
 
         return cogfile_data
 
-    def convert_voltage_to_cog(self, shape):
+    def convert_voltage_to_cog(self, phase):
+        """
+        Parameters
+        ----------
+        phase: ndarray
+            shape to apply to deformable mirror, volts
+        """
         # condition shape to be a hcipy Field
-        shape = hcipy.Field(shape.ravel(), self.grid)
+        phase = hcipy.Field(phase.ravel(), self.grid)
 
-        # NOTE: self.rotation_angle_dm is derived with SAN
-        # it is set to zero here to do that derivation
-        # In FNF, the reference is the perfect PSF - so some
-        # amount of derotation is necessarry
-        dm_volts = self.AO.make_dm_command(shape,
-                                          self.diameter_pupil_act,
-                                          self.center_pupil_act,
-                                          self.Nact,
-                                          self.rotation_angle_dm)
+        # Array with final DM Command (to populate)
+        dm_command = np.zeros((self.Nact, self.Nact))
 
-        binary_map = self.dm.get_binary_actuators_map()
+        # the actuators on which we put the pupil
+        x_start = int(self.center_pupil_act - self.diameter_pupil_act / 2)
+        x_end = int(x_start + self.diameter_pupil_act)
+
+        y_start = int(self.center_pupil_act - self.diameter_pupil_act / 2)
+        y_end = int(y_start + self.diameter_pupil_act)
+
+        # filling the array with the actual command
+        dm_command[y_start:y_end, x_start:x_end] = phase.shaped
+
+        # dividing by two because we have a reflection and OPD
+        dm_volts = dm_command / 2
+
+        binary_map = self.AO.dm.get_binary_actuators_map()
         mask = np.array(binary_map, dtype='bool')
         dm_vec = dm_volts[mask]
-        infmat = self.AO.open_influence_matrix()
+
+        infmat = self.recon.open_interaction_matrix(filename=self.infmat_filename)
 
         # these are the updated centroid origins
         centroids = np.dot(infmat, dm_vec)

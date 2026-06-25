@@ -93,8 +93,8 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     for k in kr:
         print(f"Testing spatial frequency k = {k}")
         data_speck = 0
-        additionmapx = dm.make_speckle_kxy(k, 0, DMamp, 0)
-        additionmapy = dm.make_speckle_kxy(0, k, DMamp, 0)
+        additionmapx = dm.make_speckle_kxy(k, 0, DMamp, 0, N=60)
+        additionmapy = dm.make_speckle_kxy(0, k, DMamp, 0, N=60)
         additionmap = additionmapx + additionmapy
 
         if AOSystem._closed:
@@ -152,7 +152,8 @@ if __name__ == "__main__":
     camera = hw.NIRC2Alias()
     aosystem = hw.ClosedAOSystemAlias()
 
-    viewer = run(camera, aosystem, config='fpwfsc/san/sn_config.ini', configspec='fpwfsc/san/sn_config.spec')
+    viewer = run(camera, aosystem, config='/home/mcisse/FPWFSC/fpwfsc/san/sn_config.ini',
+            configspec='/home/mcisse/FPWFSC/fpwfsc/san/sn_config.spec')
     
     # The program will continue here even while the viewer is still open
     print("Main program continues execution while viewer is open")
