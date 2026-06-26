@@ -4,7 +4,7 @@
     ycen = integer
     cropsize = integer_or_none
     IWA = float(min=1)
-    OWA = float(max=11)
+    OWA = float(max=30)
     THETA1 = float
     THETA2 = float
     FULL_DARKHOLE = boolean

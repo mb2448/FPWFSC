@@ -105,7 +105,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     data_nospeck_raw = Camera.take_image()
     data_nospeck = sf.equalize_image(data_nospeck_raw, **bgds)
     
-    speck1 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=21, flipy = False, flipx = False)
+    speck1 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, 0, N=60, flipy = False, flipx = False)
 
     if AOSystem._closed:
         speck1 = AOSystem.convert_voltage_to_cog(speck1)
@@ -114,7 +114,7 @@ def run(camera=None, aosystem=None, config=None, configspec=None,
     data_ph1_raw    = Camera.take_image()
     data_ph1        = sf.equalize_image(data_ph1_raw, **bgds)
 
-    speck2 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, np.pi/2, N=21, flipy = False, flipx = False)
+    speck2 = dm.make_speckle_kxy(calspot_kx, calspot_ky, calspot_amp, np.pi/2, N=60, flipy = False, flipx = False)
     
     if AOSystem._closed:
         speck2 = AOSystem.convert_voltage_to_cog(speck2) 
@@ -156,6 +156,6 @@ if __name__ == "__main__":
     AOSystem = hw.ClosedAOSystemAlias()
     # Camera = 'Sim'
     # AOSystem = 'Sim'
-    folder = "fpwfsc/san/"
+    folder = "/home/mcisse/FPWFSC/fpwfsc/san/"
 
     run(camera=Camera, aosystem=AOSystem, config=folder+'sn_config.ini', configspec=folder+'sn_config.spec')

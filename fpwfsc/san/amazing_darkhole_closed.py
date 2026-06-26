@@ -120,13 +120,13 @@ def amplitude_weight(ref_psf, control_region):
 
 if __name__ == "__main__":
     
-    
+    # User options are pulled from sn_config.ini
     # make timestamped directory
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dir_name = f"output_{timestamp}"
     os.makedirs(dir_name, exist_ok=False)
     os.makedirs(os.path.join(dir_name,"bgds"), exist_ok=False)
-    folder = 'fpwfsc/san/'
+    folder = '/home/mcisse/FPWFSC/fpwfsc/san/'
     config = 'sn_config.ini'
     configspec = 'sn_config.spec'
     Camera = hw.NIRC2Alias()
@@ -151,7 +151,7 @@ if __name__ == "__main__":
     src_destination = os.path.join(dir_name, src)
     shutil.copy(folder+src, src_destination)
 
-    src = "amazing_darkhole.py"
+    src = "amazing_darkhole_closed.py"
     src_destination = os.path.join(dir_name, src)
     shutil.copy(folder+src, src_destination)
 
@@ -160,13 +160,14 @@ if __name__ == "__main__":
     # dst = dir_name
     # shutil.copytree(src, os.path.join(dst, "bgds"))
 
-    #----------------------------------------------------------------------
-    # Simulation parameters
-    #----------------------------------------------------------------------
     #CAMERA, AO, CORONAGRAPH SETTINGS IN CONFIG FILE
     #SN Settings
+
+    # NOTE: These are overwrritten by the DM registration
     xcen                = settings['SN_SETTINGS']['xcen']
     ycen                = settings['SN_SETTINGS']['ycen']
+
+    # Not overwritten
     cropsize            = settings['SN_SETTINGS']['cropsize']
     
     #DM Registration
@@ -214,7 +215,6 @@ if __name__ == "__main__":
 
     hdu = fits.PrimaryHDU(full_control_region*1)
     hdu.writeto(os.path.join(dir_name,"controlregion.fits"), overwrite=True)
-    print("WROTE CONTROL REGION") 
 
     ## Build the probes
     control_indices = np.where(control_region)
@@ -230,7 +230,7 @@ if __name__ == "__main__":
 
     for yi, xi in zip(*control_indices):
         
-        focal_amplitude = ref_img[yi, xi]
+        focal_amplitude = 1 #ref_img[yi, xi]
 
         # construct the amplitude weight
         kx, ky = dm.convert_pixels_kvecs(
@@ -241,7 +241,7 @@ if __name__ == "__main__":
                 lambdaoverd=lambdaoverd)
         
         kr = np.sqrt(kx**2 + ky**2)
-        speckle_amp = sn_f.parabola(kr, *parabola_params)
+        speckle_amp = 1 #sn_f.parabola(kr, *parabola_params)
 
         # construct probes from the wedge
         cos = dm.make_speckle_xy(
@@ -274,26 +274,29 @@ if __name__ == "__main__":
         
         
     # Construct and scale the probes from the modes
+    N_MODES = len(cosine_modes)
     cos_probe = np.sum(cosine_modes, axis=0)
     sin_probe = np.sum(sine_modes, axis=0)
 
-    cos_probe *= amplitude / cos_probe.max()
-    sin_probe *= amplitude / sin_probe.max()
+    cos_probe *= amplitude / N_MODES 
+    sin_probe *= amplitude / N_MODES 
     
-    cosine_modes = np.asarray(cosine_modes) * amplitude / cos_probe.max()
-    sine_modes = np.asarray(sine_modes) * amplitude / sin_probe.max()
-
+    cosine_modes = np.asarray(cosine_modes) * amplitude / N_MODES
+    sine_modes = np.asarray(sine_modes) * amplitude / N_MODES
+    
     # Take the probe measurements
     # NOTE: ref_img is the un-probed psf
 
     # apply DM shape
     current_dm_shape = AOSystem.get_dm_data()
+    print(f"dm_shape rms before loop = {np.std(current_dm_shape)}")
 
     MAX_ITERS = settings['SN_SETTINGS']['NUM_ITERATIONS']
 
     hdu = fits.PrimaryHDU(ref_img)
     hdu.writeto(os.path.join(dir_name,"ref_img_Halfdark_ND1_5ms.fits"), overwrite=True)
     
+    # clamp_val determines how well we can do, so we will regularize by this parameter as well
     clamp_val = sf.robust_sigma(ref_img[:50, :50].ravel())
     probe_scaling_param = 1 
     plt.ion()
@@ -326,7 +329,7 @@ if __name__ == "__main__":
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
 
         vmin, vmax = np.percentile(ref_img, [0, 100])
-        linthresh = 0.01 * max(np.abs(vmin), np.abs(vmax))
+        linthresh = 0.01 * max(np.abs(vmin), np.abs(vmax)) #before loop
         norm = SymLogNorm(vmin=vmin, vmax=vmax, linthresh=linthresh)
         im = ax[1].imshow(ref_img, norm=norm)
         CROP_RAD = 64
@@ -351,7 +354,9 @@ if __name__ == "__main__":
         cos_probe = cos_probe*probe_scaling_param
         sin_probe = sin_probe*probe_scaling_param
 
-
+        print(f"cos probe rms = {np.std(cos_probe)}")
+        print(f"sin probe rms = {np.std(sin_probe)}")
+        print(f"dm_shape rms = {np.std(updated_dm_shape)}")
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
 
@@ -401,9 +406,13 @@ if __name__ == "__main__":
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
 
         # # Regularized sin / cosine coefficients
-        sin_coeffs = dE1 / dE1sq 
+        #sin_coeffs = dE1 / dE1sq 
+        #cos_coeffs = dE2 / dE2sq 
+        sin_coeffs = dE1 / (dE1sq + 2 * clamp_val) 
+        cos_coeffs = dE2 / (dE2sq  + 2 * clamp_val)
+        
+        # sets nan or inf to zero
         sin_coeffs = condition_coeffs(sin_coeffs)
-        cos_coeffs = dE2 / dE2sq 
         cos_coeffs = condition_coeffs(cos_coeffs)
         
         # coeffs that get plotted
@@ -433,14 +442,14 @@ if __name__ == "__main__":
         control_surface = -1 * (sin_mode_control + cos_mode_control)
         control_surface -= np.mean(control_surface)
         # control_surface *= MAX_CORRECTION / np.max(np.abs(control_surface))*np.min([probe_scaling_param, 1])
-        control_surface = MAX_CORRECTION * tanh(control_surface, a=MAX_CORRECTION) * \
-                          np.min([probe_scaling_param, 1]) / np.pi * 2
+        #control_surface = MAX_CORRECTION * tanh(control_surface, a=0.2) * \
+        #                  np.min([probe_scaling_param, 1]) / np.pi * 2
         # Safety, threshold command greater than 7 volts 
         
         # Apply correction and take image
         if AOSystem._closed:
             control_surface = AOSystem.convert_voltage_to_cog(control_surface)
-
+        print(f"control_surface rms = {np.std(control_surface)}")
         updated_dm_shape = updated_dm_shape + control_surface
         set_shape = AOSystem.set_dm_data(updated_dm_shape)
         corrected_img = sf.equalize_image(Camera.take_image(), **bgds)
@@ -464,7 +473,7 @@ if __name__ == "__main__":
         plt.pause(0.1)
         contrast_curves.append(clevel)
 
-        probe_scaling_param = np.sqrt(current_sum)/np.sqrt(prev_sum)
+        probe_scaling_param = 1#np.sqrt(current_sum)/np.sqrt(prev_sum)
         print(f"Probe scaling param: {probe_scaling_param}")
         
         hdu = fits.PrimaryHDU(updated_dm_shape)
