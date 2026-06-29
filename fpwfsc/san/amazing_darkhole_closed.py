@@ -226,7 +226,32 @@ if __name__ == "__main__":
     
     anti_control_pix_x = []
     anti_control_pix_y = []
+
+    # Putting satelite spot on DM
+    print("Putting SATSPOT on DM")
+    specx = dm.make_speckle_kxy(
+        kx=16,
+        ky=0,
+        amp=1,
+        phase=0,
+        N=60,
+        centerx=xcen,
+        centery=ycen,
+        rotation=dm_angle,
+    )
     
+    specy = dm.make_speckle_kxy(
+        kx=0,
+        ky=16,
+        amp=1,
+        phase=0,
+        N=60,
+        centerx=xcen,
+        centery=ycen,
+        rotation=dm_angle,
+    )
+
+    satspots = specx + specy
 
     for yi, xi in zip(*control_indices):
         
@@ -283,6 +308,7 @@ if __name__ == "__main__":
     
     cosine_modes = np.asarray(cosine_modes) * amplitude / N_MODES
     sine_modes = np.asarray(sine_modes) * amplitude / N_MODES
+    satspots *= amplitude / 2 
     
     # Take the probe measurements
     # NOTE: ref_img is the un-probed psf
@@ -323,7 +349,7 @@ if __name__ == "__main__":
     for i in range(MAX_ITERS):
         
         if i == 0:
-            updated_dm_shape = current_dm_shape
+            updated_dm_shape = current_dm_shape + satspots
         
         if i != 0:
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
