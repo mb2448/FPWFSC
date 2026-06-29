@@ -397,7 +397,9 @@ if __name__ == "__main__":
             Ip2 = cos_plus_img
             Im2 = cos_minus_img
             I0 = ref_img
-
+        
+        # Tikhonov Regularization by standard deviation in dark hole
+        tikhonov = np.nanstd(I0[control_region])
 
         dE1 = (Ip1 - Im1) / 4
         dE2 = (Ip2 - Im2) / 4
@@ -408,8 +410,8 @@ if __name__ == "__main__":
         # # Regularized sin / cosine coefficients
         #sin_coeffs = dE1 / dE1sq 
         #cos_coeffs = dE2 / dE2sq 
-        sin_coeffs = dE1 / (dE1sq + 2 * clamp_val) 
-        cos_coeffs = dE2 / (dE2sq  + 2 * clamp_val)
+        sin_coeffs = dE1 / (dE1sq + 2 * tikhonov) 
+        cos_coeffs = dE2 / (dE2sq  + 2 * tikhonov)
         
         # sets nan or inf to zero
         sin_coeffs = condition_coeffs(sin_coeffs)
