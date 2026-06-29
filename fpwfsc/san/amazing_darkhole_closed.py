@@ -359,31 +359,8 @@ if __name__ == "__main__":
         print(f"sin probe rms = {np.std(sin_probe)}")
         print(f"dm_shape rms = {np.std(updated_dm_shape)}")
 
-        # Do a warmup DM Response
-        if i == 0:
 
-            PROBE_MAX_FACTR = 3
 
-            I0 = ref_img
-
-            # cosine + probe
-            set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
-            Ip2 = sf.equalize_image(Camera.take_image(), **bgds)
-            
-            # cosine - probe
-            set_shape = AOSystem.set_dm_data(updated_dm_shape - cos_probe)
-            Im2 = sf.equalize_image(Camera.take_image(), **bgds)
-            
-            # Control by brightest response in the dark hole
-            # NOTE: This does not catch if the starting probe amplitude is too low
-            dm_response = (Ip2 + Im2 - 2*I0) / 2
-            max_probe_amplitude = np.max(dm_response[control_region])
-            max_probe_amplitude *= PROBE_MAX_FACTR
-
-            # Update the probe amplitudes - use the same maximum to keep the
-            # relative .max() scaling between cos and sine probes constant
-            cos_probe *= max_probe_amplitude / cos_probe.max()
-            sin_probe *= max_probe_amplitude / cos_probe.max()
         
         # Resume the regular SAN probing
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
@@ -400,6 +377,7 @@ if __name__ == "__main__":
         # sine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape - sin_probe)
         sin_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
+
         
         if settings['SN_SETTINGS']['FULL_DARKHOLE']:
 
@@ -435,6 +413,7 @@ if __name__ == "__main__":
         
         dE1sq = (Ip1 + Im1 - 2*I0) / 2
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
+        
 
         # # Regularized sin / cosine coefficients
         #sin_coeffs = dE1 / dE1sq 
@@ -449,6 +428,20 @@ if __name__ == "__main__":
         # coeffs that get plotted
         sin_coeffs_init = sin_coeffs
         cos_coeffs_init = cos_coeffs
+        
+        # Update probe amplitude
+        PROBE_MAX_FACTR = 3
+        
+        # Control by brightest response in the dark hole
+        # NOTE: This does not catch if the starting probe amplitude is too low
+        dm_response = dE2sq 
+        max_probe_amplitude = np.max(dm_response[control_region])
+        max_probe_amplitude *= PROBE_MAX_FACTR
+        
+        # Update the probe amplitudes - use the same maximum to keep the
+        # relative .max() scaling between cos and sine probes constant
+        cos_probe *= max_probe_amplitude / cos_probe.max()
+        sin_probe *= max_probe_amplitude / cos_probe.max()
 
         neighbors_weight = neighbor_mask(control_region)
         sin_coeffs *= neighbors_weight
