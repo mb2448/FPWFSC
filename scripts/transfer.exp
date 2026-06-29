@@ -1,0 +1,25 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set password [lindex $argv 0]
+set source   [lindex $argv 1]
+set dest     [lindex $argv 2]
+
+# Debug: uncomment these lines if you need to verify args are passed correctly
+# puts "source: $source"
+# puts "dest: $dest"
+
+if {$source eq "" || $dest eq ""} {
+    puts "Error: source or destination is empty"
+    exit 1
+}
+
+spawn scp $source $dest
+
+expect {
+    "yes/no"          { send "yes\r"; exp_continue }
+    "password:"       { send "$password\r"; exp_continue }
+    "No such file"    { puts "Error: file not found"; exit 1 }
+    timeout           { puts "Error: connection timed out"; exit 1 }
+    eof
+}
