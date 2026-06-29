@@ -319,6 +319,7 @@ if __name__ == "__main__":
     if AOSystem._closed:
         cos_probe = AOSystem.convert_voltage_to_cog(cos_probe)
         sin_probe = AOSystem.convert_voltage_to_cog(sin_probe)
+
     
     for i in range(MAX_ITERS):
         
@@ -357,6 +358,34 @@ if __name__ == "__main__":
         print(f"cos probe rms = {np.std(cos_probe)}")
         print(f"sin probe rms = {np.std(sin_probe)}")
         print(f"dm_shape rms = {np.std(updated_dm_shape)}")
+
+        # Do a warmup DM Response
+        if i == 0:
+
+            PROBE_MAX_FACTR = 3
+
+            I0 = ref_img
+
+            # cosine + probe
+            set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
+            Ip2 = sf.equalize_image(Camera.take_image(), **bgds)
+            
+            # cosine - probe
+            set_shape = AOSystem.set_dm_data(updated_dm_shape - cos_probe)
+            Im2 = sf.equalize_image(Camera.take_image(), **bgds)
+            
+            # Control by brightest response in the dark hole
+            # NOTE: This does not catch if the starting probe amplitude is too low
+            dm_response = (Ip2 + Im2 - 2*I0) / 2
+            max_probe_amplitude = np.max(dm_response[control_region])
+            max_probe_amplitude *= PROBE_MAX_FACTR
+
+            # Update the probe amplitudes - use the same maximum to keep the
+            # relative .max() scaling between cos and sine probes constant
+            cos_probe *= max_probe_amplitude / cos_probe.max()
+            sin_probe *= max_probe_amplitude / cos_probe.max()
+        
+        # Resume the regular SAN probing
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
 
