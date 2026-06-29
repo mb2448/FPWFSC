@@ -372,36 +372,27 @@ if __name__ == "__main__":
         set_shape = AOSystem.set_dm_data(updated_dm_shape - sin_probe)
         sin_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
         
-        if settings['SN_SETTINGS']['FULL_DARKHOLE']:
 
-            ref_img_rotated = sn_f.flip_array_about_point(ref_img, xcen, ycen)
-            cos_minus_img_rotated = sn_f.flip_array_about_point(cos_minus_img, xcen, ycen)
-            sin_minus_img_rotated = sn_f.flip_array_about_point(sin_minus_img, xcen, ycen)
-            sin_plus_img_rotated = sn_f.flip_array_about_point(sin_plus_img, xcen, ycen)
-            cos_plus_img_rotated = sn_f.flip_array_about_point(cos_plus_img, xcen, ycen)
-            
-            # Compute the relevant quantities
-            # 1- sin quantities, 2- cosine quantities
-            Ip1 = (sin_plus_img + sin_plus_img_rotated) / 2
-            Im1 = (sin_minus_img + sin_minus_img_rotated) / 2
-            Ip2 = (cos_plus_img + cos_plus_img_rotated) / 2
-            Im2 = (cos_minus_img + cos_minus_img_rotated) / 2
-            I0 = (ref_img + ref_img_rotated) / 2
+        ref_img_rotated = sn_f.flip_array_about_point(ref_img, xcen, ycen)
+        cos_minus_img_rotated = sn_f.flip_array_about_point(cos_minus_img, xcen, ycen)
+        sin_minus_img_rotated = sn_f.flip_array_about_point(sin_minus_img, xcen, ycen)
+        sin_plus_img_rotated = sn_f.flip_array_about_point(sin_plus_img, xcen, ycen)
+        cos_plus_img_rotated = sn_f.flip_array_about_point(cos_plus_img, xcen, ycen)
+
+        # Compute the relevant quantities
+        # 1- sin quantities, 2- cosine quantities
+        Ip1 = sin_plus_img 
+        Im1 = sin_minus_img
+        Ip2 = cos_plus_img
+        Im2 = cos_minus_img
+        I0 = ref_img
         
-        else:
-
-            # Compute the relevant quantities
-            # 1- sin quantities, 2- cosine quantities
-            Ip1 = sin_plus_img 
-            Im1 = sin_minus_img
-            Ip2 = cos_plus_img
-            Im2 = cos_minus_img
-            I0 = ref_img
-
-
+        # Recall that these aren't rotated / combined yet
         dE1 = (Ip1 - Im1) / 4
         dE2 = (Ip2 - Im2) / 4
+
         
+        # Construct the typical SAN coefficients
         dE1sq = (Ip1 + Im1 - 2*I0) / 2
         dE2sq = (Ip2 + Im2 - 2*I0) / 2
 
@@ -424,6 +415,21 @@ if __name__ == "__main__":
         cos_coeffs *= neighbors_weight 
         sin_coeffs_control = sin_coeffs[control_region] * clamp_mask * amp_mask
         cos_coeffs_control = cos_coeffs[control_region] * clamp_mask * amp_mask
+
+        # Create Re/Im screen based on the power sensed in each mode.
+        # This returns True if |Im| > |Re|
+        imag_mask = np.where(np.abs(dE1) > np.abs(dE2)) # returns image-sized array
+        imag_mask_rotate = sn_f.flip_array_about_point(imag_mask, xcen, ycen)
+
+        imag_mask_control = imag_mask[control_region]
+        imag_mask_rotate_control = imag_mask_rotate[control_region]
+
+        # Turn off cosines if they are lesser than either sine coefficient
+        sin_brighter = imag_mask_control or imag_mask_rotate_control
+        cos_brighter = not sin_brighter
+        cos_coeffs_contol[sin_brighter] = 0
+        sin_coeffs_control[cos_brighter] = 0
+
         sin_coeffs_control = sin_coeffs_control[..., None, None]
         cos_coeffs_control = cos_coeffs_control[..., None, None]
 
