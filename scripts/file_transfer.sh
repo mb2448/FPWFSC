@@ -1,9 +1,9 @@
 #!/bin/bash
 
-WATCH_DIR="/Users/kaladin/Downloads/temp_files"
-REMOTE="jarenashcraft@dalinar.farrealmfarm.org:/home/jarenashcraft/Downloads/temp_remote"
-SENT_LOG="/tmp/sent_files.txt"
-ERROR_LOG="/tmp/transfer_errors.txt"
+WATCH_DIR="nirc8@waikoko-new:/s/sdata907/nirc8/2026jun29_B"
+REMOTE="/home/mcisse/nirc2_temp"
+SENT_LOG="/home/mcisse/sent_files.txt"
+ERROR_LOG="/home/mcisse/transfer_errors.txt"
 MAX_RETRIES=3
 EXPECT_SCRIPT="$(dirname "$0")/transfer.exp"
 

@@ -60,39 +60,19 @@ def clamp(ref_psf, control_region, clamp=0):
     weight_in_control[weight_in_control >= clamp] = 1
     return weight_in_control
 
-def condition(array, minimum=0, maximum=np.inf, minrep=0, maxrep=np.inf):
-    """set any values less than minimum to minrep,
-    and any values greater than maximum to maxrep
-    
-    Parameters
-    ----------
-    array : ndarray
-        array to apply conditioning to
-    minimum : float
-        value below which the array is set to minrep
-    maximum : float
-        value above which the array is set to maxrep
-    minrep : float
-        value to replace elements in array that are below minimum
-    maxrep : float
-        value to replace elements in array that are above maximum
-    
-    Returns
-    -------
-    ndarray
-        conditioned array subject to minimum and maximum
-    """
-    array_copy = array.copy()
-    array_copy[array_copy < minimum] = minrep
-    array_copy[array_copy >= maximum] = maxrep
-    return array_copy 
 
-def condition_coeffs(coeffs):
+def condition_coeffs(coeffs, maxval):
     """sets NaN sine and cosine coefficients to be zero"""
     coeffs_copy = coeffs.copy()
     coeffs_copy[np.isnan(coeffs_copy)] = 0
     coeffs_copy[np.isinf(coeffs_copy)] = 0
+
+    # clamp the coefficients to a maximum value
+    coeffs_copy[np.abs(coeffs_copy) > maxval] = maxval \
+        * np.sign(coeffs_copy[np.abs(coeffs_copy) > maxval])
+
     return coeffs_copy
+
 
 def amplitude_weight(ref_psf, control_region):
     """
@@ -228,30 +208,30 @@ if __name__ == "__main__":
     anti_control_pix_y = []
 
     # Putting satelite spot on DM
-    print("Putting SATSPOT on DM")
-    specx = dm.make_speckle_kxy(
-        kx=16,
-        ky=0,
-        amp=1,
-        phase=0,
-        N=60,
-        centerx=xcen,
-        centery=ycen,
-        rotation=dm_angle,
-    )
-    
-    specy = dm.make_speckle_kxy(
-        kx=0,
-        ky=16,
-        amp=1,
-        phase=0,
-        N=60,
-        centerx=xcen,
-        centery=ycen,
-        rotation=dm_angle,
-    )
+    # print("Putting SATSPOT on DM")
+    # specx = dm.make_speckle_kxy(
+    #     kx=16,
+    #     ky=0,
+    #     amp=1,
+    #     phase=0,
+    #     N=60,
+    #     centerx=xcen,
+    #     centery=ycen,
+    #     rotation=dm_angle,
+    # )
+    # 
+    # specy = dm.make_speckle_kxy(
+    #     kx=0,
+    #     ky=16,
+    #     amp=1,
+    #     phase=0,
+    #     N=60,
+    #     centerx=xcen,
+    #     centery=ycen,
+    #     rotation=dm_angle,
+    # )
 
-    satspots = specx + specy
+    # satspots = specx + specy
 
     for yi, xi in zip(*control_indices):
         
@@ -308,7 +288,7 @@ if __name__ == "__main__":
     
     cosine_modes = np.asarray(cosine_modes) * amplitude / N_MODES
     sine_modes = np.asarray(sine_modes) * amplitude / N_MODES
-    satspots *= amplitude / 2 
+    # satspots *= amplitude / 2 
     
     # Take the probe measurements
     # NOTE: ref_img is the un-probed psf
@@ -349,7 +329,7 @@ if __name__ == "__main__":
     for i in range(MAX_ITERS):
         
         if i == 0:
-            updated_dm_shape = current_dm_shape + satspots
+            updated_dm_shape = current_dm_shape # + satspots
         
         if i != 0:
             ref_img = sf.equalize_image(Camera.take_image(), **bgds)
@@ -357,7 +337,11 @@ if __name__ == "__main__":
         vmin, vmax = np.percentile(ref_img, [0, 100])
         linthresh = 0.01 * max(np.abs(vmin), np.abs(vmax)) #before loop
         norm = SymLogNorm(vmin=vmin, vmax=vmax, linthresh=linthresh)
-        im = ax[1].imshow(ref_img, norm=norm)
+        if i == 0:
+            im = ax[1].imshow(ref_img, norm=norm)
+        else:
+            im.set_data(ref_img)
+        
         CROP_RAD = 64
         ax[1].set_xlim(xcen-CROP_RAD, xcen+CROP_RAD)
         ax[1].set_ylim(ycen-CROP_RAD, ycen+CROP_RAD)
@@ -370,7 +354,7 @@ if __name__ == "__main__":
                         theta1=th1, theta2=th2, facecolor="None", edgecolor="w")
         ax[1].add_patch(dh_region)
         plt.draw()
-        plt.pause(0.1)
+        plt.pause(5)
 
         clamp_mask = clamp(ref_img, control_region, clamp=clamp_val)
         print(f"Pixels Clamped = {np.sum(1-clamp_mask)}")
@@ -385,7 +369,6 @@ if __name__ == "__main__":
         print(f"dm_shape rms = {np.std(updated_dm_shape)}")
         set_shape = AOSystem.set_dm_data(updated_dm_shape + cos_probe)
         cos_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
-
         # sine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape + sin_probe)
         sin_plus_img = sf.equalize_image(Camera.take_image(), **bgds)
@@ -397,6 +380,9 @@ if __name__ == "__main__":
         # sine probe
         set_shape = AOSystem.set_dm_data(updated_dm_shape - sin_probe)
         sin_minus_img = sf.equalize_image(Camera.take_image(), **bgds)
+        im.set_data(sin_minus_img)
+        plt.draw()
+        plt.pause(5)
         
         if settings['SN_SETTINGS']['FULL_DARKHOLE']:
 
@@ -433,13 +419,14 @@ if __name__ == "__main__":
 
         # # Regularized sin / cosine coefficients
         #sin_coeffs = dE1 / dE1sq 
-        #cos_coeffs = dE2 / dE2sq 
-        sin_coeffs = dE1 / (dE1sq + 2 * clamp_val) 
-        cos_coeffs = dE2 / (dE2sq  + 2 * clamp_val)
+        #cos_coeffs = dE2 / dE2sq
+        std_val = np.nanstd(I0[control_region])
+        sin_coeffs = dE1 / (dE1sq + 1 * std_val) 
+        cos_coeffs = dE2 / (dE2sq  + 1 * std_val)
         
         # sets nan or inf to zero
-        sin_coeffs = condition_coeffs(sin_coeffs)
-        cos_coeffs = condition_coeffs(cos_coeffs)
+        sin_coeffs = condition_coeffs(sin_coeffs, maxval=2)
+        cos_coeffs = condition_coeffs(cos_coeffs, maxval=2)
         
         # coeffs that get plotted
         sin_coeffs_init = sin_coeffs
@@ -589,7 +576,7 @@ if __name__ == "__main__":
         ax = plt.gca()
         # build the dark hole region
         dh_region = Wedge([xcen, ycen], r=OWA_pix, width=OWA_pix-IWA_pix,
-                        theta1=-90, theta2=90, facecolor="None", edgecolor="w")
+                        theta1=-45, theta2=45, facecolor="None", edgecolor="w")
         ax.add_patch(dh_region)
         
         plt.subplot(122)

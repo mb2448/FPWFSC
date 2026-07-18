@@ -1122,7 +1122,7 @@ def setup_bgd_dict(directory_path):
     """
     # List of files to look for
     required_files = {
-        'bkgd': 'medbackground.fits',
+        'bkgd': 'masterbgd.fits',
         'masterflat': 'masterflat.fits',
         'badpix': 'badpix.fits'
     }

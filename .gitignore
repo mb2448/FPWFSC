@@ -1,3 +1,5 @@
+# Folders
+output*/
 # FITS files
 *.fits
 *.fit
