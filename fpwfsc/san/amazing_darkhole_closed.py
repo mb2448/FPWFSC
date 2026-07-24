@@ -280,16 +280,13 @@ if __name__ == "__main__":
         
     # Construct and scale the probes from the modes
     N_MODES = len(cosine_modes)
+    rel_amplitude = amplitude # / N_MODES
+    cosine_modes = np.asarray(cosine_modes) * rel_amplitude
+    sine_modes = np.asarray(sine_modes) * rel_amplitude
+    
     cos_probe = np.sum(cosine_modes, axis=0)
     sin_probe = np.sum(sine_modes, axis=0)
 
-    cos_probe *= amplitude / N_MODES 
-    sin_probe *= amplitude / N_MODES 
-    
-    cosine_modes = np.asarray(cosine_modes) * amplitude / N_MODES
-    sine_modes = np.asarray(sine_modes) * amplitude / N_MODES
-    # satspots *= amplitude / 2 
-    
     # Take the probe measurements
     # NOTE: ref_img is the un-probed psf
 
@@ -420,10 +417,15 @@ if __name__ == "__main__":
         # # Regularized sin / cosine coefficients
         #sin_coeffs = dE1 / dE1sq 
         #cos_coeffs = dE2 / dE2sq
-        std_val = np.nanstd(I0[control_region])
+
+        # regularize by variance in the control region
+        #std_val = np.nanstd(I0[control_region])
+        std_val = np.sqrt(I0)
         sin_coeffs = dE1 / (dE1sq + 1 * std_val) 
         cos_coeffs = dE2 / (dE2sq  + 1 * std_val)
-        
+        #sin_coeffs = (dE1 * dE1sq) / (dE1sq**2 + 1 * std_val**2)  
+        #cos_coeffs = (dE2 * dE2sq) / (dE2sq**2 + 1 * std_val**2)
+
         # sets nan or inf to zero
         sin_coeffs = condition_coeffs(sin_coeffs, maxval=2)
         cos_coeffs = condition_coeffs(cos_coeffs, maxval=2)
