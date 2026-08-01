@@ -1,5 +1,6 @@
 # Folders
 output*/
+fpwfsc/san/sky_data/*
 # FITS files
 *.fits
 *.fit
