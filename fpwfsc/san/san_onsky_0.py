@@ -344,7 +344,7 @@ if __name__ == "__main__":
         linthresh = 0.01 * max(np.abs(vmin), np.abs(vmax)) #before loop
         norm = SymLogNorm(vmin=vmin, vmax=vmax, linthresh=linthresh)
         if i == 0:
-            im = ax[1].imshow(ref_img, norm=norm)
+            im = ax[1].imshow(ref_img, vmin=vmin, vmax=vmax)
         else:
             im.set_data(ref_img)
         
