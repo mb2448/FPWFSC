@@ -306,6 +306,7 @@ if __name__ == "__main__":
     current_dm_shape = AOSystem.get_dm_data()
 
     MAX_ITERS = settings['SN_SETTINGS']['NUM_ITERATIONS']
+    gain = settings['SN_SETTINGS']['GAIN']
 
     hdu = fits.PrimaryHDU(ref_img)
     hdu.writeto(os.path.join(work_dir,"ref_img_Halfdark_ND1_5ms.fits"), overwrite=True)
@@ -454,7 +455,7 @@ if __name__ == "__main__":
         # Apply correction and take image
         if AOSystem._closed:
             control_surface = AOSystem.convert_voltage_to_cog(control_surface)
-        updated_dm_shape = updated_dm_shape + control_surface
+        updated_dm_shape = updated_dm_shape + control_surface *gain
         set_shape = AOSystem.set_dm_data(updated_dm_shape)
         corrected_img = take_image_save_qacits(dir_name, f"iter{i}_corrected", timestamp, bgds) 
         

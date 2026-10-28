@@ -10,6 +10,7 @@
     FULL_DARKHOLE = boolean
     DM_AMPLITUDE_VOLTS = float(max=7)
     NUM_ITERATIONS = integer
+    GAIN = float
 
 [CAMERA_CALIBRATION]
     bgddir = string
