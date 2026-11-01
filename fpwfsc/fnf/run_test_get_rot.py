@@ -11,10 +11,10 @@ from pathlib import Path
 
 import gui_helper as helper
 
-from ..common import plotting_funcs as pf
-from ..common import classes as ff_c
-from ..common import fake_hardware as fhw
-from ..common import support_functions as sf
+from fpwfsc.common import plotting_funcs as pf
+from fpwfsc.common import classes as ff_c
+from fpwfsc.common import fake_hardware as fhw
+from fpwfsc.common import support_functions as sf
 
 def run_fastandfurious_test():
     FF_ini = 'FF_software.ini'

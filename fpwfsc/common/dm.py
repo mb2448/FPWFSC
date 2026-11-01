@@ -164,7 +164,7 @@ def generate_waffle(n_or_array, amplitude=1):
     
     return waffle
 
-def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = True, flipx = False, dm_rotation=0, which="cos"):
+def make_speckle_kxy(kx, ky, amp, phase, N=21, flipy = False, flipx = True, dm_rotation=0, which="cos"):
     """given an kx and ky wavevector,
     generates a NxN flatmap that has
     a speckle at that position
@@ -214,8 +214,8 @@ def make_speckle_xy(xs, ys, amps, phases,
                     N=22,
                     dm_rotation=0,
                     which="cos",
-                    flipx=False,
-                    flipy=True):
+                    flipx=True,
+                    flipy=False):
     """given an x and y pixel position,
     generates a NxN flatmap that has
     a speckle at that position"""
