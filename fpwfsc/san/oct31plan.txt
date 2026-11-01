@@ -1,0 +1,19 @@
+There's two known ways that break SAN from the bench test: 
+    - 1. wrong probe amplitude (plus large darkhole region) e.g. when probing the the outer region, the speckle is not as bright, so a lower amplitude probe actually works better while the higher amplitude one fails. Similiarly when the region is too large it also fails
+    - 2. The DM/Image rotation is off by anything other than 180 degrees. 
+
+Both should be testable. 
+plan fo rthe night: 
+
+1. Run san as is. with the correct angle selection. The different from last time is that the probe and DM registration is now using the same flip convention. 
+
+2. If it doesn't work, do a sanity check to see if the DM is generating speckles in the place we think it is. Go to oct31register_dm.py. with the established setting. The viewer winder should pop up 5 times, 2 pairs x 2 phases + 1 with all speckles. 
+    2.1 If this looks werid, change the flip setting to the production code FnF flip setting and see if this works? If it still doesn't work, use Jingyi's aligment_gui code to figure out (probably don't use sky time for this because it needs to take out the coronagraph)
+
+3/4. See if the san code is sending the correct probe and correct command. Go to octsan_onsky.py and run test 3 and 4.
+
+5. Does the applied command make sense? Go back to 
+
+6. We should see if changing the probe amplitude changes anything. Go to the config file, and increase/decrease the DM_AMPLITUDE_VOLTS
+
+7.Then I'm out of ideas, we should check background, flux, and anything else. 
