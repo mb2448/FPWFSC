@@ -106,7 +106,7 @@ if __name__ == "__main__":
     # make timestamped directory
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     dir_name = "sky_data/images/"
-    work_dir = os.path.join(dir_name, timestamp)
+    work_dir = os.path.join(dir_name)
     os.makedirs(dir_name, exist_ok=True)
     os.makedirs(os.path.join(dir_name,"bgds"), exist_ok=True)
     folder = '/home/mcisse/FPWFSC/fpwfsc/san/'
@@ -345,7 +345,7 @@ if __name__ == "__main__":
         linthresh = 0.01 * max(np.abs(vmin), np.abs(vmax)) #before loop
         norm = SymLogNorm(vmin=vmin, vmax=vmax, linthresh=linthresh)
         if i == 0:
-            im = ax[1].imshow(ref_img, vmin=vmin, vmax=vmax)
+            im = ax[1].imshow(ref_img, vmin=vmin, vmax=vmax/5)
         else:
             im.set_data(ref_img)
         
